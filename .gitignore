@@ -1,0 +1,14 @@
+## Ignore Visual Studio / .NET build outputs
+[Bb]in/
+[Oo]bj/
+[Lls]og/
+[Ll]ogs/
+.vs/
+.idea/
+*.user
+*.userosscache
+*.sln.docstates
+
+## OS Generated Files
+.DS_Store
+Thumbs.db

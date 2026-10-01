@@ -166,8 +166,9 @@
                 }
                 tenant = await res.json();
 
+                const tenantTimeZone = tenant.timeZoneId || tenant.timeZone || tenant.staff?.[0]?.timeZoneId || 'Asia/Kolkata';
                 document.getElementById('tenantName').textContent = tenant.name;
-                document.getElementById('businessZone').textContent = tenant.timeZone || 'UTC';
+                document.getElementById('businessZone').textContent = tenantTimeZone;
 
                 renderServices();
                 renderStaff();
@@ -230,6 +231,30 @@
             document.getElementById(`step${stepNum}`).classList.remove('hidden');
         }
 
+        function formatBusinessDate(dateStr) {
+            if (!dateStr) return 'Select date';
+            const parts = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr.split('-') : null;
+            if (!parts || parts.length !== 3) {
+                return 'Unavailable date';
+            }
+
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            if (Number.isNaN(d.getTime())) {
+                return 'Unavailable date';
+            }
+
+            return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function formatBusinessTime(isoStr) {
+            if (!isoStr) return 'Unavailable';
+            const d = new Date(isoStr);
+            if (Number.isNaN(d.getTime())) {
+                return 'Unavailable';
+            }
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
         async function fetchSlots() {
             const staffId = document.getElementById('staffSelect').value;
             selectedDate = document.getElementById('dateInput').value;
@@ -257,19 +282,44 @@
                 const slots = await res.json();
 
                 if (!slots || slots.length === 0) {
-                    container.innerHTML = '<p class="text-amber-600 col-span-4 font-medium">No available slots on this date. Please select another date.</p>';
+                    container.innerHTML = '<div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg col-span-4 text-center font-medium text-sm">No available slots on this date. The salon or staff member has no working hours on this day (e.g. weekend or holiday). Please select another date.</div>';
                     return;
                 }
 
-                container.innerHTML = slots.map(slot => {
-                    const startDt = new Date(slot.start);
-                    const timeStr = startDt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const morning = slots.filter(s => new Date(s.start).getHours() < 12);
+                const afternoon = slots.filter(s => new Date(s.start).getHours() >= 12 && new Date(s.start).getHours() < 17);
+                const evening = slots.filter(s => new Date(s.start).getHours() >= 17);
+
+                function renderGroup(title, groupSlots) {
+                    if (!groupSlots || groupSlots.length === 0) return '';
                     return `
-                        <button onclick="selectSlot('${slot.start}')" id="slot-${slot.start}" class="slot-btn border-2 border-slate-200 p-3 rounded-lg text-sm font-semibold text-slate-800 transition">
-                            ${timeStr}
-                        </button>
+                        <div class="col-span-4 mt-2">
+                            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">${title}</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                ${groupSlots.map(slot => {
+                                    const timeStr = formatBusinessTime(slot.start);
+                                    return `
+                                        <button onclick="selectSlot('${slot.start}')" id="slot-${slot.start}" class="slot-btn border-2 border-slate-200 p-3 rounded-lg text-sm font-semibold text-slate-800 transition text-center hover:border-blue-500">
+                                            ${timeStr}
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
                     `;
-                }).join('');
+                }
+
+                const businessZone = tenant.timeZoneId || tenant.timeZone || selectedStaff?.timeZoneId || 'Asia/Kolkata';
+                const contextBanner = `
+                    <div class="col-span-4 bg-slate-100 border border-slate-200 p-3 rounded-lg text-xs flex flex-wrap gap-4 text-slate-700 font-medium mb-3">
+                        <div><strong>Service:</strong> ${selectedService.name} (${parseDuration(selectedService.duration || selectedService.durationMinutes)} min - $${selectedService.price})</div>
+                        <div><strong>Staff:</strong> ${selectedStaff.name}</div>
+                        <div><strong>Date:</strong> ${formatBusinessDate(selectedDate)}</div>
+                        <div><strong>Business TZ:</strong> ${businessZone}</div>
+                    </div>
+                `;
+
+                container.innerHTML = contextBanner + renderGroup('Morning', morning) + renderGroup('Afternoon', afternoon) + renderGroup('Evening', evening);
             } catch (err) {
                 container.innerHTML = `<p class="text-red-500 col-span-4 font-medium">Error loading availability slots: ${err.message}</p>`;
             }
@@ -293,6 +343,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         staffId: selectedStaff.id,
+                        serviceId: selectedService.id,
                         startUtc: selectedSlot
                     })
                 });
@@ -305,7 +356,7 @@
                 }
 
                 currentHold = await res.json();
-                startHoldTimer(currentHold.expiresAt);
+                startHoldTimer(currentHold.expiresAtUtc);
 
                 const slotDt = new Date(selectedSlot);
                 document.getElementById('reservedSummary').textContent = `${selectedService.name} with ${selectedStaff.name} on ${slotDt.toLocaleString()}`;
@@ -355,9 +406,11 @@
                     body: JSON.stringify({
                         staffId: selectedStaff.id,
                         serviceId: selectedService.id,
-                        customerId: crypto.randomUUID(),
                         startUtc: selectedSlot,
-                        holdId: currentHold.holdId
+                        holdId: currentHold.holdId,
+                        customerName: name,
+                        customerEmail: email,
+                        customerPhone: phone
                     })
                 });
 

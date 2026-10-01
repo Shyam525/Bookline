@@ -64,6 +64,22 @@ public class Booking : TenantEntity
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
+    public void Reschedule(DateTimeOffset startUtc, DateTimeOffset endUtc)
+    {
+        if (Status != BookingStatus.Pending && Status != BookingStatus.Confirmed)
+        {
+            throw new InvalidStatusTransitionException(Status, Status);
+        }
+        if (endUtc <= startUtc)
+        {
+            throw new ArgumentException("Booking end time must be after its start time.", nameof(endUtc));
+        }
+
+        StartUtc = startUtc;
+        EndUtc = endUtc;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
     public void MarkNoShow()
     {
         if (Status != BookingStatus.Confirmed)

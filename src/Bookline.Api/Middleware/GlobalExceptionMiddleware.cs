@@ -82,8 +82,7 @@ public class GlobalExceptionMiddleware
                 problemDetails.Detail = domainEx.Message;
                 break;
 
-            case InvalidOperationException invEx:
-
+            case InvalidOperationException invEx when !invEx.Message.Contains("PipeWriter"):
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 problemDetails.Status = (int)HttpStatusCode.BadRequest;
                 problemDetails.Title = "Invalid Operation";
@@ -98,6 +97,7 @@ public class GlobalExceptionMiddleware
                 break;
         }
 
-        await context.Response.WriteAsJsonAsync(problemDetails);
+        var json = System.Text.Json.JsonSerializer.Serialize(problemDetails);
+        await context.Response.WriteAsync(json);
     }
 }

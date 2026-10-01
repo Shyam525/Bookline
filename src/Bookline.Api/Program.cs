@@ -3,6 +3,7 @@ using Bookline.Api.Middleware;
 using Bookline.Application.Common.Behaviors;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
+using Bookline.Domain.Entities;
 using Bookline.Application.Services.Commands;
 using Bookline.Infrastructure.Authentication;
 using Bookline.Infrastructure.Persistence;
@@ -11,7 +12,12 @@ using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
+using System.Text.Json.Serialization;
+using NodaTime;
+using NodaTime.Text;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,7 +32,11 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Add services
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new InstantJsonConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
@@ -122,6 +132,7 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseCors();
+app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseHttpsRedirection();
 
@@ -131,9 +142,112 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapFallbackToFile("index.html");
 
 try
 {
+    // Apply EF Core Migrations & Seed Default Tenant Automatically on Startup
+    using (var scope = app.Services.CreateScope())
+    {
+        try
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
+
+            if (db.Database.IsRelational())
+            {
+                var dbCreator = db.Database.GetService<IRelationalDatabaseCreator>();
+
+                try
+                {
+                    _ = db.Tenants.IgnoreQueryFilters().Any();
+                }
+                catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P01")
+                {
+                    Log.Information("Database tables missing. Creating PostgreSQL schema from DbContext model...");
+                    dbCreator.CreateTables();
+                }
+
+                db.Database.ExecuteSqlRaw(@"
+                    CREATE EXTENSION IF NOT EXISTS btree_gist;
+                    ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_overlap;
+                    ALTER TABLE ""Bookings"" ADD CONSTRAINT no_overlap
+                      EXCLUDE USING gist (
+                        ""StaffId"" WITH =,
+                        tstzrange(""StartUtc"", ""EndUtc"") WITH &&
+                      )
+                      WHERE (""Status"" IN ('Pending','Confirmed'));
+                ");
+            }
+            else
+            {
+                db.Database.EnsureCreated();
+            }
+
+            // Seed demo tenant if empty
+            if (!db.Tenants.IgnoreQueryFilters().Any())
+            {
+                var tenant = new Tenant 
+                { 
+                    Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), 
+                    Name = "Bookline Demo Salon", 
+                    Slug = "acme-salon" 
+                };
+                db.Tenants.Add(tenant);
+
+                var service = new Service 
+                { 
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
+                    TenantId = tenant.Id, 
+                    Name = "Haircut & Style", 
+                    DurationMinutes = 45, 
+                    BufferMinutes = 15, 
+                    Price = 50.00m 
+                };
+                db.Services.Add(service);
+
+                var staff = new Staff 
+                { 
+                    Id = Guid.Parse("77777777-7777-7777-7777-777777777777"), 
+                    TenantId = tenant.Id, 
+                    Name = "Alex Johnson", 
+                    TimeZoneId = "America/New_York" 
+                };
+                db.Staff.Add(staff);
+
+                // Add Working Hours for Monday - Friday 09:00 - 17:00
+                for (int day = 1; day <= 5; day++)
+                {
+                    db.WorkingHours.Add(new WorkingHours
+                    {
+                        TenantId = tenant.Id,
+                        StaffId = staff.Id,
+                        DayOfWeek = (DayOfWeek)day,
+                        StartTime = new TimeOnly(9, 0),
+                        EndTime = new TimeOnly(17, 0)
+                    });
+                }
+
+                var customer = new Customer
+                {
+                    Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                    TenantId = tenant.Id,
+                    FirstName = "Jane",
+                    LastName = "Doe",
+                    Email = "jane.doe@example.com",
+                    Phone = "+15550000000"
+                };
+                db.Customers.Add(customer);
+
+                db.SaveChanges();
+                Log.Information("Demo tenant 'acme-salon' and initial seed data created successfully.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "An error occurred while applying EF Core database migrations or seeding.");
+        }
+    }
+
     Log.Information("Starting Bookline Web API...");
     app.Run();
 }
@@ -144,6 +258,22 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+public class InstantJsonConverter : JsonConverter<Instant>
+{
+    public override Instant Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+    {
+        var str = reader.GetString();
+        if (string.IsNullOrEmpty(str)) return default;
+        var parseResult = InstantPattern.ExtendedIso.Parse(str);
+        return parseResult.Success ? parseResult.Value : default;
+    }
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, Instant value, System.Text.Json.JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString());
+    }
 }
 
 public partial class Program { }

@@ -4,6 +4,7 @@ using Bookline.Application.Bookings.DTOs;
 using Bookline.Application.Common.Interfaces;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 public record HoldSlotCommand(
     Guid StaffId,
@@ -37,7 +38,15 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
 
     public async Task<HoldSlotResultDto> Handle(HoldSlotCommand request, CancellationToken cancellationToken)
     {
-        var tenantId = _tenantContext.TenantId;
+        var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : Guid.Empty;
+        if (tenantId == Guid.Empty)
+        {
+            var service = await _context.Services.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.ServiceId, cancellationToken);
+            if (service != null)
+            {
+                tenantId = service.TenantId;
+            }
+        }
 
         var holdId = await _slotHoldService.AcquireHoldAsync(
             tenantId,

@@ -13,7 +13,8 @@ public record GetPublicAvailabilityQuery(
     Guid StaffId,
     Guid ServiceId,
     LocalDate Date,
-    string TimeZoneId
+    string TimeZoneId,
+    string? Slug = null
 ) : IRequest<IReadOnlyList<Slot>>;
 
 public class GetPublicAvailabilityQueryValidator : AbstractValidator<GetPublicAvailabilityQuery>
@@ -40,6 +41,7 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
     public async Task<IReadOnlyList<Slot>> Handle(GetPublicAvailabilityQuery request, CancellationToken cancellationToken)
     {
         var service = await _context.Services
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == request.ServiceId, cancellationToken);
 
@@ -49,6 +51,7 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
         }
 
         var staff = await _context.Staff
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == request.StaffId, cancellationToken);
 
@@ -57,22 +60,42 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             throw new NotFoundException(nameof(Staff), request.StaffId);
         }
 
+        if (service.TenantId != staff.TenantId)
+        {
+            throw new NotFoundException("Service and Staff belong to different tenants.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Slug))
+        {
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Slug.ToLower() == request.Slug.ToLower() && t.IsActive, cancellationToken);
+
+            if (tenant == null || service.TenantId != tenant.Id || staff.TenantId != tenant.Id)
+            {
+                throw new NotFoundException("Service or Staff does not belong to the specified tenant.");
+            }
+        }
+
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(request.TimeZoneId)
             ?? DateTimeZoneProviders.Tzdb.GetZoneOrNull(staff.TimeZoneId)
             ?? DateTimeZoneProviders.Tzdb["UTC"];
 
-
         var workingHours = await _context.WorkingHours
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(w => w.StaffId == request.StaffId)
             .ToListAsync(cancellationToken);
 
         var existingBookings = await _context.Bookings
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(b => b.StaffId == request.StaffId && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
             .ToListAsync(cancellationToken);
 
         var timeOffs = await _context.TimeOffs
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(t => t.StaffId == request.StaffId)
             .ToListAsync(cancellationToken);

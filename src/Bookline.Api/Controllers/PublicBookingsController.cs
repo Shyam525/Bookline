@@ -28,6 +28,7 @@ public class PublicBookingsController : ControllerBase
         [FromQuery] Guid serviceId,
         [FromQuery] string date,
         [FromQuery] string? timezone,
+        [FromQuery] string? slug,
         CancellationToken cancellationToken)
     {
         var parseResult = LocalDatePattern.Iso.Parse(date);
@@ -40,10 +41,13 @@ public class PublicBookingsController : ControllerBase
             staffId,
             serviceId,
             parseResult.Value,
-            timezone ?? "UTC");
+            timezone ?? "UTC",
+            slug);
 
         var result = await _mediator.Send(query, cancellationToken);
-        return Ok(result);
+        var options = new System.Text.Json.JsonSerializerOptions();
+        options.Converters.Add(new InstantJsonConverter());
+        return Content(System.Text.Json.JsonSerializer.Serialize(result, options), "application/json");
     }
 
     [HttpPost("hold")]

@@ -36,16 +36,21 @@ public class TenantSaveChangesInterceptor : SaveChangesInterceptor
             {
                 if (!_tenantContext.IsResolved)
                 {
-                    throw new InvalidOperationException("Cannot save tenant entity without an active tenant context.");
+                    if (entry.Entity.TenantId == Guid.Empty)
+                    {
+                        throw new InvalidOperationException("Cannot save tenant entity without an active tenant context.");
+                    }
                 }
-
-                if (entry.Entity.TenantId == Guid.Empty)
+                else
                 {
-                    entry.Entity.TenantId = _tenantContext.TenantId;
-                }
-                else if (entry.Entity.TenantId != _tenantContext.TenantId)
-                {
-                    throw new InvalidOperationException("Entity TenantId does not match current TenantContext.");
+                    if (entry.Entity.TenantId == Guid.Empty)
+                    {
+                        entry.Entity.TenantId = _tenantContext.TenantId;
+                    }
+                    else if (entry.Entity.TenantId != _tenantContext.TenantId)
+                    {
+                        throw new InvalidOperationException("Entity TenantId does not match current TenantContext.");
+                    }
                 }
             }
             else if (entry.State == EntityState.Modified || entry.State == EntityState.Deleted)

@@ -23,6 +23,7 @@ public class GetPublicTenantBySlugQueryHandler : IRequestHandler<GetPublicTenant
     public async Task<PublicTenantDto> Handle(GetPublicTenantBySlugQuery request, CancellationToken cancellationToken)
     {
         var tenant = await _context.Tenants
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Slug.ToLower() == request.Slug.ToLower() && t.IsActive, cancellationToken);
 
@@ -32,12 +33,14 @@ public class GetPublicTenantBySlugQueryHandler : IRequestHandler<GetPublicTenant
         }
 
         var services = await _context.Services
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(s => s.TenantId == tenant.Id && s.IsActive)
             .Select(s => new PublicServiceDto(s.Id, s.Name, s.DurationMinutes, s.BufferMinutes, s.Price))
             .ToListAsync(cancellationToken);
 
         var staff = await _context.Staff
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(st => st.TenantId == tenant.Id && st.IsActive)
             .Select(st => new PublicStaffDto(st.Id, st.Name, st.TimeZoneId))

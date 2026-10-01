@@ -33,8 +33,8 @@ services:
     image: axllent/mailpit:v1.15
     container_name: bookline-mailpit
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "1026:1025"
+      - "8026:8025"
 
 volumes:
   postgres_data:

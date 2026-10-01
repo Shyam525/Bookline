@@ -57,9 +57,16 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
     public async Task<BookingDto> Handle(CreateBookingCommand request, CancellationToken cancellationToken)
     {
-        var tenantId = _tenantContext.TenantId;
+        // 1. Retrieve Service for duration & tenant identification
+        var service = await _context.Services.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.ServiceId, cancellationToken);
+        if (service == null)
+        {
+            throw new NotFoundException(nameof(Service), request.ServiceId);
+        }
 
-        // 1. Verify Redis slot hold
+        var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : service.TenantId;
+
+        // 2. Verify Redis slot hold
         var isValidHold = await _slotHoldService.ValidateHoldAsync(
             tenantId,
             request.StaffId,
@@ -70,13 +77,6 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         if (!isValidHold)
         {
             throw new ValidationException("Slot hold is invalid or has expired.");
-        }
-
-        // 2. Retrieve Service for duration
-        var service = await _context.Services.FirstOrDefaultAsync(s => s.Id == request.ServiceId, cancellationToken);
-        if (service == null)
-        {
-            throw new NotFoundException(nameof(Service), request.ServiceId);
         }
 
         var endUtc = request.StartUtc.AddMinutes(service.DurationMinutes);
@@ -114,9 +114,9 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         {
             try
             {
-                var staff = await _context.Staff.FirstOrDefaultAsync(s => s.Id == request.StaffId, cancellationToken);
-                var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == request.CustomerId, cancellationToken);
-                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+                var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.StaffId, cancellationToken);
+                var customer = await _context.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == request.CustomerId, cancellationToken);
+                var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
                 if (staff != null && customer != null && tenant != null)
                 {
@@ -174,7 +174,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
     {
         try
         {
-            var staff = await _context.Staff.FirstOrDefaultAsync(s => s.Id == staffId, cancellationToken);
+            var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == staffId, cancellationToken);
             if (staff == null) return Array.Empty<Slot>();
 
             var zone = NodaTime.DateTimeZoneProviders.Tzdb.GetZoneOrNull(staff.TimeZoneId) 
@@ -185,15 +185,18 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             var localDate = requestedInstant.InZone(zone).Date;
 
             var workingHours = await _context.WorkingHours
+                .IgnoreQueryFilters()
                 .Where(w => w.StaffId == staffId)
                 .ToListAsync(cancellationToken);
 
             var existingBookings = await _context.Bookings
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(b => b.StaffId == staffId && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
                 .ToListAsync(cancellationToken);
 
             var timeOffs = await _context.TimeOffs
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(t => t.StaffId == staffId)
                 .ToListAsync(cancellationToken);

@@ -28,6 +28,8 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<WebhookSubscription> Webhooks => Set<WebhookSubscription>();
     public DbSet<WebhookDeliveryLog> WebhookLogs => Set<WebhookDeliveryLog>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,7 +43,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
         {
             builder.HasKey(b => b.Id);
             builder.Property(b => b.Status).HasConversion<string>();
-            builder.Property(b => b.RowVersion).IsRowVersion();
+            builder.Property(b => b.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         });
 
 
@@ -62,5 +64,35 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     private void SetTenantQueryFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : TenantEntity
     {
         modelBuilder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == _tenantContext.TenantId);
+    }
+
+    public override int SaveChanges() => SaveChanges(acceptAllChangesOnSuccess: true);
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        RefreshBookingRowVersions();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        RefreshBookingRowVersions();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void RefreshBookingRowVersions()
+    {
+        foreach (var entry in ChangeTracker.Entries<Booking>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            }
+        }
     }
 }

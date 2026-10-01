@@ -18,6 +18,8 @@ public interface IApplicationDbContext
     DbSet<Booking> Bookings { get; }
     DbSet<WebhookSubscription> Webhooks { get; }
     DbSet<WebhookDeliveryLog> WebhookLogs { get; }
+    DbSet<OutboxMessage> OutboxMessages { get; }
+    DbSet<AuditLog> AuditLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

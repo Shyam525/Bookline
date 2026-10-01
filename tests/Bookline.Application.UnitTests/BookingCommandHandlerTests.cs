@@ -1,6 +1,7 @@
 namespace Bookline.Application.UnitTests;
 
 using Bookline.Application.Bookings.Commands;
+using Bookline.Application.Bookings.Queries;
 using Bookline.Application.Common.Exceptions;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
@@ -11,6 +12,7 @@ using Bookline.Infrastructure.Services;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using NodaTime.Text;
 using Xunit;
 
 public class BookingCommandHandlerTests
@@ -74,10 +76,114 @@ public class BookingCommandHandlerTests
         Assert.NotNull(result);
         Assert.Equal(_staffId, result.StaffId);
         Assert.Equal(BookingStatus.Pending, result.Status);
+        Assert.NotEmpty((await context.Bookings.SingleAsync()).RowVersion);
 
         // Verify hold was released after successful booking
         var isHoldValid = await _slotHoldService.ValidateHoldAsync(_tenantId, _staffId, startUtc, holdId.Value);
         Assert.False(isHoldValid);
+    }
+
+    [Fact]
+    public async Task CreateBooking_WithContactDetails_CreatesTenantCustomer()
+    {
+        using var context = CreateInMemoryDbContext();
+        var handler = new CreateBookingCommandHandler(context, _tenantContext, _slotHoldService, _slotEngine);
+        var startUtc = DateTimeOffset.UtcNow.AddDays(1);
+        var holdId = await _slotHoldService.AcquireHoldAsync(_tenantId, _staffId, startUtc, TimeSpan.FromMinutes(30));
+
+        var result = await handler.Handle(
+            new CreateBookingCommand(
+                _staffId,
+                _serviceId,
+                null,
+                startUtc,
+                holdId!.Value,
+                "Charlie Brown",
+                "charlie@example.com",
+                "+1 555 0100"),
+            CancellationToken.None);
+
+        var customer = await context.Customers.IgnoreQueryFilters()
+            .SingleAsync(candidate => candidate.Email == "charlie@example.com");
+
+        Assert.Equal(_tenantId, customer.TenantId);
+        Assert.Equal("Charlie", customer.FirstName);
+        Assert.Equal("Brown", customer.LastName);
+        Assert.Equal(customer.Id, result.CustomerId);
+    }
+
+    [Fact]
+    public async Task CancelBooking_ChangesPendingBookingToCancelled()
+    {
+        using var context = CreateInMemoryDbContext();
+        var booking = new Booking(
+            _tenantId,
+            _staffId,
+            _serviceId,
+            _customerId,
+            DateTimeOffset.UtcNow.AddDays(1),
+            DateTimeOffset.UtcNow.AddDays(1).AddMinutes(30));
+        context.Bookings.Add(booking);
+        await context.SaveChangesAsync();
+
+        var handler = new CancelBookingCommandHandler(context);
+        await handler.Handle(new CancelBookingCommand(booking.Id), CancellationToken.None);
+
+        var cancelled = await context.Bookings.SingleAsync(candidate => candidate.Id == booking.Id);
+        Assert.Equal(BookingStatus.Cancelled, cancelled.Status);
+    }
+
+    [Fact]
+    public async Task ConfirmBooking_ChangesPendingBookingToConfirmed()
+    {
+        using var context = CreateInMemoryDbContext();
+        var booking = new Booking(
+            _tenantId,
+            _staffId,
+            _serviceId,
+            _customerId,
+            DateTimeOffset.UtcNow.AddDays(1),
+            DateTimeOffset.UtcNow.AddDays(1).AddMinutes(30));
+        context.Bookings.Add(booking);
+        await context.SaveChangesAsync();
+
+        var handler = new ConfirmBookingCommandHandler(context);
+        await handler.Handle(new ConfirmBookingCommand(booking.Id), CancellationToken.None);
+
+        var confirmed = await context.Bookings.SingleAsync(candidate => candidate.Id == booking.Id);
+        Assert.Equal(BookingStatus.Confirmed, confirmed.Status);
+    }
+
+    [Fact]
+    public async Task RescheduleBooking_WithValidHold_UpdatesBookingInterval()
+    {
+        using var context = CreateInMemoryDbContext();
+        var originalStart = DateTimeOffset.UtcNow.AddDays(1);
+        var booking = new Booking(
+            _tenantId,
+            _staffId,
+            _serviceId,
+            _customerId,
+            originalStart,
+            originalStart.AddMinutes(30));
+        context.Bookings.Add(booking);
+        await context.SaveChangesAsync();
+
+        var newStart = DateTimeOffset.UtcNow.AddDays(2);
+        var holdId = await _slotHoldService.AcquireHoldAsync(
+            _tenantId,
+            _staffId,
+            newStart,
+            TimeSpan.FromMinutes(30));
+        var handler = new RescheduleBookingCommandHandler(context, _slotHoldService);
+
+        var result = await handler.Handle(
+            new RescheduleBookingCommand(booking.Id, newStart, holdId!.Value),
+            CancellationToken.None);
+
+        Assert.Equal(newStart, result.StartUtc);
+        Assert.Equal(newStart.AddMinutes(30), result.EndUtc);
+        Assert.Equal(BookingStatus.Pending, result.Status);
     }
 
     [Fact]
@@ -151,6 +257,49 @@ public class BookingCommandHandlerTests
         var secondBookingDto = await handler.Handle(new CreateBookingCommand(_staffId, _serviceId, _customerId, startUtc, holdId2.Value), CancellationToken.None);
         Assert.NotNull(secondBookingDto);
         Assert.NotEqual(bookingDto.Id, secondBookingDto.Id);
+    }
+
+    [Theory]
+    [InlineData("2026-10-05", true)]  // Monday -> Working hours present -> slots returned
+    [InlineData("2026-10-03", false)] // Saturday -> No working hours -> empty slots
+    public async Task Availability_matches_working_hours(string dateString, bool expectSlots)
+    {
+        var options = new DbContextOptionsBuilder<BooklineDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        using var context = new BooklineDbContext(options, _tenantContext);
+
+        var tenant = new Tenant { Id = _tenantId, Name = "Acme Salon", Slug = "acme-salon", IsActive = true };
+        context.Tenants.Add(tenant);
+
+        var staff = new Staff { Id = _staffId, TenantId = _tenantId, TimeZoneId = "UTC" };
+        context.Staff.Add(staff);
+
+        var service = new Service { Id = _serviceId, TenantId = _tenantId, Name = "Haircut", DurationMinutes = 30, BufferMinutes = 0, Price = 50 };
+        context.Services.Add(service);
+
+        // Seed Monday-Friday working hours (DayOfWeek 1..5)
+        for (int day = 1; day <= 5; day++)
+        {
+            context.WorkingHours.Add(new WorkingHours
+            {
+                TenantId = _tenantId,
+                StaffId = _staffId,
+                DayOfWeek = (DayOfWeek)day,
+                StartTime = new TimeOnly(9, 0),
+                EndTime = new TimeOnly(17, 0)
+            });
+        }
+        await context.SaveChangesAsync();
+
+        var queryHandler = new GetPublicAvailabilityQueryHandler(context, _slotEngine);
+        var date = LocalDatePattern.Iso.Parse(dateString).Value;
+        var query = new GetPublicAvailabilityQuery(_staffId, _serviceId, date, "UTC", "acme-salon");
+
+        var slots = await queryHandler.Handle(query, CancellationToken.None);
+
+        Assert.Equal(expectSlots, slots.Count > 0);
     }
 
     private class TestTenantContext : ITenantContext

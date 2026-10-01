@@ -13,9 +13,12 @@ using Microsoft.EntityFrameworkCore;
 public record CreateBookingCommand(
     Guid StaffId,
     Guid ServiceId,
-    Guid CustomerId,
+    Guid? CustomerId,
     DateTimeOffset StartUtc,
-    Guid HoldId
+    Guid HoldId,
+    string? CustomerName = null,
+    string? CustomerEmail = null,
+    string? CustomerPhone = null
 ) : IRequest<BookingDto>;
 
 public class CreateBookingCommandValidator : AbstractValidator<CreateBookingCommand>
@@ -24,7 +27,9 @@ public class CreateBookingCommandValidator : AbstractValidator<CreateBookingComm
     {
         RuleFor(x => x.StaffId).NotEmpty();
         RuleFor(x => x.ServiceId).NotEmpty();
-        RuleFor(x => x.CustomerId).NotEmpty();
+        RuleFor(x => x.CustomerId).NotEmpty().When(x => x.CustomerId.HasValue);
+        RuleFor(x => x.CustomerName).NotEmpty().When(x => !x.CustomerId.HasValue);
+        RuleFor(x => x.CustomerEmail).NotEmpty().EmailAddress().When(x => !x.CustomerId.HasValue);
         RuleFor(x => x.HoldId).NotEmpty();
         RuleFor(x => x.StartUtc).GreaterThan(DateTimeOffset.UtcNow.AddMinutes(-5));
     }
@@ -79,6 +84,8 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             throw new ValidationException("Slot hold is invalid or has expired.");
         }
 
+        var customer = await ResolveCustomerAsync(request, tenantId, cancellationToken);
+
         var endUtc = request.StartUtc.AddMinutes(service.DurationMinutes);
 
         // 3. Instantiate Booking entity
@@ -86,7 +93,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             tenantId,
             request.StaffId,
             request.ServiceId,
-            request.CustomerId,
+            customer.Id,
             request.StartUtc,
             endUtc);
 
@@ -115,7 +122,6 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             try
             {
                 var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.StaffId, cancellationToken);
-                var customer = await _context.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == request.CustomerId, cancellationToken);
                 var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
                 if (staff != null && customer != null && tenant != null)
@@ -143,6 +149,55 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             booking.EndUtc,
             booking.Status,
             booking.CreatedAtUtc);
+    }
+
+    private async Task<Customer> ResolveCustomerAsync(
+        CreateBookingCommand request,
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (request.CustomerId is Guid customerId)
+        {
+            var existingCustomer = await _context.Customers
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
+                    customer => customer.Id == customerId && customer.TenantId == tenantId,
+                    cancellationToken);
+
+            return existingCustomer ?? throw new NotFoundException(nameof(Customer), customerId);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CustomerName) || string.IsNullOrWhiteSpace(request.CustomerEmail))
+        {
+            throw new ValidationException("Customer name and email are required.");
+        }
+
+        var email = request.CustomerEmail.Trim();
+        var customer = await _context.Customers
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                candidate => candidate.TenantId == tenantId && candidate.Email.ToLower() == email.ToLower(),
+                cancellationToken);
+
+        if (customer != null)
+        {
+            return customer;
+        }
+
+        var nameParts = request.CustomerName.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        customer = new Customer
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            FirstName = nameParts[0],
+            LastName = nameParts.Length > 1 ? nameParts[1] : string.Empty,
+            Email = email,
+            Phone = request.CustomerPhone?.Trim() ?? string.Empty,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.Customers.Add(customer);
+        return customer;
     }
 
     private static bool IsExclusionViolation(DbUpdateException ex)

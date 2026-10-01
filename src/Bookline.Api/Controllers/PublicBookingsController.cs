@@ -45,7 +45,7 @@ public class PublicBookingsController : ControllerBase
             slug);
 
         var result = await _mediator.Send(query, cancellationToken);
-        var options = new System.Text.Json.JsonSerializerOptions();
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
         options.Converters.Add(new InstantJsonConverter());
         return Content(System.Text.Json.JsonSerializer.Serialize(result, options), "application/json");
     }

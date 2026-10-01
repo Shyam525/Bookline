@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#173f3a">
+    <title>Bookline | Business Desk</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #172a27;
+            --muted: #637570;
+            --line: #dbe5e1;
+            --paper: #f5f8f6;
+            --surface: #ffffff;
+            --green: #175b4d;
+            --green-dark: #103f37;
+            --mint: #d9eee6;
+            --coral: #bc5744;
+            --amber: #b97820;
+            --shadow: 0 12px 30px rgba(24, 55, 47, .07);
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 "Segoe UI", sans-serif; }
+        button, input, select { font: inherit; }
+        button { cursor: pointer; }
+        .hidden { display: none !important; }
+        .login-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 430px); background: #173f3a; }
+        .login-aside { display: flex; flex-direction: column; justify-content: space-between; padding: clamp(28px, 6vw, 84px); color: white; background: radial-gradient(ellipse at 18% 85%, #377363 0, transparent 42%), linear-gradient(145deg, #173f3a, #102d2a); }
+        .wordmark { display: flex; align-items: center; gap: 12px; font-weight: 700; letter-spacing: .04em; }
+        .mark { width: 38px; height: 38px; border: 1px solid #a7d4c3; display: grid; place-items: center; color: #c5e9db; font-family: Georgia, serif; font-size: 22px; }
+        .aside-copy { max-width: 570px; }
+        .aside-copy h1 { max-width: 540px; margin: 0 0 18px; font: 500 clamp(38px, 5vw, 64px)/1.02 Georgia, serif; }
+        .aside-copy p { max-width: 430px; margin: 0; color: #c1d8d0; font-size: 17px; }
+        .aside-foot { color: #a5c1b7; font-size: 12px; }
+        .login-panel { align-self: center; width: min(100% - 36px, 390px); margin: auto; padding: 34px; border: 1px solid #e0e8e4; background: white; box-shadow: var(--shadow); }
+        .login-panel h2 { margin: 0 0 6px; font: 500 29px/1.2 Georgia, serif; }
+        .login-panel > p { margin: 0 0 26px; color: var(--muted); }
+        label { display: block; margin: 0 0 6px; color: #3e514c; font-size: 13px; font-weight: 650; }
+        input, select { width: 100%; min-height: 42px; padding: 9px 11px; color: var(--ink); border: 1px solid #cbd8d2; border-radius: 4px; background: white; }
+        input:focus, select:focus { outline: 3px solid #a9d8c8; border-color: var(--green); }
+        .field { margin-bottom: 17px; }
+        .btn { min-height: 40px; padding: 9px 14px; border: 1px solid var(--green); border-radius: 4px; color: white; background: var(--green); font-weight: 650; }
+        .btn:hover { background: var(--green-dark); }
+        .btn:disabled { opacity: .55; cursor: wait; }
+        .btn-secondary { color: var(--green); background: white; }
+        .btn-secondary:hover { color: white; }
+        .btn-danger { color: #a23e34; border-color: #e5bdb6; background: #fff8f6; }
+        .btn-danger:hover { color: white; border-color: var(--coral); background: var(--coral); }
+        .btn-small { min-height: 32px; padding: 5px 9px; font-size: 12px; }
+        .login-panel .btn { width: 100%; margin-top: 5px; }
+        .app-header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 13px clamp(16px, 4vw, 48px); color: white; background: var(--green-dark); box-shadow: 0 3px 12px rgba(12, 43, 36, .15); }
+        .app-header .wordmark { font-size: 14px; }
+        .app-header .mark { width: 30px; height: 30px; font-size: 18px; }
+        .user-tools { display: flex; align-items: center; gap: 16px; color: #cee0d9; font-size: 13px; }
+        .user-tools button { color: white; border: 0; background: none; text-decoration: underline; text-underline-offset: 3px; }
+        .nav { display: flex; gap: 4px; padding: 0 clamp(12px, 4vw, 48px); border-bottom: 1px solid var(--line); background: white; overflow-x: auto; }
+        .nav button { flex: 0 0 auto; padding: 14px 16px 12px; color: var(--muted); border: 0; border-bottom: 3px solid transparent; background: transparent; font-weight: 650; }
+        .nav button[aria-current="page"] { color: var(--green); border-bottom-color: #2e8c72; }
+        main { width: min(1160px, 100% - 32px); margin: 26px auto 60px; }
+        .page-head { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; }
+        .eyebrow { margin: 0 0 4px; color: #49806e; font-size: 11px; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+        h1, h2, h3, p { margin-top: 0; }
+        .page-head h1 { margin: 0; font: 500 32px/1.15 Georgia, serif; }
+        .subhead { margin: 5px 0 0; color: var(--muted); }
+        .panel { border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: var(--shadow); }
+        .panel-pad { padding: 20px; }
+        .toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+        .toolbar .field { width: 180px; margin: 0; }
+        .toolbar .btn { flex: 0 0 auto; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { padding: 11px 14px; color: #60736d; border-bottom: 1px solid var(--line); background: #f7faf8; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+        td { padding: 13px 14px; border-bottom: 1px solid #edf1ef; vertical-align: middle; }
+        tr:last-child td { border-bottom: 0; }
+        .primary-cell { font-weight: 650; }
+        .secondary-cell { display: block; color: var(--muted); font-size: 12px; }
+        .actions { display: flex; gap: 7px; white-space: nowrap; }
+        .status { display: inline-block; padding: 3px 8px; border: 1px solid #d3e5dc; border-radius: 999px; color: #2e6f59; background: #edf8f2; font-size: 11px; font-weight: 700; }
+        .status-cancelled, .status-noshow { color: #9a4f43; border-color: #f0d4ce; background: #fff4f1; }
+        .empty, .loading, .error { padding: 30px 16px; color: var(--muted); text-align: center; }
+        .error { color: #a23e34; }
+        .management-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 18px; align-items: start; }
+        .form-panel h2 { margin: 0 0 16px; font: 500 22px/1.2 Georgia, serif; }
+        .form-panel .btn { width: 100%; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .notice { min-height: 22px; margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+        .notice[data-kind="error"] { color: #a23e34; }
+        .notice[data-kind="success"] { color: #267052; }
+        dialog { width: min(440px, calc(100% - 30px)); padding: 0; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 20px 70px rgba(0,0,0,.25); }
+        dialog::backdrop { background: rgba(13, 35, 31, .56); }
+        .dialog-content { padding: 23px; }
+        .dialog-content h2 { margin: 0 0 7px; font: 500 25px Georgia, serif; }
+        .dialog-actions { display: flex; justify-content: end; gap: 8px; margin-top: 20px; }
+        @media (max-width: 740px) {
+            .login-shell { grid-template-columns: 1fr; align-content: center; padding: 18px 0; }
+            .login-aside { min-height: 190px; padding: 24px; }
+            .aside-copy { margin-top: 28px; }
+            .aside-copy h1 { font-size: 36px; }
+            .aside-copy p, .aside-foot { display: none; }
+            .login-panel { margin: 18px auto; padding: 25px; }
+            .user-tools span { display: none; }
+            .page-head { align-items: start; flex-direction: column; }
+            .management-grid { grid-template-columns: 1fr; }
+            .form-panel { order: -1; }
+            .toolbar .field { flex: 1 1 140px; width: auto; }
+            td, th { padding: 11px 10px; }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+            .login-panel, .panel { animation: arrive .28s ease-out both; }
+            @keyframes arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        }
+    </style>
+</head>
+<body>
+    <section id="loginView" class="login-shell">
+        <aside class="login-aside">
+            <div class="wordmark"><span class="mark">B</span><span>BOOKLINE BUSINESS</span></div>
+            <div class="aside-copy">
+                <h1>Your day, in good order.</h1>
+                <p>Manage appointments, your team, services, and customer records from one place.</p>
+            </div>
+            <div class="aside-foot">Bookline scheduling desk</div>
+        </aside>
+        <form id="loginForm" class="login-panel">
+            <h2>Sign in</h2>
+            <p>Access your business workspace.</p>
+            <div id="loginNotice" class="notice" role="status"></div>
+            <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" name="email" type="email" autocomplete="username" required></div>
+            <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required></div>
+            <button class="btn" type="submit">Sign in</button>
+        </form>
+    </section>
+
+    <section id="appView" class="hidden">
+        <header class="app-header">
+            <div class="wordmark"><span class="mark">B</span><span>BOOKLINE <span style="color:#a9cabe">/ DESK</span></span></div>
+            <div class="user-tools"><span id="userIdentity"></span><button id="logoutButton" type="button">Sign out</button></div>
+        </header>
+        <nav class="nav" aria-label="Business workspace">
+            <button type="button" data-view="calendar" aria-current="page">Calendar</button>
+            <button type="button" data-view="services">Services</button>
+            <button type="button" data-view="staff">Staff</button>
+            <button type="button" data-view="customers">Customers</button>
+            <a href="/?tenant=acme-salon" style="align-self:center;margin-left:auto;padding:10px 4px;color:#52746a;font-size:13px">Public booking page</a>
+        </nav>
+        <main>
+            <p id="globalNotice" class="notice" role="status"></p>
+            <section id="calendarView" data-panel="calendar">
+                <header class="page-head"><div><p class="eyebrow">Schedule</p><h1>Calendar</h1><p class="subhead">Bookings across your team.</p></div></header>
+                <div class="panel panel-pad">
+                    <div class="toolbar">
+                        <div class="field"><label for="calendarFrom">From</label><input id="calendarFrom" type="date"></div>
+                        <div class="field"><label for="calendarTo">Through</label><input id="calendarTo" type="date"></div>
+                        <div class="field"><label for="calendarStaff">Staff</label><select id="calendarStaff"><option value="">All staff</option></select></div>
+                        <button id="loadCalendar" class="btn" type="button">Show bookings</button>
+                    </div>
+                    <div id="calendarContent" class="table-wrap"><div class="loading">Select a date range to view bookings.</div></div>
+                </div>
+            </section>
+
+            <section id="servicesView" class="hidden" data-panel="services">
+                <header class="page-head"><div><p class="eyebrow">Catalog</p><h1>Services</h1><p class="subhead">Set the appointments customers can book.</p></div></header>
+                <div class="management-grid">
+                    <div class="panel table-wrap" id="servicesContent"><div class="loading">Loading services...</div></div>
+                    <form id="serviceForm" class="panel panel-pad form-panel">
+                        <h2>Add a service</h2><div class="notice" data-form-notice></div>
+                        <div class="field"><label for="serviceName">Name</label><input id="serviceName" name="name" maxlength="100" required></div>
+                        <div class="form-row">
+                            <div class="field"><label for="serviceDuration">Minutes</label><input id="serviceDuration" name="durationMinutes" type="number" min="1" value="45" required></div>
+                            <div class="field"><label for="serviceBuffer">Buffer</label><input id="serviceBuffer" name="bufferMinutes" type="number" min="0" value="15" required></div>
+                        </div>
+                        <div class="field"><label for="servicePrice">Price</label><input id="servicePrice" name="price" type="number" min="0" step="0.01" value="0" required></div>
+                        <button class="btn" type="submit">Create service</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="staffView" class="hidden" data-panel="staff">
+                <header class="page-head"><div><p class="eyebrow">People</p><h1>Staff</h1><p class="subhead">Team members and their working hours.</p></div></header>
+                <div class="management-grid">
+                    <div class="panel table-wrap" id="staffContent"><div class="loading">Loading staff...</div></div>
+                    <form id="staffForm" class="panel panel-pad form-panel">
+                        <h2>Add a staff member</h2><div class="notice" data-form-notice></div>
+                        <div class="field"><label for="staffName">Name</label><input id="staffName" name="name" maxlength="100" required></div>
+                        <div class="field"><label for="staffTimeZone">Time zone</label><input id="staffTimeZone" name="timeZoneId" value="Asia/Kolkata" placeholder="America/New_York" required></div>
+                        <div class="form-row">
+                            <div class="field"><label for="staffStart">Weekday start</label><input id="staffStart" type="time" value="09:00" required></div>
+                            <div class="field"><label for="staffEnd">Weekday end</label><input id="staffEnd" type="time" value="17:00" required></div>
+                        </div>
+                        <button class="btn" type="submit">Create staff & hours</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="customersView" class="hidden" data-panel="customers">
+                <header class="page-head"><div><p class="eyebrow">Directory</p><h1>Customers</h1><p class="subhead">Contact details attached to appointments.</p></div></header>
+                <div class="management-grid">
+                    <div class="panel table-wrap" id="customersContent"><div class="loading">Loading customers...</div></div>
+                    <form id="customerForm" class="panel panel-pad form-panel">
+                        <h2>Add a customer</h2><div class="notice" data-form-notice></div>
+                        <div class="form-row">
+                            <div class="field"><label for="customerFirst">First name</label><input id="customerFirst" name="firstName" required></div>
+                            <div class="field"><label for="customerLast">Last name</label><input id="customerLast" name="lastName" required></div>
+                        </div>
+                        <div class="field"><label for="customerEmail">Email</label><input id="customerEmail" name="email" type="email" required></div>
+                        <div class="field"><label for="customerPhone">Phone</label><input id="customerPhone" name="phone" type="tel" required></div>
+                        <button class="btn" type="submit">Create customer</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </section>
+
+    <dialog id="rescheduleDialog">
+        <form id="rescheduleForm" class="dialog-content">
+            <h2>Move appointment</h2>
+            <p id="rescheduleSummary" class="subhead"></p>
+            <div class="field"><label for="rescheduleStart">New start time</label><input id="rescheduleStart" type="datetime-local" required></div>
+            <div class="dialog-actions"><button id="dismissReschedule" class="btn btn-secondary" type="button">Keep current time</button><button class="btn" type="submit">Reserve new time</button></div>
+        </form>
+    </dialog>
+
+    <script>
+        const api = '/api/v1';
+        const tokenKey = 'bookline.accessToken';
+        let accessToken = localStorage.getItem(tokenKey);
+        let selectedBooking = null;
+        let staffItems = [];
+
+        const loginView = document.getElementById('loginView');
+        const appView = document.getElementById('appView');
+        const loginNotice = document.getElementById('loginNotice');
+        const globalNotice = document.getElementById('globalNotice');
+
+        function setNotice(element, message, kind = '') {
+            element.textContent = message;
+            element.dataset.kind = kind;
+        }
+
+        async function apiRequest(path, options = {}) {
+            const headers = new Headers(options.headers || {});
+            if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+            if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+            const response = await fetch(`${api}${path}`, { ...options, headers });
+            if (response.status === 401) {
+                signOut();
+                throw new Error('Your session expired. Sign in again.');
+            }
+            if (!response.ok) {
+                const detail = await response.text();
+                throw new Error(detail || `Request failed (${response.status}).`);
+            }
+            if (response.status === 204) return null;
+            return response.json();
+        }
+
+        function signOut() {
+            accessToken = null;
+            localStorage.removeItem(tokenKey);
+            loginView.classList.remove('hidden');
+            appView.classList.add('hidden');
+        }
+
+        function showApp(email, role) {
+            loginView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            document.getElementById('userIdentity').textContent = `${email} · ${role}`;
+            const today = new Date();
+            const through = new Date(today);
+            through.setDate(through.getDate() + 7);
+            document.getElementById('calendarFrom').value = localDate(today);
+            document.getElementById('calendarTo').value = localDate(through);
+            loadStaff().then(loadCalendar).catch(error => setNotice(globalNotice, error.message, 'error'));
+        }
+
+        function localDate(date) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        function localDateTimeToUtc(value) {
+            return new Date(value).toISOString();
+        }
+
+        function localDayStartUtc(value) {
+            return localDateTimeToUtc(`${value}T00:00`);
+        }
+
+        function dayAfterUtc(value) {
+            const date = new Date(`${value}T00:00`);
+            date.setDate(date.getDate() + 1);
+            return date.toISOString();
+        }
+
+        function formatDateTime(value) {
+            return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+        }
+
+        function statusClass(status) {
+            return ['Cancelled', 'NoShow'].includes(status) ? 'status status-cancelled' : 'status';
+        }
+
+        function statusName(status) {
+            return typeof status === 'number'
+                ? ['Pending', 'Confirmed', 'Completed', 'Cancelled', 'NoShow'][status] || 'Unknown'
+                : status;
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            setNotice(loginNotice, 'Signing in...');
+            try {
+                const result = await fetch(`${api}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: form.get('email'), password: form.get('password') })
+                });
+                if (!result.ok) throw new Error('Email or password is incorrect.');
+                const auth = await result.json();
+                accessToken = auth.accessToken;
+                localStorage.setItem(tokenKey, accessToken);
+                setNotice(loginNotice, '');
+                showApp(auth.email, auth.role);
+            } catch (error) {
+                setNotice(loginNotice, error.message, 'error');
+            }
+        });
+
+        document.getElementById('logoutButton').addEventListener('click', signOut);
+
+        document.querySelectorAll('.nav [data-view]').forEach(button => {
+            button.addEventListener('click', () => {
+                const view = button.dataset.view;
+                document.querySelectorAll('.nav [data-view]').forEach(item => item.removeAttribute('aria-current'));
+                button.setAttribute('aria-current', 'page');
+                document.querySelectorAll('[data-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.panel !== view));
+                setNotice(globalNotice, '');
+                if (view === 'calendar') loadCalendar();
+                if (view === 'services') loadServices();
+                if (view === 'staff') loadStaff(true);
+                if (view === 'customers') loadCustomers();
+            });
+        });
+
+        async function loadStaff(render = false) {
+            const result = await apiRequest('/staff?page=1&pageSize=100');
+            staffItems = result.items || [];
+            const select = document.getElementById('calendarStaff');
+            const current = select.value;
+            select.innerHTML = '<option value="">All staff</option>' + staffItems.map(staff =>
+                `<option value="${staff.id}">${escapeHtml(staff.name)}</option>`).join('');
+            if (staffItems.some(staff => staff.id === current)) select.value = current;
+            if (render) renderStaff();
+        }
+
+        function renderStaff() {
+            const content = document.getElementById('staffContent');
+            if (!staffItems.length) {
+                content.innerHTML = '<div class="empty">No staff members yet.</div>';
+                return;
+            }
+            content.innerHTML = `<table><thead><tr><th>Name</th><th>Time zone</th><th>Working hours</th></tr></thead><tbody>${staffItems.map(staff => {
+                const hours = staff.workingHours?.length
+                    ? staff.workingHours.map(hour => `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][hour.dayOfWeek]} ${hour.startTime.slice(0,5)}–${hour.endTime.slice(0,5)}`).join('<br>')
+                    : 'No hours set';
+                return `<tr><td class="primary-cell">${escapeHtml(staff.name)}</td><td>${escapeHtml(staff.timeZoneId)}</td><td>${hours}</td></tr>`;
+            }).join('')}</tbody></table>`;
+        }
+
+        async function loadCalendar() {
+            const content = document.getElementById('calendarContent');
+            const from = document.getElementById('calendarFrom').value;
+            const through = document.getElementById('calendarTo').value;
+            if (!from || !through) return;
+            content.innerHTML = '<div class="loading">Loading bookings...</div>';
+            try {
+                const staffId = document.getElementById('calendarStaff').value;
+                const params = new URLSearchParams({ fromUtc: localDayStartUtc(from), toUtc: dayAfterUtc(through) });
+                if (staffId) params.set('staffId', staffId);
+                const bookings = await apiRequest(`/bookings?${params}`);
+                renderCalendar(bookings);
+            } catch (error) {
+                content.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function renderCalendar(bookings) {
+            const content = document.getElementById('calendarContent');
+            if (!bookings.length) {
+                content.innerHTML = '<div class="empty">No bookings in this date range.</div>';
+                return;
+            }
+            content.innerHTML = `<table><thead><tr><th>Appointment</th><th>Customer</th><th>Service</th><th>Staff</th><th>Status</th><th></th></tr></thead><tbody>${bookings.map(booking => {
+                const status = statusName(booking.status);
+                const canChange = ['Pending', 'Confirmed'].includes(status);
+                return `<tr>
+                    <td><span class="primary-cell">${formatDateTime(booking.startUtc)}</span><span class="secondary-cell">until ${new Date(booking.endUtc).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></td>
+                    <td>${escapeHtml(booking.customerName)}</td><td>${escapeHtml(booking.serviceName)}</td><td>${escapeHtml(booking.staffName)}</td>
+                    <td><span class="${statusClass(status)}">${escapeHtml(status)}</span></td>
+                    <td>${canChange ? `<div class="actions">${status === 'Pending' ? `<button class="btn btn-secondary btn-small" data-confirm="${booking.id}">Confirm</button>` : ''}<button class="btn btn-secondary btn-small" data-move="${booking.id}">Reschedule</button><button class="btn btn-danger btn-small" data-cancel="${booking.id}">Cancel</button></div>` : ''}</td>
+                </tr>`;
+            }).join('')}</tbody></table>`;
+            content.querySelectorAll('[data-confirm]').forEach(button => button.addEventListener('click', () => confirmBooking(button.dataset.confirm)));
+            content.querySelectorAll('[data-cancel]').forEach(button => button.addEventListener('click', () => cancelBooking(button.dataset.cancel)));
+            content.querySelectorAll('[data-move]').forEach(button => button.addEventListener('click', () => openReschedule(bookings.find(item => item.id === button.dataset.move))));
+        }
+
+        async function confirmBooking(id) {
+            try {
+                await apiRequest(`/bookings/${id}/confirm`, { method: 'POST' });
+                setNotice(globalNotice, 'Appointment confirmed.', 'success');
+                await loadCalendar();
+            } catch (error) {
+                setNotice(globalNotice, error.message, 'error');
+            }
+        }
+
+        async function cancelBooking(id) {
+            if (!confirm('Cancel this appointment?')) return;
+            try {
+                await apiRequest(`/bookings/${id}/cancel`, { method: 'POST' });
+                setNotice(globalNotice, 'Appointment cancelled.', 'success');
+                await loadCalendar();
+            } catch (error) {
+                setNotice(globalNotice, error.message, 'error');
+            }
+        }
+
+        function openReschedule(booking) {
+            selectedBooking = booking;
+            document.getElementById('rescheduleSummary').textContent = `${booking.serviceName} with ${booking.staffName}`;
+            const date = new Date(booking.startUtc);
+            const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            document.getElementById('rescheduleStart').value = local;
+            document.getElementById('rescheduleDialog').showModal();
+        }
+
+        document.getElementById('dismissReschedule').addEventListener('click', () => document.getElementById('rescheduleDialog').close());
+        document.getElementById('rescheduleForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!selectedBooking) return;
+            const startUtc = localDateTimeToUtc(document.getElementById('rescheduleStart').value);
+            try {
+                const hold = await apiRequest('/public/hold', {
+                    method: 'POST',
+                    body: JSON.stringify({ staffId: selectedBooking.staffId, serviceId: selectedBooking.serviceId, startUtc })
+                });
+                await apiRequest(`/bookings/${selectedBooking.id}/reschedule`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ startUtc, holdId: hold.holdId })
+                });
+                document.getElementById('rescheduleDialog').close();
+                setNotice(globalNotice, 'Appointment rescheduled.', 'success');
+                await loadCalendar();
+            } catch (error) {
+                setNotice(globalNotice, error.message, 'error');
+            }
+        });
+
+        async function loadServices() {
+            const content = document.getElementById('servicesContent');
+            content.innerHTML = '<div class="loading">Loading services...</div>';
+            try {
+                const result = await apiRequest('/services?page=1&pageSize=100');
+                if (!result.items.length) {
+                    content.innerHTML = '<div class="empty">No services yet.</div>';
+                    return;
+                }
+                content.innerHTML = `<table><thead><tr><th>Service</th><th>Duration</th><th>Price</th><th>Status</th></tr></thead><tbody>${result.items.map(service =>
+                    `<tr><td class="primary-cell">${escapeHtml(service.name)}</td><td>${service.durationMinutes} min<span class="secondary-cell">${service.bufferMinutes} min buffer</span></td><td>${formatPrice(service.price)}</td><td>${service.isActive ? 'Active' : 'Inactive'}</td></tr>`).join('')}</tbody></table>`;
+            } catch (error) { content.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; }
+        }
+
+        async function loadCustomers() {
+            const content = document.getElementById('customersContent');
+            content.innerHTML = '<div class="loading">Loading customers...</div>';
+            try {
+                const result = await apiRequest('/customers?page=1&pageSize=100');
+                if (!result.items.length) {
+                    content.innerHTML = '<div class="empty">No customers yet.</div>';
+                    return;
+                }
+                content.innerHTML = `<table><thead><tr><th>Customer</th><th>Email</th><th>Phone</th></tr></thead><tbody>${result.items.map(customer =>
+                    `<tr><td class="primary-cell">${escapeHtml(customer.firstName)} ${escapeHtml(customer.lastName)}</td><td>${escapeHtml(customer.email)}</td><td>${escapeHtml(customer.phone || '')}</td></tr>`).join('')}</tbody></table>`;
+            } catch (error) { content.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; }
+        }
+
+        function bindCreateForm(formId, endpoint, buildBody, afterSave) {
+            document.getElementById(formId).addEventListener('submit', async event => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const notice = form.querySelector('[data-form-notice]');
+                const button = form.querySelector('button[type="submit"]');
+                button.disabled = true;
+                setNotice(notice, 'Saving...');
+                try {
+                    const body = buildBody(new FormData(form));
+                    const created = await apiRequest(endpoint, { method: 'POST', body: JSON.stringify(body) });
+                    form.reset();
+                    setNotice(notice, 'Saved successfully.', 'success');
+                    await afterSave(created);
+                } catch (error) {
+                    setNotice(notice, error.message, 'error');
+                } finally { button.disabled = false; }
+            });
+        }
+
+        bindCreateForm('serviceForm', '/services', form => ({
+            name: form.get('name'), durationMinutes: Number(form.get('durationMinutes')),
+            bufferMinutes: Number(form.get('bufferMinutes')), price: Number(form.get('price'))
+        }), loadServices);
+
+        bindCreateForm('staffForm', '/staff', form => ({ name: form.get('name'), timeZoneId: form.get('timeZoneId') }), async staff => {
+            const startTime = `${document.getElementById('staffStart').value}:00`;
+            const endTime = `${document.getElementById('staffEnd').value}:00`;
+            await apiRequest(`/staff/${staff.id}/working-hours`, {
+                method: 'PUT',
+                body: JSON.stringify([1, 2, 3, 4, 5].map(dayOfWeek => ({ dayOfWeek, startTime, endTime })))
+            });
+            await loadStaff(true);
+        });
+
+        bindCreateForm('customerForm', '/customers', form => ({
+            firstName: form.get('firstName'), lastName: form.get('lastName'),
+            email: form.get('email'), phone: form.get('phone')
+        }), loadCustomers);
+
+        document.getElementById('loadCalendar').addEventListener('click', loadCalendar);
+        document.getElementById('calendarStaff').addEventListener('change', loadCalendar);
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[character]);
+        }
+
+        function formatPrice(value) {
+            return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(value);
+        }
+
+        if (accessToken) {
+            try {
+                const payload = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+                showApp(payload.email || 'Signed-in user', payload.role || 'Team member');
+            } catch { signOut(); }
+        }
+    </script>
+</body>
+</html>

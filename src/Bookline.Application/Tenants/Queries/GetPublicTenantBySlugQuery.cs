@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 public record PublicServiceDto(Guid Id, string Name, int DurationMinutes, int BufferMinutes, decimal Price);
 public record PublicStaffDto(Guid Id, string Name, string TimeZoneId);
-public record PublicTenantDto(Guid Id, string Name, string Slug, IReadOnlyList<PublicServiceDto> Services, IReadOnlyList<PublicStaffDto> Staff);
+public record PublicTenantDto(Guid Id, string Name, string Slug, string TimeZoneId, IReadOnlyList<PublicServiceDto> Services, IReadOnlyList<PublicStaffDto> Staff);
 
 public record GetPublicTenantBySlugQuery(string Slug) : IRequest<PublicTenantDto>;
 
@@ -39,6 +39,8 @@ public class GetPublicTenantBySlugQueryHandler : IRequestHandler<GetPublicTenant
             .Select(s => new PublicServiceDto(s.Id, s.Name, s.DurationMinutes, s.BufferMinutes, s.Price))
             .ToListAsync(cancellationToken);
 
+        var tenantTimeZone = string.IsNullOrWhiteSpace(tenant.TimeZoneId) ? "UTC" : tenant.TimeZoneId;
+
         var staff = await _context.Staff
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -46,6 +48,6 @@ public class GetPublicTenantBySlugQueryHandler : IRequestHandler<GetPublicTenant
             .Select(st => new PublicStaffDto(st.Id, st.Name, st.TimeZoneId))
             .ToListAsync(cancellationToken);
 
-        return new PublicTenantDto(tenant.Id, tenant.Name, tenant.Slug, services, staff);
+        return new PublicTenantDto(tenant.Id, tenant.Name, tenant.Slug, tenantTimeZone, services, staff);
     }
 }

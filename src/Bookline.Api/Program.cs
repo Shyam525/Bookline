@@ -169,6 +169,8 @@ try
 
                 db.Database.ExecuteSqlRaw(@"
                     CREATE EXTENSION IF NOT EXISTS btree_gist;
+                    ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TimeZoneId"" text NOT NULL DEFAULT 'UTC';
+                    UPDATE ""Tenants"" SET ""TimeZoneId"" = 'Asia/Kolkata' WHERE ""Slug"" = 'acme-salon' AND (""TimeZoneId"" IS NULL OR ""TimeZoneId"" = 'UTC');
                     ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_overlap;
                     ALTER TABLE ""Bookings"" ADD CONSTRAINT no_overlap
                       EXCLUDE USING gist (
@@ -190,8 +192,10 @@ try
                 { 
                     Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), 
                     Name = "Bookline Demo Salon", 
-                    Slug = "acme-salon" 
+                    Slug = "acme-salon",
+                    TimeZoneId = "Asia/Kolkata"
                 };
+
                 db.Tenants.Add(tenant);
 
                 var service = new Service 
@@ -240,6 +244,27 @@ try
 
                 db.SaveChanges();
                 Log.Information("Demo tenant 'acme-salon' and initial seed data created successfully.");
+            }
+
+            var demoTenant = db.Tenants.IgnoreQueryFilters()
+                .FirstOrDefault(tenant => tenant.Slug == "acme-salon");
+            const string demoOwnerEmail = "demo@bookline.local";
+            if (app.Environment.IsDevelopment() && demoTenant != null && !db.Users.IgnoreQueryFilters()
+                    .Any(user => user.Email.ToLower() == demoOwnerEmail))
+            {
+                var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+                db.Users.Add(new AppUser
+                {
+                    Id = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+                    TenantId = demoTenant.Id,
+                    Email = demoOwnerEmail,
+                    PasswordHash = passwordHasher.HashPassword("BooklineDemo123!"),
+                    FirstName = "Demo",
+                    LastName = "Owner",
+                    Role = "Owner"
+                });
+                db.SaveChanges();
+                Log.Information("Demo owner account seeded for tenant 'acme-salon'.");
             }
         }
         catch (Exception ex)

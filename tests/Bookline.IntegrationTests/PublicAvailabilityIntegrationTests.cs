@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Tenants.Queries;
@@ -89,6 +90,12 @@ public class PublicAvailabilityIntegrationTests : IClassFixture<CustomWebApplica
             Assert.Fail($"Status: {availabilityRes.StatusCode}, Body: {body}");
         }
         Assert.Equal(HttpStatusCode.OK, availabilityRes.StatusCode);
+
+        using var slotResponse = JsonDocument.Parse(await availabilityRes.Content.ReadAsStringAsync());
+        var slots = slotResponse.RootElement.EnumerateArray().ToArray();
+        Assert.NotEmpty(slots);
+        Assert.True(slots[0].TryGetProperty("start", out _));
+        Assert.True(slots[0].TryGetProperty("end", out _));
     }
 
     [Fact]
@@ -103,5 +110,24 @@ public class PublicAvailabilityIntegrationTests : IClassFixture<CustomWebApplica
 
         // Assert 404 Not Found
         Assert.Equal(HttpStatusCode.NotFound, availabilityRes.StatusCode);
+    }
+}
+
+public class BookingsControllerIntegrationTests : IClassFixture<CustomWebApplicationFactory>
+{
+    private readonly HttpClient _client;
+
+    public BookingsControllerIntegrationTests(CustomWebApplicationFactory factory)
+    {
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task GetCalendar_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var response = await _client.GetAsync(
+            "/api/v1/bookings?fromUtc=2026-10-30T00:00:00Z&toUtc=2026-10-31T00:00:00Z");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

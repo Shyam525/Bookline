@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, Briefcase, Settings, LayoutDashboard, Shield, CreditCard, BarChart2, Bell } from 'lucide-react';
+import { Calendar, Users, Briefcase, Settings, LayoutDashboard, Shield, CreditCard, BarChart2, Bell, Sparkles } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
   const location = useLocation();
@@ -14,6 +14,7 @@ export const AppLayout: React.FC = () => {
     { label: 'Payments', path: '/app/payments', icon: CreditCard },
     { label: 'Analytics', path: '/app/analytics', icon: BarChart2 },
     { label: 'Settings', path: '/app/settings', icon: Settings },
+    { label: 'Design System', path: '/app/design-system', icon: Sparkles },
   ];
 
   return (

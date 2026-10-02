@@ -7,6 +7,7 @@ import { HomePage } from '../../pages/marketing/HomePage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { DashboardPage } from '../../pages/app/DashboardPage';
 import { PublicBookingPage } from '../../pages/public-booking/PublicBookingPage';
+import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -33,6 +34,7 @@ export const AppRouter: React.FC = () => {
           <Route path="payments" element={<DashboardPage />} />
           <Route path="analytics" element={<DashboardPage />} />
           <Route path="settings" element={<DashboardPage />} />
+          <Route path="design-system" element={<DesignSystemPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

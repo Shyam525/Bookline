@@ -36,6 +36,33 @@ services:
       - "1026:1025"
       - "8026:8025"
 
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bookline-api
+    ports:
+      - "5168:5168"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=bookline_db;Username=postgres;Password=postgrespassword
+      - Redis__ConnectionString=redis:6379
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bookline-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
   redis_data:

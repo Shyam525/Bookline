@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0A0C13] text-[#ECEFFE] font-sans antialiased selection:bg-[#E8546A] selection:text-white;
+  }
+}

@@ -142,6 +142,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapHealthChecks("/ready");
 app.MapFallbackToFile("index.html");
 
 try

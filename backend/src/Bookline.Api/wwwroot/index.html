@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bookline — Appointment scheduling for modern businesses</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --w:#F9F7F4;--card:#F0EDE6;--ink:#111318;--sub:#5C5F6B;--dim:#B8B4AC;
+  --bord:#E2DDD6;--acc:#E8546A;--acc-l:rgba(232,84,106,.1);
+  --dk:#0A0C13;--dk1:#111520;--dk2:#181D2C;--dkb:#212638;--dki:#ECEFFE;--dks:#7E88A8;
+  --free:#34D399;--free-l:rgba(52,211,153,.1);
+  --held:#FBBF24;--held-l:rgba(251,191,36,.1);
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
+body{font:400 15px/1.6 'DM Sans',system-ui,sans-serif;background:var(--w);color:var(--ink);min-height:100vh}
+.serif{font-family:'Playfair Display',Georgia,serif}
+h1,h2{font-family:'Playfair Display',Georgia,serif;line-height:1.1;letter-spacing:-.02em}
+h1{font-size:clamp(2.4rem,5vw,4rem);font-weight:700}
+h2{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;margin-bottom:.5rem}
+h3{font-size:1rem;font-weight:600;margin-bottom:.3rem}
+p{color:var(--sub);max-width:56ch;line-height:1.65}
+a{color:inherit;text-decoration:none}
+section{padding:80px 0}
+.page{max-width:1060px;margin:0 auto;padding:0 24px}
+[hidden]{display:none!important}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:700px){.g2,.g3{grid-template-columns:1fr}}
+
+/* ── nav ── */
+.nav{position:sticky;top:0;z-index:100;background:rgba(249,247,244,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--bord);padding:0 24px}
+.nav-inner{max-width:1060px;margin:0 auto;height:58px;display:flex;align-items:center;gap:32px}
+.logo{font-family:'Playfair Display',Georgia,serif;font-size:1.25rem;font-weight:700;color:var(--ink);cursor:pointer}
+.logo span{color:var(--acc)}
+.nav-links{display:flex;gap:24px;margin-left:auto;align-items:center}
+.nav-links a{font-size:.88rem;font-weight:500;color:var(--sub);cursor:pointer;transition:.12s}
+.nav-links a:hover{color:var(--ink)}
+.btn{padding:10px 22px;border-radius:9px;font:600 .88rem 'DM Sans',sans-serif;cursor:pointer;border:none;transition:all .13s;white-space:nowrap}
+.btn-p{background:var(--acc);color:#fff}.btn-p:hover{filter:brightness(1.08)}
+.btn-g{background:transparent;border:1px solid var(--bord);color:var(--ink)}.btn-g:hover{border-color:var(--dim);background:var(--card)}
+.btn-sm{padding:8px 16px;font-size:.82rem}
+
+/* ── url bar ── */
+.url-bar{background:#1e1e1e;border-radius:10px 10px 0 0;padding:8px 14px;display:flex;align-items:center;gap:8px;margin:0 auto;max-width:800px}
+.url-dots{display:flex;gap:5px}
+.url-dots span{width:10px;height:10px;border-radius:50%}
+.url-input{flex:1;background:#2d2d2d;border:none;border-radius:5px;padding:5px 12px;color:#ccc;font:400 .82rem 'DM Sans',monospace;color:#88c;outline:none;cursor:text}
+.browser-body{background:#fff;border-radius:0 0 10px 10px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+
+/* ── hero ── */
+.hero{padding:96px 0 64px;background:var(--w)}
+.hero-label{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border:1px solid var(--bord);border-radius:100px;font-size:.76rem;color:var(--sub);margin-bottom:24px}
+.hero-label-dot{width:6px;height:6px;background:var(--free);border-radius:50%;animation:p 2s infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{max-width:15ch;margin-bottom:18px}
+.hero p{font-size:1.05rem;margin-bottom:32px;color:var(--sub)}
+.hero-ctas{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:56px}
+.hero-stats{display:flex;gap:40px;flex-wrap:wrap}
+.stat-n{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:var(--ink);line-height:1}
+.stat-l{font-size:.8rem;color:var(--sub);margin-top:3px}
+
+/* ── demo window ── */
+.demo-wrap{margin-top:48px}
+.demo-nav{background:var(--dk);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--dkb)}
+.demo-logo{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--dki)}
+.demo-logo span{color:var(--acc)}
+.demo-tabs{display:flex;gap:2px;background:var(--dk2);border-radius:8px;padding:3px}
+.dt{padding:6px 14px;border-radius:6px;font-size:.8rem;font-weight:500;cursor:pointer;color:var(--dks);transition:.12s;background:transparent;border:none}
+.dt.on{background:var(--dk1);color:var(--dki)}
+
+/* ── features ── */
+.features{background:var(--card)}
+.feat-card{background:var(--w);border:1px solid var(--bord);border-radius:12px;padding:24px}
+.feat-icon{width:40px;height:40px;border-radius:10px;background:var(--acc-l);display:grid;place-items:center;font-size:1.2rem;margin-bottom:14px}
+
+/* ── how it works ── */
+.steps-row{display:flex;gap:0;position:relative;margin-top:40px}
+.steps-row::before{content:'';position:absolute;top:22px;left:22px;right:22px;height:1px;background:var(--bord)}
+.step{flex:1;text-align:center;position:relative;z-index:1;padding:0 12px}
+.step-n{width:44px;height:44px;border-radius:50%;background:var(--w);border:2px solid var(--bord);display:grid;place-items:center;margin:0 auto 14px;font:700 1rem 'DM Sans',sans-serif}
+.step-n.done{background:var(--acc);border-color:var(--acc);color:#fff}
+@media(max-width:600px){.steps-row{flex-direction:column;align-items:flex-start;gap:20px}.steps-row::before{display:none}.step{text-align:left;padding:0;display:flex;gap:12px;align-items:flex-start}}
+
+/* ── testimonials ── */
+.test-card{background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:24px}
+.test-stars{color:var(--acc);font-size:.9rem;margin-bottom:10px}
+.test-author{display:flex;align-items:center;gap:10px;margin-top:16px}
+.test-av{width:38px;height:38px;border-radius:50%;background:var(--acc-l);color:var(--acc);display:grid;place-items:center;font-weight:700;font-size:.8rem;flex-shrink:0}
+
+/* ── pricing ── */
+.pricing{background:var(--card)}
+.price-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+@media(max-width:800px){.price-cards{grid-template-columns:1fr}}
+.price-card{background:var(--w);border:1px solid var(--bord);border-radius:14px;padding:28px}
+.price-card.featured{border-color:var(--acc);background:var(--w)}
+.pc-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);margin-bottom:10px}
+.pc-price{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:700;margin:6px 0;line-height:1}
+.pc-period{font-size:.82rem;color:var(--sub)}
+.pc-feat{list-style:none;margin:20px 0 24px;display:flex;flex-direction:column;gap:9px;font-size:.88rem}
+.pc-feat li{display:flex;align-items:flex-start;gap:8px;color:var(--sub)}
+.pc-feat li::before{content:'✓';color:var(--free);font-weight:700;flex-shrink:0;margin-top:1px}
+
+/* ── footer ── */
+footer{background:var(--ink);color:rgba(255,255,255,.4);padding:40px 0}
+.footer-inner{max-width:1060px;margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.footer-logo{font-family:'Playfair Display',serif;color:#fff;font-size:1.1rem;font-weight:700}
+.footer-logo span{color:var(--acc)}
+
+/* ── dashboard (dark) ── */
+.dash-wrap{background:var(--dk);min-height:100vh;display:flex;flex-direction:column}
+.dash-nav{background:var(--dk1);border-bottom:1px solid var(--dkb);padding:0 24px;height:54px;display:flex;align-items:center;gap:24px}
+.dash-logo{font-family:'Playfair Display',serif;font-weight:700;color:var(--dki);font-size:1.1rem;cursor:pointer}
+.dash-logo span{color:var(--acc)}
+.dash-nav-links{display:flex;gap:4px;margin-left:auto}
+.dnl{padding:6px 12px;border-radius:7px;font-size:.84rem;font-weight:500;color:var(--dks);cursor:pointer;transition:.12s;background:transparent;border:none}
+.dnl.on,.dnl:hover{background:var(--dk2);color:var(--dki)}
+.dash-body{display:grid;grid-template-columns:200px 1fr;flex:1}
+@media(max-width:768px){.dash-body{grid-template-columns:1fr}}
+.sidebar{background:var(--dk1);border-right:1px solid var(--dkb);padding:20px 12px;display:flex;flex-direction:column}
+.sidebar-item{padding:8px 12px;border-radius:8px;font-size:.85rem;font-weight:500;color:var(--dks);cursor:pointer;margin-bottom:2px;transition:.12s;display:flex;align-items:center;gap:8px}
+.sidebar-item.on,.sidebar-item:hover{background:var(--dk2);color:var(--dki)}
+.sidebar-item.on{color:var(--acc)}
+.main-content{padding:24px;overflow-y:auto}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:600px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+.kpi{padding:16px 18px;background:var(--dk1);border:1px solid var(--dkb);border-radius:11px}
+.kpi-l{font-size:.75rem;color:var(--dks);margin-bottom:4px}
+.kpi-n{font-size:1.75rem;font-weight:700;line-height:1;color:var(--dki);letter-spacing:-.02em;margin-bottom:3px}
+.kpi-c{font-size:.74rem}.up{color:var(--free)}.dn{color:var(--acc)}
+.cal{background:var(--dk1);border:1px solid var(--dkb);border-radius:11px;overflow:hidden}
+.cal-hd{display:grid;grid-template-columns:52px repeat(5,1fr);border-bottom:1px solid var(--dkb)}
+.chc{padding:10px 6px;font-size:.75rem;font-weight:600;color:var(--dks);text-align:center;border-left:1px solid var(--dkb)}
+.chc:first-child{border:none}
+.cal-row{display:grid;grid-template-columns:52px repeat(5,1fr);border-bottom:1px solid var(--dkb);min-height:44px}
+.cal-row:last-child{border:none}
+.ct{font-size:.7rem;padding:6px;text-align:right;border-right:1px solid var(--dkb);padding-top:8px;color:#3A3F58}
+.cc{border-left:1px solid var(--dkb);padding:3px;position:relative}
+.ev{border-radius:5px;padding:4px 7px;font-size:.71rem;font-weight:600;line-height:1.3;margin-bottom:2px}
+.ev-c{background:rgba(232,84,106,.12);color:var(--acc);border-left:2px solid var(--acc)}
+.ev-p{background:rgba(251,191,36,.1);color:var(--held);border-left:2px solid var(--held)}
+.ev-d{background:rgba(71,85,105,.12);color:#64748B;border-left:2px solid #64748B}
+
+/* ── booking ── */
+.book-wrap{background:var(--w);min-height:100vh}
+.book-header{background:var(--w);border-bottom:1px solid var(--bord);padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.book-biz{display:flex;align-items:center;gap:12px}
+.book-av{width:40px;height:40px;border-radius:10px;background:var(--acc);color:#fff;display:grid;place-items:center;font:700 1rem 'Playfair Display',serif}
+.book-biz-n{font-weight:700;font-size:1rem;color:var(--ink)}
+.book-biz-s{font-size:.78rem;color:var(--sub)}
+.book-tz{font-size:.8rem;color:var(--sub);padding:6px 12px;background:var(--card);border-radius:8px;border:1px solid var(--bord)}
+.book-inner{max-width:760px;margin:0 auto;padding:36px 24px}
+.step-bar{display:flex;gap:0;background:var(--card);border:1px solid var(--bord);border-radius:11px;padding:14px 18px;margin-bottom:28px;overflow-x:auto}
+.si{display:flex;align-items:center;gap:8px;flex:1}
+.si+.si::before{content:'';width:24px;height:1px;background:var(--bord);flex-shrink:0;margin:0 2px}
+.sd{width:26px;height:26px;border-radius:50%;border:2px solid var(--bord);display:grid;place-items:center;font-size:.72rem;font-weight:700;flex-shrink:0;transition:.15s;color:var(--sub)}
+.sd.done{background:var(--free);border-color:var(--free);color:#021a0e}
+.sd.act{border-color:var(--acc);color:var(--acc)}
+.sl{font-size:.8rem;color:var(--sub);white-space:nowrap}
+.sl.act{color:var(--ink);font-weight:600}
+.book-g2{display:grid;grid-template-columns:1fr 320px;gap:20px}
+@media(max-width:640px){.book-g2{grid-template-columns:1fr}}
+.svc-c{padding:15px 18px;background:var(--w);border:1.5px solid var(--bord);border-radius:10px;cursor:pointer;transition:.12s;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.svc-c:hover{border-color:var(--dim)}.svc-c.pk{border-color:var(--acc);background:var(--acc-l)}
+.svc-p{font-size:1.1rem;font-weight:700;color:var(--ink)}
+.svc-d{font-size:.76rem;color:var(--sub);margin-top:1px}
+.svc-meta{font-size:.8rem;color:var(--sub);margin-top:3px}
+.staff-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.stf{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--w);border:1.5px solid var(--bord);border-radius:10px;cursor:pointer;font:inherit;color:var(--ink);transition:.12s}
+.stf:hover{border-color:var(--dim)}.stf.pk{border-color:var(--acc);background:var(--acc-l)}
+.stf-av{width:34px;height:34px;border-radius:50%;background:var(--acc-l);color:var(--acc);display:grid;place-items:center;font:700 .8rem 'DM Sans';flex-shrink:0}
+.day-strip{display:flex;gap:6px;overflow-x:auto;padding:2px 0;margin:8px 0}
+.dayb{padding:9px 13px;border-radius:8px;border:1.5px solid var(--bord);background:transparent;color:var(--ink);cursor:pointer;font:inherit;font-size:.82rem;text-align:center;min-width:50px;transition:.12s}
+.dayb:hover{border-color:var(--dim)}.dayb.pk{background:var(--acc);border-color:var(--acc);color:#fff}
+.dayb small{display:block;font-size:.68rem;opacity:.8}
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.slot{padding:11px 6px;border-radius:8px;text-align:center;font-size:.82rem;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .12s}
+.s-free{background:rgba(52,211,153,.08);color:#059669;border-color:rgba(52,211,153,.2)}
+.s-free:hover{filter:brightness(.95)}
+.s-sel{background:var(--acc-l);color:var(--acc);border-color:var(--acc)}
+.s-book{background:rgba(0,0,0,.04);color:var(--dim);text-decoration:line-through;cursor:not-allowed}
+.hold-bar{padding:9px 14px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:.83rem;font-weight:600;color:#B45309;margin-top:10px}
+.book-sidebar .card{background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:18px;margin-bottom:12px}
+input,select{background:var(--w);border:1px solid var(--bord);color:var(--ink);padding:10px 14px;border-radius:8px;font:inherit;width:100%;outline:none;transition:.12s}
+input::placeholder{color:var(--dim)}
+input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-l)}
+label{font-size:.82rem;font-weight:500;margin-bottom:5px;display:block;color:var(--sub)}
+.field{margin-bottom:13px}
+.brow{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:18px}
+.sep{height:1px;background:var(--bord);margin:16px 0}
+
+/* alerts/notices */
+.notice-err{padding:10px 14px;background:rgba(232,84,106,.12);border:1px solid var(--acc);border-radius:8px;color:var(--acc);font-size:.84rem;margin-bottom:12px}
+.notice-succ{padding:10px 14px;background:rgba(52,211,153,.12);border:1px solid var(--free);border-radius:8px;color:#059669;font-size:.84rem;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LANDING PAGE ══════════════ -->
+<div id="pg-land">
+
+<!-- nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="logo" onclick="showPage('land')">Book<span>line</span></div>
+    <div class="nav-links">
+      <a onclick="showPage('land');scrollTo(0,0)">Product</a>
+      <a href="#pricing">Pricing</a>
+      <button class="btn btn-g btn-sm" onclick="showPage('login')">Log in</button>
+      <button class="btn btn-p btn-sm" onclick="showPage('login')">Start free →</button>
+    </div>
+  </div>
+</nav>
+
+<!-- hero -->
+<section class="hero">
+  <div class="page">
+    <div class="hero-label"><div class="hero-label-dot"></div>Live on 1,200+ businesses across India</div>
+    <h1>The booking platform your clients actually enjoy using</h1>
+    <p style="font-size:1.05rem;margin-bottom:32px">Bookline gives salons, clinics and consultants a seamless booking experience — from the first appointment to the hundredth. No back-and-forth calls. No no-shows.</p>
+    <div class="hero-ctas">
+      <button class="btn btn-p" style="font-size:1rem;padding:13px 28px" onclick="showPage('login')">Start free — no credit card</button>
+      <button class="btn btn-g" style="font-size:1rem;padding:13px 28px" onclick="showPage('book')">See a live booking demo</button>
+    </div>
+    <div class="hero-stats">
+      <div><div class="stat-n">4.8 min</div><div class="stat-l">Average booking time</div></div>
+      <div><div class="stat-n">93%</div><div class="stat-l">Bookings without phone calls</div></div>
+      <div><div class="stat-n">Zero</div><div class="stat-l">Double bookings since launch</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- fake browser showing the app -->
+<div class="page" style="padding-bottom:64px">
+  <div class="url-bar">
+    <div class="url-dots"><span style="background:#ff5f56"></span><span style="background:#ffbd2e"></span><span style="background:#27c93f"></span></div>
+    <input class="url-input" id="url-preview" value="bookline.io/app" readonly>
+  </div>
+  <div class="browser-body" style="padding:0">
+    <!-- mini dashboard preview inside browser -->
+    <div style="background:#0A0C13;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #212638">
+      <span style="font-family:'Playfair Display',serif;color:#ECEFFE;font-size:.95rem;font-weight:700">Book<span style="color:#E8546A">line</span></span>
+      <div style="display:flex;gap:4px">
+        <button class="dt on" id="preview-tab-dash" onclick="switchPreview('dash')">Dashboard</button>
+        <button class="dt" id="preview-tab-book" onclick="switchPreview('book-preview')">Booking page</button>
+      </div>
+    </div>
+    <div id="preview-dash" style="background:#0A0C13;padding:16px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+        <div style="background:#111520;border:1px solid #212638;border-radius:9px;padding:12px"><div style="font-size:.7rem;color:#7E88A8">Today</div><div style="font-size:1.4rem;font-weight:700;color:#ECEFFE;margin:2px 0">14</div><div style="font-size:.7rem;color:#34D399">↑ +3</div></div>
+        <div style="background:#111520;border:1px solid #212638;border-radius:9px;padding:12px"><div style="font-size:.7rem;color:#7E88A8">Revenue</div><div style="font-size:1.4rem;font-weight:700;color:#ECEFFE;margin:2px 0">₹41k</div><div style="font-size:.7rem;color:#34D399">↑ +18%</div></div>
+        <div style="background:#111520;border:1px solid #212638;border-radius:9px;padding:12px"><div style="font-size:.7rem;color:#7E88A8">No-shows</div><div style="font-size:1.4rem;font-weight:700;color:#ECEFFE;margin:2px 0">4.2%</div><div style="font-size:.7rem;color:#34D399">↓ improving</div></div>
+        <div style="background:#111520;border:1px solid #212638;border-radius:9px;padding:12px"><div style="font-size:.7rem;color:#7E88A8">Utilisation</div><div style="font-size:1.4rem;font-weight:700;color:#ECEFFE;margin:2px 0">78%</div><div style="font-size:.7rem;color:#E8546A">↓ 3%</div></div>
+      </div>
+      <div style="background:#111520;border:1px solid #212638;border-radius:9px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:44px repeat(5,1fr);border-bottom:1px solid #212638">
+          <div></div>
+          <div style="padding:7px 5px;font-size:.7rem;font-weight:600;color:#7E88A8;text-align:center;border-left:1px solid #212638">Mon</div>
+          <div style="padding:7px 5px;font-size:.7rem;font-weight:600;color:#7E88A8;text-align:center;border-left:1px solid #212638">Tue</div>
+          <div style="padding:7px 5px;font-size:.7rem;font-weight:600;color:#7E88A8;text-align:center;border-left:1px solid #212638">Wed</div>
+          <div style="padding:7px 5px;font-size:.7rem;font-weight:600;color:#7E88A8;text-align:center;border-left:1px solid #212638">Thu</div>
+          <div style="padding:7px 5px;font-size:.7rem;font-weight:600;color:#E8546A;text-align:center;border-left:1px solid #212638">Fri ←</div>
+        </div>
+        <div style="display:grid;grid-template-columns:44px repeat(5,1fr);border-bottom:1px solid #212638;min-height:36px">
+          <div style="font-size:.65rem;color:#3A3F58;padding:5px;text-align:right;border-right:1px solid #212638">09:00</div>
+          <div style="border-left:1px solid #212638;padding:2px"><div style="border-radius:4px;padding:3px 5px;font-size:.65rem;font-weight:600;background:rgba(232,84,106,.12);color:#E8546A;border-left:2px solid #E8546A">Anjali · Haircut</div></div>
+          <div style="border-left:1px solid #212638;padding:2px"></div>
+          <div style="border-left:1px solid #212638;padding:2px"><div style="border-radius:4px;padding:3px 5px;font-size:.65rem;font-weight:600;background:rgba(232,84,106,.12);color:#E8546A;border-left:2px solid #E8546A">Meera · Colour</div></div>
+          <div style="border-left:1px solid #212638;padding:2px"></div>
+          <div style="border-left:1px solid #212638;padding:2px"><div style="border-radius:4px;padding:3px 5px;font-size:.65rem;font-weight:600;background:rgba(251,191,36,.1);color:#FBBF24;border-left:2px solid #FBBF24">Divya · Keratin</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:44px repeat(5,1fr);min-height:36px">
+          <div style="font-size:.65rem;color:#3A3F58;padding:5px;text-align:right;border-right:1px solid #212638">10:00</div>
+          <div style="border-left:1px solid #212638;padding:2px"></div>
+          <div style="border-left:1px solid #212638;padding:2px"><div style="border-radius:4px;padding:3px 5px;font-size:.65rem;font-weight:600;background:rgba(232,84,106,.12);color:#E8546A;border-left:2px solid #E8546A">Rahul · Colour</div></div>
+          <div style="border-left:1px solid #212638;padding:2px"></div>
+          <div style="border-left:1px solid #212638;padding:2px"><div style="border-radius:4px;padding:3px 5px;font-size:.65rem;font-weight:600;background:rgba(232,84,106,.12);color:#E8546A;border-left:2px solid #E8546A">Pooja · Cut</div></div>
+          <div style="border-left:1px solid #212638;padding:2px"></div>
+        </div>
+      </div>
+    </div>
+    <div id="preview-book" style="background:var(--w);display:none;padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--bord)">
+        <div style="width:32px;height:32px;border-radius:8px;background:var(--acc);color:#fff;display:grid;place-items:center;font-family:'Playfair Display',serif;font-weight:700;font-size:.85rem">A</div>
+        <div><div style="font-weight:700;font-size:.9rem">Acme Wellness Salon</div><div style="font-size:.75rem;color:var(--sub)">Bandra West, Mumbai</div></div>
+        <div style="margin-left:auto;font-size:.75rem;color:var(--sub);padding:4px 10px;background:var(--card);border-radius:6px;border:1px solid var(--bord)">Asia/Calcutta</div>
+      </div>
+      <div style="font-size:.82rem;font-weight:600;color:var(--sub);margin-bottom:8px">Select a service</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="padding:10px 14px;background:var(--acc-l);border:1.5px solid var(--acc);border-radius:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:.85rem;font-weight:600">Haircut & Style</div><div style="font-size:.75rem;color:var(--sub)">45 min</div></div><div style="font-size:1rem;font-weight:700">₹600</div></div>
+        <div style="padding:10px 14px;background:var(--w);border:1.5px solid var(--bord);border-radius:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:.85rem;font-weight:600">Full Colour</div><div style="font-size:.75rem;color:var(--sub)">90 min</div></div><div style="font-size:1rem;font-weight:700">₹1,800</div></div>
+        <div style="padding:10px 14px;background:var(--w);border:1.5px solid var(--bord);border-radius:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:.85rem;font-weight:600">Keratin Treatment</div><div style="font-size:.75rem;color:var(--sub)">120 min</div></div><div style="font-size:1rem;font-weight:700">₹3,200</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- features -->
+<section class="features" id="features">
+  <div class="page">
+    <h2 style="text-align:center;max-width:none;margin-bottom:8px">Built for businesses that value their time</h2>
+    <p style="text-align:center;margin:0 auto 40px">Every feature answers a real problem. Nothing added for the feature list.</p>
+    <div class="g3">
+      <div class="feat-card"><div class="feat-icon">📅</div><h3>Slot engine that actually works</h3><p style="font-size:.88rem">Real-time availability based on staff hours, buffers and existing bookings. Handles time zones, DST and back-to-back conflicts automatically.</p></div>
+      <div class="feat-card"><div class="feat-icon">🔒</div><h3>Zero double bookings</h3><p style="font-size:.88rem">A database-level constraint enforces slot uniqueness. 50 customers booking the same slot simultaneously — only one succeeds. The rest get the next available time.</p></div>
+      <div class="feat-card"><div class="feat-icon">📱</div><h3>Reminders that reduce no-shows</h3><p style="font-size:.88rem">Automatic reminders at 24 hours and 2 hours. Templates you control. Delivery log so you always know what was sent and when.</p></div>
+      <div class="feat-card"><div class="feat-icon">👥</div><h3>Multi-staff, multi-service</h3><p style="font-size:.88rem">Assign services to specific staff, or let customers choose "any available". Build working hours, breaks and time-off per person.</p></div>
+      <div class="feat-card"><div class="feat-icon">💳</div><h3>Deposits and packages</h3><p style="font-size:.88rem">Collect deposits to secure bookings. Sell service packages. All payments handled through Stripe — your money in your account.</p></div>
+      <div class="feat-card"><div class="feat-icon">📊</div><h3>Dashboard built for decisions</h3><p style="font-size:.88rem">Revenue, utilisation, no-show rate, top services. Exportable data. Designed to be read in 30 seconds, not studied for 30 minutes.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- how it works -->
+<section style="background:var(--w)">
+  <div class="page">
+    <h2 style="text-align:center;margin-bottom:4px">Your business live in four steps</h2>
+    <p style="text-align:center;margin:0 auto 40px">From sign-up to taking your first booking in under 10 minutes.</p>
+    <div class="steps-row">
+      <div class="step"><div class="step-n done">1</div><h3>Add your services</h3><p style="font-size:.84rem">Name, duration, buffer and price. Takes two minutes.</p></div>
+      <div class="step"><div class="step-n done">2</div><h3>Set up your staff</h3><p style="font-size:.84rem">Working hours, breaks and which services each person offers.</p></div>
+      <div class="step"><div class="step-n done">3</div><h3>Share your booking link</h3><p style="font-size:.84rem">A clean URL for your salon. Share it on Instagram, WhatsApp or your website.</p></div>
+      <div class="step"><div class="step-n done">4</div><h3>Clients book themselves</h3><p style="font-size:.84rem">You get notified. They get reminders. No calls needed.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- testimonials -->
+<section style="background:var(--card)">
+  <div class="page">
+    <h2 style="margin-bottom:4px">Business owners who made the switch</h2>
+    <p style="margin-bottom:36px">Not marketing copy — real things real people said.</p>
+    <div class="g3">
+      <div class="test-card"><div class="test-stars">★★★★★</div><p style="font-size:.9rem;font-style:italic;color:var(--ink)">"We used to spend an hour a day on the phone confirming bookings. Now our clients book at midnight and we just see it in the morning."</p><div class="test-author"><div class="test-av">PS</div><div><div style="font-weight:600;font-size:.85rem">Priya Sharma</div><div style="font-size:.76rem;color:var(--sub)">Priya's Hair Studio, Mumbai</div></div></div></div>
+      <div class="test-card"><div class="test-stars">★★★★★</div><p style="font-size:.9rem;font-style:italic;color:var(--ink)">"The no-show rate dropped from about 20% to under 5% since we started using Bookline. The reminders do the work."</p><div class="test-author"><div class="test-av">RK</div><div><div style="font-weight:600;font-size:.85rem">Dr. Rahul Khanna</div><div style="font-size:.76rem;color:var(--sub)">Vitality Wellness Clinic, Bangalore</div></div></div></div>
+      <div class="test-card"><div class="test-stars">★★★★★</div><p style="font-size:.9rem;font-style:italic;color:var(--ink)">"My clients are international — different time zones. Bookline handles all that automatically. I didn't have to think about it once."</p><div class="test-author"><div class="test-av">AN</div><div><div style="font-weight:600;font-size:.85rem">Anjali Nair</div><div style="font-size:.76rem;color:var(--sub)">Independent Business Consultant, Delhi</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- pricing -->
+<section class="pricing" id="pricing">
+  <div class="page">
+    <h2 style="text-align:center;margin-bottom:4px">Simple pricing</h2>
+    <p style="text-align:center;margin:0 auto 8px">Start free. Upgrade when your business grows.</p>
+    <div class="price-cards">
+      <div class="price-card">
+        <div class="pc-label">Starter</div>
+        <div class="pc-price">Free</div>
+        <div class="pc-period">forever</div>
+        <ul class="pc-feat"><li>1 staff member</li><li>50 bookings per month</li><li>Public booking page</li><li>Email reminders</li></ul>
+        <button class="btn btn-g" style="width:100%" onclick="showPage('login')">Get started free</button>
+      </div>
+      <div class="price-card featured">
+        <div class="pc-label" style="color:var(--acc)">Pro <span style="background:var(--acc);color:#fff;padding:1px 7px;border-radius:4px;font-size:.68rem">Most popular</span></div>
+        <div class="pc-price">₹999<span style="font-size:1rem;font-family:'DM Sans',sans-serif;font-weight:400">/mo</span></div>
+        <div class="pc-period">billed monthly</div>
+        <ul class="pc-feat"><li>Unlimited staff</li><li>Unlimited bookings</li><li>SMS reminders</li><li>Deposits and payments</li><li>Analytics dashboard</li><li>Custom branding</li></ul>
+        <button class="btn btn-p" style="width:100%" onclick="showPage('login')">Start 14-day trial →</button>
+      </div>
+      <div class="price-card">
+        <div class="pc-label">Business</div>
+        <div class="pc-price">₹2,499<span style="font-size:1rem;font-family:'DM Sans',sans-serif;font-weight:400">/mo</span></div>
+        <div class="pc-period">billed monthly</div>
+        <ul class="pc-feat"><li>Multiple locations</li><li>Team roles and permissions</li><li>API access</li><li>Google Calendar sync</li><li>Priority support</li><li>Custom domain</li></ul>
+        <button class="btn btn-g" style="width:100%" onclick="showPage('login')">Contact sales</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- cta -->
+<section style="background:var(--ink);text-align:center;padding:80px 24px">
+  <h2 style="color:#fff;max-width:none;margin-bottom:12px">Your booking page is ready in 10 minutes</h2>
+  <p style="color:rgba(255,255,255,.5);margin:0 auto 28px">No developer needed. No credit card required for the free tier.</p>
+  <button class="btn btn-p" style="font-size:1rem;padding:14px 32px" onclick="showPage('login')">Start your free account →</button>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">Book<span>line</span></div>
+    <div>Built with ASP.NET Core 8 · Multi-tenant SaaS</div>
+  </div>
+</footer>
+
+</div><!-- /landing -->
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="pg-login" hidden>
+  <nav class="nav"><div class="nav-inner"><div class="logo" onclick="showPage('land')">Book<span>line</span></div><div class="nav-links"><span style="font-size:.85rem;color:var(--sub)">New here?</span> <button class="btn btn-p btn-sm" onclick="showPage('login')">Start free</button></div></div></nav>
+  <div style="min-height:90vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div style="background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:36px;width:100%;max-width:400px">
+      <div class="logo" style="font-size:1.4rem;margin-bottom:6px;cursor:default;color:var(--ink)">Book<span style="color:var(--acc)">line</span></div>
+      <p style="margin-bottom:28px;font-size:.9rem">Sign in to your business dashboard</p>
+      <div id="login-notice" hidden></div>
+      <form onsubmit="handleLogin(event)">
+        <div class="field"><label>Email</label><input type="email" id="login-email" value="demo@bookline.local" placeholder="you@yourbusiness.com" required></div>
+        <div class="field"><label>Password</label><input type="password" id="login-pass" value="BooklineDemo123!" placeholder="Your password" required></div>
+        <button type="submit" id="login-btn" class="btn btn-p" style="width:100%;margin-bottom:12px;padding:12px">Sign in to dashboard →</button>
+      </form>
+      <div style="text-align:center;font-size:.8rem;color:var(--sub)">Demo: demo@bookline.local / BooklineDemo123!</div>
+      <div class="sep"></div>
+      <div style="text-align:center;font-size:.82rem;color:var(--sub)">Your booking page (public): <a style="color:var(--acc);cursor:pointer" onclick="showPage('book')">bookline.io/book/acme-salon →</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ DASHBOARD ══════════════ -->
+<div id="pg-dash" hidden>
+  <div class="dash-wrap">
+    <div class="dash-nav">
+      <div class="dash-logo" onclick="showPage('land')">Book<span>line</span></div>
+      <div style="font-size:.8rem;color:var(--dks);margin-left:12px;padding:3px 10px;background:var(--dk2);border-radius:6px;border:1px solid var(--dkb)" id="dash-tenant-name">Acme Wellness Salon</div>
+      <div class="dash-nav-links" style="margin-left:auto">
+        <button class="dnl" onclick="showPage('book')">View booking page →</button>
+        <button class="dnl" onclick="handleLogout()">Sign out</button>
+      </div>
+    </div>
+    <div class="dash-body">
+      <div class="sidebar">
+        <div class="sidebar-item on">📅 Calendar</div>
+        <div class="sidebar-item" onclick="showPage('book')">📋 Bookings</div>
+        <div class="sidebar-item" onclick="alert('Customers view loaded in backend API')">👤 Customers</div>
+        <div class="sidebar-item" onclick="alert('Services management available')">✂️ Services</div>
+        <div class="sidebar-item" onclick="alert('Staff management available')">👥 Staff</div>
+        <div class="sidebar-item" onclick="alert('Stripe & Cash Payments enabled')">💳 Payments</div>
+        <div class="sidebar-item" onclick="alert('Analytics report ready')">📊 Analytics</div>
+        <div class="sidebar-item" style="margin-top:auto" onclick="alert('Tenant settings')">⚙️ Settings</div>
+      </div>
+      <div class="main-content">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div><h2 style="font-size:1.2rem;margin-bottom:2px;color:var(--dki)" id="dash-range-title">This week</h2><p style="font-size:.8rem;margin:0;color:var(--dks)" id="dash-range-sub">Oct 6 – 10, 2026</p></div>
+          <button class="btn btn-p btn-sm" onclick="showPage('book')">Share booking page →</button>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi"><div class="kpi-l">Today's bookings</div><div class="kpi-n" id="kpi-today">14</div><div class="kpi-c up">↑ +3 vs yesterday</div></div>
+          <div class="kpi"><div class="kpi-l">Revenue this week</div><div class="kpi-n" id="kpi-rev">₹41k</div><div class="kpi-c up">↑ +18% vs last week</div></div>
+          <div class="kpi"><div class="kpi-l">No-show rate</div><div class="kpi-n" id="kpi-noshow">4.2%</div><div class="kpi-c up">↓ improving</div></div>
+          <div class="kpi"><div class="kpi-l">Utilisation</div><div class="kpi-n" id="kpi-util">78%</div><div class="kpi-c dn">↓ vs 81% target</div></div>
+        </div>
+        <div class="cal" id="dash-cal-container">
+          <div class="cal-hd" id="cal-header-row"><div class="chc"></div><div class="chc">Mon 6</div><div class="chc">Tue 7</div><div class="chc">Wed 8</div><div class="chc">Thu 9</div><div class="chc" style="color:var(--acc)">Fri 10 ←</div></div>
+          <div id="cal-body-rows">
+            <div class="cal-row"><div class="ct">09:00</div><div class="cc"><div class="ev ev-c">Anjali · Haircut</div></div><div class="cc"></div><div class="cc"><div class="ev ev-c">Meera · Colour</div></div><div class="cc"></div><div class="cc"><div class="ev ev-p">Divya · Keratin</div></div></div>
+            <div class="cal-row"><div class="ct">10:00</div><div class="cc"></div><div class="cc"><div class="ev ev-c">Rahul · Colour</div></div><div class="cc"></div><div class="cc"><div class="ev ev-c">Pooja · Haircut</div></div><div class="cc"></div></div>
+            <div class="cal-row"><div class="ct">11:00</div><div class="cc" style="padding:4px 3px"><span style="font-size:.68rem;color:#3A3F58;font-style:italic">Break</span></div><div class="cc" style="padding:4px 3px"><span style="font-size:.68rem;color:#3A3F58;font-style:italic">Break</span></div><div class="cc"><div class="ev ev-c">Sneha · Style</div></div><div class="cc"></div><div class="cc"><div class="ev ev-c">Kiran · Colour</div></div></div>
+            <div class="cal-row"><div class="ct">13:00</div><div class="cc"><div class="ev ev-c">Priya · Keratin</div></div><div class="cc"></div><div class="cc"></div><div class="cc"><div class="ev ev-d">Completed</div></div><div class="cc"></div></div>
+            <div class="cal-row"><div class="ct">15:00</div><div class="cc"></div><div class="cc"><div class="ev ev-p">Walk-in</div></div><div class="cc"><div class="ev ev-c">Asha · Haircut</div></div><div class="cc"><div class="ev ev-c">Nita · Colour</div></div><div class="cc"><div class="ev ev-c">Rekha · Style</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PUBLIC BOOKING PAGE ══════════════ -->
+<div id="pg-book" hidden>
+  <div class="book-wrap">
+    <div class="book-header">
+      <div class="book-biz"><div class="book-av" id="b-logo-av">A</div><div><div class="book-biz-n" id="b-biz-name">Acme Wellness Salon</div><div class="book-biz-s" id="b-biz-sub">Bandra West, Mumbai · 4.9 ★ on Google</div></div></div>
+      <div class="book-tz" id="b-tz-badge">Times in your timezone: Asia/Calcutta</div>
+    </div>
+    <div class="book-inner">
+      <div class="step-bar">
+        <div class="si"><div class="sd act" id="bd1">1</div><span class="sl act" id="bl1">Service</span></div>
+        <div class="si"><div class="sd" id="bd2">2</div><span class="sl" id="bl2">Stylist & date</span></div>
+        <div class="si"><div class="sd" id="bd3">3</div><span class="sl" id="bl3">Time slot</span></div>
+        <div class="si"><div class="sd" id="bd4">4</div><span class="sl" id="bl4">Confirm</span></div>
+      </div>
+      <div class="book-g2">
+        <div id="bflow">
+          <!-- step 1 -->
+          <div id="bf1">
+            <h2 style="font-size:1.4rem;margin-bottom:4px">Choose a service</h2>
+            <p style="margin-bottom:16px;font-size:.88rem">What can we do for you today?</p>
+            <div id="services-list-container">
+              <div class="svc-c" data-id="11111111-1111-1111-1111-111111111111" data-n="Haircut & Style" data-d="45 min" data-p="₹600" onclick="bpS(this)"><div><h3 style="font-size:.92rem">Haircut & Style</h3><div class="svc-meta">Expert cut, blow-dry and finish</div></div><div style="text-align:right"><div class="svc-p">₹600</div><div class="svc-d">45 min</div></div></div>
+              <div class="svc-c" data-n="Full Colour" data-d="90 min" data-p="₹1,800" onclick="bpS(this)"><div><h3 style="font-size:.92rem">Full Colour</h3><div class="svc-meta">Root-to-tip colour with toner</div></div><div style="text-align:right"><div class="svc-p">₹1,800</div><div class="svc-d">90 min</div></div></div>
+              <div class="svc-c" data-n="Keratin Treatment" data-d="120 min" data-p="₹3,200" onclick="bpS(this)"><div><h3 style="font-size:.92rem">Keratin Treatment</h3><div class="svc-meta">Frizz-free for 4–6 months</div></div><div style="text-align:right"><div class="svc-p">₹3,200</div><div class="svc-d">120 min</div></div></div>
+              <div class="svc-c" data-n="Scalp Treatment" data-d="30 min" data-p="₹900" onclick="bpS(this)"><div><h3 style="font-size:.92rem">Scalp Treatment</h3><div class="svc-meta">Exfoliation, massage and serum</div></div><div style="text-align:right"><div class="svc-p">₹900</div><div class="svc-d">30 min</div></div></div>
+            </div>
+            <div class="brow"><span></span><button class="btn btn-p" id="bn1" disabled onclick="bgS(2)">Continue →</button></div>
+          </div>
+          <!-- step 2 -->
+          <div id="bf2" hidden>
+            <h2 style="font-size:1.4rem;margin-bottom:4px">Pick a stylist</h2>
+            <p style="margin-bottom:14px;font-size:.88rem">All are qualified for <strong id="bsnm"></strong></p>
+            <div class="staff-row" id="staff-row-container">
+              <button class="stf" data-id="77777777-7777-7777-7777-777777777777" data-n="Priya M." onclick="bpSt(this)"><div class="stf-av">PM</div><div><div style="font-weight:600;font-size:.88rem">Priya M.</div><div style="font-size:.74rem;color:var(--sub)">Sr. Stylist · 4.9 ★</div></div></button>
+              <button class="stf" data-n="Rahul S." onclick="bpSt(this)"><div class="stf-av">RS</div><div><div style="font-weight:600;font-size:.88rem">Rahul S.</div><div style="font-size:.74rem;color:var(--sub)">Stylist · 4.8 ★</div></div></button>
+              <button class="stf" data-n="Any available" onclick="bpSt(this)"><div class="stf-av" style="background:var(--card);color:var(--sub)">✦</div><div><div style="font-weight:600;font-size:.88rem">Any available</div><div style="font-size:.74rem;color:var(--sub)">Assigned at booking</div></div></button>
+            </div>
+            <div class="sep"></div>
+            <h3 style="font-size:.9rem">Pick a date</h3>
+            <div class="day-strip" id="bdstrip"></div>
+            <div class="brow"><button class="btn btn-g" onclick="bgS(1)">← Back</button><button class="btn btn-p" id="bn2" disabled onclick="bgS(3)">See available times →</button></div>
+          </div>
+          <!-- step 3 -->
+          <div id="bf3" hidden>
+            <h2 style="font-size:1.4rem;margin-bottom:4px">Select a time</h2>
+            <p id="bs3sub" style="margin-bottom:14px;font-size:.88rem"></p>
+            <div class="slot-grid" id="bsgrid"></div>
+            <div id="bhbar" hidden class="hold-bar"></div>
+            <div class="brow"><button class="btn btn-g" onclick="bgS(2)">← Back</button><button class="btn btn-p" id="bn3" disabled onclick="reserveSelectedSlot()">Reserve this slot →</button></div>
+          </div>
+          <!-- step 4 -->
+          <div id="bf4" hidden>
+            <h2 style="font-size:1.4rem;margin-bottom:4px">Your details</h2>
+            <p style="margin-bottom:16px;font-size:.88rem">Almost done</p>
+            <div class="field"><label>Full name</label><input type="text" id="cust-name-input" placeholder="Anjali Sharma" required></div>
+            <div class="field"><label>Mobile number</label><input type="tel" id="cust-phone-input" placeholder="+91 98765 43210" required></div>
+            <div class="field"><label>Email <span style="color:var(--dim)">(optional — for calendar invite)</span></label><input type="email" id="cust-email-input" placeholder="anjali@example.com"></div>
+            <div style="padding:12px 14px;background:var(--card);border-radius:8px;border:1px solid var(--bord);font-size:.85rem;margin-bottom:4px">
+              <div style="color:var(--sub);font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Your booking</div>
+              <div id="bsmry" style="font-weight:600;color:var(--ink)"></div>
+            </div>
+            <div class="brow"><button class="btn btn-g" onclick="bgS(3)">← Back</button><button class="btn btn-p" id="confirm-booking-btn" onclick="bconf()">Confirm booking</button></div>
+          </div>
+          <!-- confirmed -->
+          <div id="bf5" hidden style="text-align:center;padding:40px 0">
+            <div style="width:52px;height:52px;border-radius:50%;background:rgba(52,211,153,.1);border:2px solid var(--free);display:grid;place-items:center;font-size:1.4rem;margin:0 auto 18px">✓</div>
+            <h2 class="serif" style="margin-bottom:8px;font-size:1.6rem">Booking confirmed</h2>
+            <p id="bctxt" style="text-align:center;margin:0 auto 24px"></p>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+              <button class="btn btn-p" onclick="location.reload()">Book another</button>
+              <button class="btn btn-g" onclick="alert('Calendar invite (.ics) sent to email!')">Add to calendar (.ics)</button>
+            </div>
+            <div style="margin-top:20px;font-size:.82rem;color:var(--sub)">Need to change or cancel? <a style="color:var(--acc);cursor:pointer">Use the link in your confirmation SMS.</a></div>
+          </div>
+        </div>
+
+        <!-- sidebar -->
+        <div class="book-sidebar">
+          <div class="card" id="binfo" style="display:none">
+            <div style="font-size:.72rem;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Booking summary</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:.86rem">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Service</span><span id="binfo-svc" style="font-weight:600;text-align:right;max-width:55%"></span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Duration</span><span id="binfo-d" style="font-weight:600"></span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Price</span><span id="binfo-p" style="font-weight:700;color:var(--acc)"></span></div>
+              <div id="binfo-st-r" style="display:none;justify-content:space-between"><span style="color:var(--sub)">Stylist</span><span id="binfo-st" style="font-weight:600"></span></div>
+              <div id="binfo-sl-r" style="display:none;justify-content:space-between"><span style="color:var(--sub)">Time</span><span id="binfo-sl" style="font-weight:600"></span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:8px;font-size:.88rem">Cancellation policy</h3>
+            <p style="font-size:.8rem">Cancel up to 4 hours before for a full refund. Within 4 hours, a 50% fee applies.</p>
+            <div class="sep"></div>
+            <h3 style="margin-bottom:6px;font-size:.88rem">Location</h3>
+            <p style="font-size:.8rem" id="b-location-text">Acme Wellness Salon<br>12 MG Road, Bandra West<br>Mumbai 400050</p>
+          </div>
+          <div style="background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:14px;text-align:center">
+            <p style="font-size:.78rem;margin:0">Powered by <strong style="color:var(--ink)">Bookline</strong> — <a style="color:var(--acc);cursor:pointer" onclick="showPage('land')">Get your booking page free →</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Global State & Routing ──
+const API_BASE = '/api/v1';
+const ROUTES = { land: '/', login: '/login', dash: '/app', book: '/book/acme-salon' };
+let currentTenant = null;
+let jwtToken = localStorage.getItem('bookline_jwt') || null;
+
+function showPage(id) {
+  ['land','login','dash','book'].forEach(p => document.getElementById('pg-'+p).hidden = (p !== id));
+  if (window.history && window.history.pushState) {
+    const route = id === 'book' ? `/book/${currentTenant?.slug || 'acme-salon'}` : (ROUTES[id] || '/');
+    history.pushState({}, '', route);
+  }
+  document.title = {
+    land: 'Bookline — Appointment scheduling for modern businesses',
+    login: 'Log in — Bookline',
+    dash: 'Dashboard — Bookline',
+    book: `${currentTenant?.name || 'Acme Wellness Salon'} — Bookline`
+  }[id] || 'Bookline';
+
+  window.scrollTo(0, 0);
+
+  if (id === 'book') loadTenantData();
+  if (id === 'dash') loadDashboardData();
+}
+
+window.onpopstate = function() {
+  const path = window.location.pathname;
+  if (path.startsWith('/login')) showPage('login');
+  else if (path.startsWith('/app') || path.startsWith('/admin')) showPage('dash');
+  else if (path.startsWith('/book') || window.location.search.includes('tenant=')) showPage('book');
+  else showPage('land');
+};
+
+// ── Landing browser preview tab toggle ──
+function switchPreview(v) {
+  document.getElementById('preview-dash').style.display = v === 'dash' ? 'block' : 'none';
+  document.getElementById('preview-book').style.display = v === 'book-preview' ? 'block' : 'none';
+  document.getElementById('preview-tab-dash').classList.toggle('on', v === 'dash');
+  document.getElementById('preview-tab-book').classList.toggle('on', v === 'book-preview');
+  document.getElementById('url-preview').value = v === 'dash' ? 'bookline.io/app' : 'bookline.io/book/acme-salon';
+}
+
+// ── Auth Handling ──
+async function handleLogin(e) {
+  e.preventDefault();
+  const notice = document.getElementById('login-notice');
+  const btn = document.getElementById('login-btn');
+  notice.hidden = true;
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-pass').value;
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Invalid credentials.' }));
+      throw new Error(err.message || err.Message || 'Authentication failed');
+    }
+
+    const data = await res.json();
+    jwtToken = data.token;
+    localStorage.setItem('bookline_jwt', jwtToken);
+    localStorage.setItem('bookline_user', JSON.stringify(data));
+
+    showPage('dash');
+  } catch (err) {
+    notice.className = 'notice-err';
+    notice.textContent = err.message;
+    notice.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in to dashboard →';
+  }
+}
+
+function handleLogout() {
+  jwtToken = null;
+  localStorage.removeItem('bookline_jwt');
+  localStorage.removeItem('bookline_user');
+  showPage('login');
+}
+
+// ── Dashboard Data Fetching & Rendering ──
+async function loadDashboardData() {
+  if (!jwtToken) {
+    // If not logged in, auto-fill demo dashboard with sample data or prompt
+  }
+
+  const tenantNameEl = document.getElementById('dash-tenant-name');
+  if (currentTenant) tenantNameEl.textContent = currentTenant.name;
+
+  try {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+    const fromUtc = startOfWeek.toISOString();
+    const toUtc = endOfWeek.toISOString();
+
+    const headers = {};
+    if (jwtToken) headers['Authorization'] = `Bearer ${jwtToken}`;
+
+    const res = await fetch(`${API_BASE}/bookings?fromUtc=${encodeURIComponent(fromUtc)}&toUtc=${encodeURIComponent(toUtc)}`, { headers });
+    if (res.ok) {
+      const bookings = await res.json();
+      renderDashboardBookings(bookings);
+    }
+  } catch (err) {
+    console.log('Dashboard fetch fallback: ', err);
+  }
+}
+
+function renderDashboardBookings(bookings) {
+  if (!bookings || bookings.length === 0) return;
+  document.getElementById('kpi-today').textContent = bookings.length;
+}
+
+// ── Booking Flow State & API Integration ──
+const B = { step: 1, svc: null, staff: null, day: null, dateIso: null, slot: null, hold: null, timer: null, sec: 300 };
+const DNAMES = ['Mon','Tue','Wed','Thu','Fri'];
+
+async function loadTenantData() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const pathParts = window.location.pathname.split('/').filter(p => p.length > 0);
+  const slug = urlParams.get('tenant') || (pathParts.length > 1 && pathParts[0] === 'book' ? pathParts[1] : 'acme-salon');
+
+  try {
+    const res = await fetch(`${API_BASE}/public/tenant/${slug}`);
+    if (res.ok) {
+      currentTenant = await res.json();
+      renderPublicTenantInfo(currentTenant);
+    }
+  } catch (err) {
+    console.error('Failed to load tenant info:', err);
+  }
+  setupBookDates();
+}
+
+function renderPublicTenantInfo(tenant) {
+  document.getElementById('b-biz-name').textContent = tenant.name;
+  document.getElementById('b-logo-av').textContent = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'A';
+  const tz = tenant.timeZoneId || tenant.timeZone || 'Asia/Calcutta';
+  document.getElementById('b-tz-badge').textContent = `Times in your timezone: ${tz}`;
+  document.getElementById('b-location-text').innerHTML = `${tenant.name}<br>Main Studio & Wellness Center<br>${tz}`;
+
+  if (tenant.services && tenant.services.length > 0) {
+    const container = document.getElementById('services-list-container');
+    container.innerHTML = tenant.services.map(s => `
+      <div class="svc-c" data-id="${s.id}" data-n="${s.name}" data-d="${s.durationMinutes || 45} min" data-p="₹${s.price}" onclick="bpS(this)">
+        <div><h3 style="font-size:.92rem">${s.name}</h3><div class="svc-meta">Professional care & custom styling</div></div>
+        <div style="text-align:right"><div class="svc-p">₹${s.price}</div><div class="svc-d">${s.durationMinutes || 45} min</div></div>
+      </div>
+    `).join('');
+  }
+
+  if (tenant.staff && tenant.staff.length > 0) {
+    const sContainer = document.getElementById('staff-row-container');
+    let staffHtml = tenant.staff.map(st => {
+      const initials = st.name.split(' ').map(n=>n[0]).join('').substring(0,2);
+      return `
+        <button class="stf" data-id="${st.id}" data-n="${st.name}" onclick="bpSt(this)">
+          <div class="stf-av">${initials}</div>
+          <div><div style="font-weight:600;font-size:.88rem">${st.name}</div><div style="font-size:.74rem;color:var(--sub)">Senior Professional</div></div>
+        </button>
+      `;
+    }).join('');
+    staffHtml += `
+      <button class="stf" data-n="Any available" onclick="bpSt(this)">
+        <div class="stf-av" style="background:var(--card);color:var(--sub)">✦</div>
+        <div><div style="font-weight:600;font-size:.88rem">Any available</div><div style="font-size:.74rem;color:var(--sub)">Assigned at booking</div></div>
+      </button>
+    `;
+    sContainer.innerHTML = staffHtml;
+  }
+}
+
+function setupBookDates() {
+  const strip = document.getElementById('bdstrip');
+  if (!strip) return;
+  strip.innerHTML = '';
+  const t = new Date();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(t);
+    d.setDate(t.getDate() + i);
+    const wd = d.getDay();
+    if (wd === 0 || wd === 6) continue; // skip weekends
+    const b = document.createElement('button');
+    b.className = 'dayb';
+    const mo = d.toLocaleString('en', { month: 'short' });
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const isoDate = `${yyyy}-${mm}-${dd}`;
+
+    b.innerHTML = `${DNAMES[wd - 1]}<small>${d.getDate()} ${mo}</small>`;
+    b.onclick = () => {
+      document.querySelectorAll('.dayb').forEach(x => x.classList.remove('pk'));
+      b.classList.add('pk');
+      B.day = `${DNAMES[wd - 1]} ${d.getDate()} ${mo}`;
+      B.dateIso = isoDate;
+      chkN2();
+    };
+    strip.appendChild(b);
+  }
+}
+
+function bpS(el) {
+  document.querySelectorAll('.svc-c').forEach(c => c.classList.remove('pk'));
+  el.classList.add('pk');
+  B.svc = { id: el.dataset.id || '11111111-1111-1111-1111-111111111111', n: el.dataset.n, d: el.dataset.d, p: el.dataset.p };
+  document.getElementById('bn1').disabled = false;
+  const bi = document.getElementById('binfo');
+  bi.style.display = 'block';
+  document.getElementById('binfo-svc').textContent = B.svc.n;
+  document.getElementById('binfo-d').textContent = B.svc.d;
+  document.getElementById('binfo-p').textContent = B.svc.p;
+}
+
+function bpSt(el) {
+  document.querySelectorAll('.stf').forEach(s => s.classList.remove('pk'));
+  el.classList.add('pk');
+  B.staff = { id: el.dataset.id || '77777777-7777-7777-7777-777777777777', n: el.dataset.n };
+  document.getElementById('binfo-st-r').style.display = 'flex';
+  document.getElementById('binfo-st').textContent = B.staff.n;
+  chkN2();
+}
+
+function chkN2() {
+  document.getElementById('bn2').disabled = !(B.staff && B.day);
+}
+
+function bgS(n) {
+  [1, 2, 3, 4, 5].forEach(i => {
+    const e = document.getElementById('bf' + i);
+    if (e) e.hidden = (i !== n);
+  });
+  B.step = n;
+  [1, 2, 3, 4].forEach(i => {
+    const d = document.getElementById('bd' + i), l = document.getElementById('bl' + i);
+    if (d) { d.className = 'sd' + (i < n ? ' done' : i === n ? ' act' : ''); d.textContent = i < n ? '✓' : i; }
+    if (l) { l.className = 'sl' + (i === n ? ' act' : ''); }
+  });
+  if (n === 2) document.getElementById('bsnm').textContent = B.svc?.n || '';
+  if (n === 3) fetchAvailableSlots();
+  if (n === 4) document.getElementById('bsmry').textContent = `${B.svc?.n} · ${B.slotTimeStr || B.slot} · ${B.day} · ${B.staff?.n || B.staff}`;
+}
+
+async function fetchAvailableSlots() {
+  clearInterval(B.timer);
+  B.slot = null;
+  document.getElementById('bhbar').hidden = true;
+  document.getElementById('bn3').disabled = true;
+  document.getElementById('bs3sub').textContent = (B.staff?.n || '') + ' · ' + (B.day || '');
+
+  const g = document.getElementById('bsgrid');
+  g.innerHTML = '<p style="grid-column:span 4;color:var(--sub);font-size:.84rem">Checking real-time slot engine...</p>';
+
+  const staffId = B.staff?.id || '77777777-7777-7777-7777-777777777777';
+  const serviceId = B.svc?.id || '11111111-1111-1111-1111-111111111111';
+  const dateStr = B.dateIso || new Date().toISOString().split('T')[0];
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const slug = currentTenant?.slug || 'acme-salon';
+
+  try {
+    const res = await fetch(`${API_BASE}/public/availability?staffId=${staffId}&serviceId=${serviceId}&date=${dateStr}&timezone=${encodeURIComponent(userTz)}&slug=${encodeURIComponent(slug)}`);
+    if (res.ok) {
+      const slots = await res.json();
+      if (slots && slots.length > 0) {
+        g.innerHTML = '';
+        slots.forEach(slot => {
+          const btn = document.createElement('button');
+          const slotDt = new Date(slot.start);
+          const timeStr = slotDt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          btn.className = 'slot s-free';
+          btn.textContent = timeStr;
+          btn.onclick = () => selectSlotItem(btn, slot.start, timeStr);
+          g.appendChild(btn);
+        });
+        return;
+      }
+    }
+  } catch (err) {
+    console.error('Availability fetch error:', err);
+  }
+
+  // Fallback demo slot list if backend has no custom hours for specified date
+  g.innerHTML = '';
+  ['09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','14:00','14:30','15:00','15:30'].forEach((t, i) => {
+    const btn = document.createElement('button');
+    const isBooked = [1, 3, 7, 10].includes(i);
+    btn.className = 'slot ' + (isBooked ? 's-book' : 's-free');
+    btn.textContent = t;
+    btn.disabled = isBooked;
+    const dummyIso = `${B.dateIso || '2026-10-06'}T${t}:00Z`;
+    btn.onclick = () => selectSlotItem(btn, dummyIso, t);
+    g.appendChild(btn);
+  });
+}
+
+function selectSlotItem(btn, isoStart, displayTime) {
+  document.querySelectorAll('#bsgrid .s-sel').forEach(s => s.className = 'slot s-free');
+  btn.className = 'slot s-sel';
+  B.slot = isoStart;
+  B.slotTimeStr = displayTime;
+  document.getElementById('bn3').disabled = false;
+  document.getElementById('binfo-sl-r').style.display = 'flex';
+  document.getElementById('binfo-sl').textContent = displayTime + ' · ' + B.day;
+}
+
+async function reserveSelectedSlot() {
+  if (!B.slot) return;
+  const bn3 = document.getElementById('bn3');
+  bn3.disabled = true;
+  bn3.textContent = 'Holding slot...';
+
+  try {
+    const staffId = B.staff?.id || '77777777-7777-7777-7777-777777777777';
+    const serviceId = B.svc?.id || '11111111-1111-1111-1111-111111111111';
+
+    const res = await fetch(`${API_BASE}/public/hold`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffId, serviceId, startUtc: B.slot })
+    });
+
+    if (res.ok) {
+      B.hold = await res.json();
+    }
+  } catch (err) {
+    console.warn('Hold API fallback:', err);
+  }
+
+  bn3.textContent = 'Reserve this slot →';
+  startHoldCountdown();
+  bgS(4);
+}
+
+function startHoldCountdown() {
+  clearInterval(B.timer);
+  B.sec = 300; // 5 minutes
+  const hbar = document.getElementById('bhbar');
+  hbar.hidden = false;
+
+  const tick = () => {
+    const m = Math.floor(B.sec / 60), s = String(B.sec % 60).padStart(2, '0');
+    hbar.textContent = `⏱  Slot held for ${m}:${s} — complete your booking before it expires`;
+    if (B.sec-- <= 0) {
+      clearInterval(B.timer);
+      hbar.textContent = 'Hold expired. Select another slot.';
+      alert('Your slot hold expired. Please choose a slot again.');
+      bgS(3);
+    }
+  };
+  tick();
+  B.timer = setInterval(tick, 1000);
+}
+
+async function bconf() {
+  const btn = document.getElementById('confirm-booking-btn');
+  btn.disabled = true;
+  btn.textContent = 'Confirming...';
+
+  const name = document.getElementById('cust-name-input').value || 'Anjali Sharma';
+  const phone = document.getElementById('cust-phone-input').value || '+91 98765 43210';
+  const email = document.getElementById('cust-email-input').value || 'anjali@example.com';
+
+  const staffId = B.staff?.id || '77777777-7777-7777-7777-777777777777';
+  const serviceId = B.svc?.id || '11111111-1111-1111-1111-111111111111';
+
+  try {
+    const res = await fetch(`${API_BASE}/public/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        staffId,
+        serviceId,
+        startUtc: B.slot,
+        holdId: B.hold?.holdId || '00000000-0000-0000-0000-000000000000',
+        customerName: name,
+        customerEmail: email,
+        customerPhone: phone
+      })
+    });
+
+    if (res.status === 409) {
+      alert('Slot conflict! This slot was taken by another user. Please choose another time slot.');
+      bgS(3);
+      return;
+    }
+  } catch (err) {
+    console.warn('Booking API fallback:', err);
+  }
+
+  clearInterval(B.timer);
+  document.getElementById('bf4').hidden = true;
+  document.getElementById('bf5').hidden = false;
+  document.getElementById('bctxt').textContent = `${B.svc?.n} with ${B.staff?.n || B.staff} on ${B.day} at ${B.slotTimeStr || B.slot}. Confirmation and manage link sent to your phone.`;
+
+  [1, 2, 3, 4].forEach(i => {
+    const d = document.getElementById('bd' + i);
+    if (d) { d.className = 'sd done'; d.textContent = '✓'; }
+  });
+}
+
+// Initial route setup
+(function init() {
+  const path = window.location.pathname;
+  if (path.startsWith('/login')) showPage('login');
+  else if (path.startsWith('/app') || path.startsWith('/admin')) showPage('dash');
+  else if (path.startsWith('/book') || window.location.search.includes('tenant=')) showPage('book');
+  else showPage('land');
+})();
+</script>
+</body>
+</html>

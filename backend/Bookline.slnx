@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bookline.Api/Bookline.Api.csproj" />
+    <Project Path="src/Bookline.Application/Bookline.Application.csproj" />
+    <Project Path="src/Bookline.Domain/Bookline.Domain.csproj" />
+    <Project Path="src/Bookline.Infrastructure/Bookline.Infrastructure.csproj" />
+    <Project Path="src/Bookline.Worker/Bookline.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj" />
+    <Project Path="tests/Bookline.Domain.UnitTests/Bookline.Domain.UnitTests.csproj" />
+    <Project Path="tests/Bookline.Infrastructure.UnitTests/Bookline.Infrastructure.UnitTests.csproj" />
+    <Project Path="tests/Bookline.IntegrationTests/Bookline.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

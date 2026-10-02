@@ -1,90 +1,59 @@
 # BOOKLINE
-## Production-Grade Appointment & Scheduling Platform
+## Elite Production-Grade Appointment & Scheduling Platform
 
-Bookline is a production-grade multi-tenant appointment scheduling SaaS platform built on ASP.NET Core 8, PostgreSQL, Redis, NodaTime, and an embedded single-page client interface.
+Bookline is a serious, high-concurrency SaaS platform for salons, clinics, spas, barbershops, and appointment-based businesses.
 
 ---
 
-## Quick Start
+## 🏛️ Architecture Overview
 
-### 1. Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- **Backend**: ASP.NET Core 8, Entity Framework Core 8, PostgreSQL 16, Redis 7, NodaTime 3.x
+- **Frontend**: React 18, TypeScript, Vite, React Router, TanStack Query, React Hook Form, Zod, Tailwind CSS
+- **Testing**: xUnit, FluentAssertions, Integration Tests, Architecture Tests
+- **Infrastructure**: Docker, Docker Compose, PostgreSQL, Redis, Mailpit
 
-### 2. Start Infrastructure
+---
+
+## 🚀 Quick Start
+
+### 1. Start Infrastructure & Full Application
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
-This launches:
-- **PostgreSQL 16**: `localhost:5432`
-- **Redis 7**: `localhost:6379`
-- **Mailpit**: `localhost:8026` (Web UI), `localhost:1026` (SMTP)
 
-### 3. Run Bookline Platform
+### 2. Local Development (API + Frontend)
+Backend:
 ```powershell
-Stop-Process -Name "Bookline.Api" -Force -ErrorAction SilentlyContinue
-dotnet run -c Release --project src/Bookline.Api
+dotnet run --project backend/src/Bookline.Api
 ```
 
-### 4. Access Application & Booking Pages
-- **Web App / Booking Client**: [http://localhost:5168](http://localhost:5168)
-- **Business Desk**: [http://localhost:5168/admin.html](http://localhost:5168/admin.html)
-- **Public Booking Slug**: [http://localhost:5168/?tenant=acme-salon](http://localhost:5168/?tenant=acme-salon)
-- **OpenAPI / Swagger UI**: [http://localhost:5168/swagger](http://localhost:5168/swagger)
-- **Health Check**: [http://localhost:5168/health](http://localhost:5168/health)
-- **Mailpit Email Inbox**: [http://localhost:8026](http://localhost:8026)
-
----
-
-## Local Demo Credentials
-
-| Role | Email | Password |
-|---|---|---|
-| **Owner / Demo Admin** | `demo@bookline.local` | `BooklineDemo123!` |
-
----
-
-## Core Technical Features
-
-1. **Multi-Tenancy & Server Isolation**:
-   - Server-enforced EF Core global query filters (`.HasQueryFilter`).
-   - Route and claim-based `ITenantContext` resolution.
-
-2. **Double Booking Concurrency Protection**:
-   - Atomic 5-minute Redis slot holds.
-   - PostgreSQL GiST exclusion constraint (`EXCLUDE USING gist`) on overlapping `tstzrange` intervals.
-
-3. **NodaTime Domain Time Model**:
-   - Canonical UTC storage (`StartUtc`, `EndUtc`) using `Instant`.
-   - Local date representation (`LocalDate`) and tzdb provider mapping (`Asia/Kolkata`, `America/New_York`).
-
-4. **Transactional Outbox Pattern**:
-   - Atomic database commits for bookings and outbox events.
-   - Background worker with automatic retries and dead-letter handling.
-
----
-
-## Running Tests
-
-Run the full automated test suite (69 unit, application, infrastructure, and integration tests):
-
+Frontend:
 ```powershell
-dotnet test Bookline.slnx -c Release
+cd frontend
+npm run dev
 ```
 
 ---
 
-## Documentation
+## 🔗 Endpoints
 
-Detailed documentation available in `docs/`:
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- [`docs/BOOKING_ENGINE.md`](docs/BOOKING_ENGINE.md)
-- [`docs/TIMEZONE_MODEL.md`](docs/TIMEZONE_MODEL.md)
-- [`docs/MULTI_TENANCY.md`](docs/MULTI_TENANCY.md)
-- [`docs/OUTBOX.md`](docs/OUTBOX.md)
-- [`docs/SECURITY.md`](docs/SECURITY.md)
-- [`docs/API.md`](docs/API.md)
-- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
-- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
-- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md)
+- **Web Application**: `http://localhost:3000` (or `http://localhost:5168` when self-hosted)
+- **API Health**: `http://localhost:5168/health`
+- **API Readiness**: `http://localhost:5168/ready`
+- **Swagger UI**: `http://localhost:5168/swagger`
+- **Mailpit Email Inbox**: `http://localhost:8026`
+
+---
+
+## 🧪 Testing
+
+Run backend test suite:
+```powershell
+dotnet test backend/Bookline.slnx -c Release
+```
+
+Run frontend typecheck and build:
+```powershell
+cd frontend
+npm run build
+```

@@ -5,6 +5,9 @@ import { AppLayout } from '../../layouts/AppLayout';
 import { AuthLayout } from '../../layouts/AuthLayout';
 import { HomePage } from '../../pages/marketing/HomePage';
 import { LoginPage } from '../../pages/auth/LoginPage';
+import { RegisterPage } from '../../pages/auth/RegisterPage';
+import { ForgotPasswordPage } from '../../pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '../../pages/auth/ResetPasswordPage';
 import { DashboardPage } from '../../pages/app/DashboardPage';
 import { PublicBookingPage } from '../../pages/public-booking/PublicBookingPage';
 import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
@@ -19,9 +22,12 @@ export const AppRouter: React.FC = () => {
           <Route path="/book/:organizationSlug" element={<PublicBookingPage />} />
         </Route>
 
-        {/* Auth Routes */}
+        {/* Authentication Routes */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
         {/* Operations App Routes */}

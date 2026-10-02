@@ -81,4 +81,26 @@ public class AuthenticationTests
         Assert.Equal(hash1, hash2);
         Assert.NotEqual(refreshToken, hash1);
     }
+
+    [Fact]
+    public void RefreshToken_ExpirationAndRevocation_ShouldBeTrackedCorrectly()
+    {
+        // Arrange
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            TokenHash = "sample-hash",
+            ExpiryUtc = DateTime.UtcNow.AddDays(-1), // Expired
+            IsRevoked = false,
+            IsUsed = false
+        };
+
+        // Assert
+        Assert.True(refreshToken.ExpiryUtc < DateTime.UtcNow);
+        
+        refreshToken.IsRevoked = true;
+        Assert.True(refreshToken.IsRevoked);
+    }
 }

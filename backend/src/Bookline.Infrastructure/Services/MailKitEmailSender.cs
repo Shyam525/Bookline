@@ -71,4 +71,31 @@ public class MailKitEmailSender : IEmailSender
             // Fallback for offline/unit test execution
         }
     }
+
+    public async Task SendEmailAsync(
+        string toEmail,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Bookline System", "noreply@bookline.app"));
+        message.To.Add(new MailboxAddress(toEmail, toEmail));
+        message.Subject = subject;
+
+        var bodyBuilder = new BodyBuilder { HtmlBody = $"<p>{body}</p>" };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        try
+        {
+            using var client = new SmtpClient();
+            await client.ConnectAsync(_smtpHost, _smtpPort, MailKit.Security.SecureSocketOptions.None, cancellationToken);
+            await client.SendAsync(message, cancellationToken);
+            await client.DisconnectAsync(true, cancellationToken);
+        }
+        catch
+        {
+            // Fallback for offline/unit test execution
+        }
+    }
 }

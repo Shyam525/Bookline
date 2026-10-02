@@ -18,6 +18,25 @@ public record RefreshTokenRequest(
     string RefreshToken
 );
 
+public record ForgotPasswordRequest(
+    string Email
+);
+
+public record ResetPasswordRequest(
+    string Email,
+    string ResetToken,
+    string NewPassword
+);
+
+public record UserDto(
+    Guid Id,
+    Guid TenantId,
+    string Email,
+    string FirstName,
+    string LastName,
+    string Role
+);
+
 public record AuthResponse(
     string AccessToken,
     DateTime AccessTokenExpiryUtc,

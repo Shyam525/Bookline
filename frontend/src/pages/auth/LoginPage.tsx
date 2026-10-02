@@ -1,56 +1,92 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../app/providers/AuthProvider';
+import { Input } from '../../components/forms/Inputs';
+import { Button } from '../../components/ui/Button';
+import { Alert } from '../../components/feedback/Feedback';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { login, isLoading } = useAuth();
+
   const [email, setEmail] = useState('demo@bookline.local');
   const [password, setPassword] = useState('BooklineDemo123!');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/app');
+    setError(null);
+    try {
+      await login(email, password);
+      navigate('/app');
+    } catch (err: any) {
+      setError(err.message || 'Invalid credentials');
+    }
+  };
+
+  const handleDemoFill = () => {
+    setEmail('demo@bookline.local');
+    setPassword('BooklineDemo123!');
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-xs font-semibold text-[#7E88A8] uppercase tracking-wider mb-2">
-          Email Address
-        </label>
-        <input
+    <div className="space-y-6">
+      <div className="text-center space-y-1">
+        <h2 className="font-heading text-2xl font-bold text-white">Sign In</h2>
+        <p className="text-xs text-[#7E88A8]">Enter your business owner or staff credentials</p>
+      </div>
+
+      {error && (
+        <Alert variant="error" title="Authentication Error">
+          {error}
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Email Address"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full bg-[#181D2C] border border-[#212638] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#E8546A]"
+          placeholder="name@business.com"
           required
         />
-      </div>
 
-      <div>
-        <label className="block text-xs font-semibold text-[#7E88A8] uppercase tracking-wider mb-2">
-          Password
-        </label>
-        <input
+        <Input
+          label="Password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full bg-[#181D2C] border border-[#212638] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#E8546A]"
+          placeholder="••••••••••••"
           required
         />
-      </div>
 
-      <button
-        type="submit"
-        className="w-full bg-[#E8546A] hover:bg-[#D44359] text-white font-medium py-3 rounded-xl transition-colors font-sans"
-      >
-        Sign In to Dashboard
-      </button>
+        <div className="flex items-center justify-between text-xs pt-1">
+          <button
+            type="button"
+            onClick={handleDemoFill}
+            className="text-[#E8546A] hover:underline font-mono"
+          >
+            Auto-Fill Demo Credentials
+          </button>
+          <Link to="/forgot-password" className="text-[#7E88A8] hover:text-white transition-colors">
+            Forgot password?
+          </Link>
+        </div>
 
-      <div className="text-center pt-2">
+        <Button type="submit" variant="primary" className="w-full" isLoading={isLoading}>
+          Sign In to Dashboard
+        </Button>
+      </form>
+
+      <div className="text-center pt-2 border-t border-[#212638]">
         <p className="text-xs text-[#7E88A8]">
-          Demo Credentials Pre-filled for Local Verification
+          Don't have an organization account?{' '}
+          <Link to="/register" className="text-[#E8546A] font-semibold hover:underline">
+            Register Business
+          </Link>
         </p>
       </div>
-    </form>
+    </div>
   );
 };

@@ -13,4 +13,10 @@ public interface IEmailSender
         string rescheduleToken,
         string cancelToken,
         CancellationToken cancellationToken = default);
+
+    Task SendEmailAsync(
+        string toEmail,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default);
 }

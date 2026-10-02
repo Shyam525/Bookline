@@ -11,4 +11,5 @@ public class AppUser : TenantEntity
     public string LastName { get; set; } = string.Empty;
     public string Role { get; set; } = "Staff"; // Owner, Staff, Receptionist
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAtUtc { get; set; }
 }

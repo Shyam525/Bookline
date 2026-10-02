@@ -5,6 +5,7 @@ using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Bookline.Api.Controllers;
 
@@ -15,15 +16,18 @@ public class AuthController : ControllerBase
     private readonly BooklineDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _tokenGenerator;
+    private readonly IEmailSender _emailSender;
 
     public AuthController(
         BooklineDbContext dbContext,
         IPasswordHasher passwordHasher,
-        IJwtTokenGenerator tokenGenerator)
+        IJwtTokenGenerator tokenGenerator,
+        IEmailSender emailSender)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _tokenGenerator = tokenGenerator;
+        _emailSender = emailSender;
     }
 
     [HttpPost("register-tenant")]
@@ -199,6 +203,87 @@ public class AuthController : ControllerBase
             user.Id,
             user.TenantId,
             user.Email,
+            user.Role
+        ));
+    }
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new { Message = "Email address is required." });
+        }
+
+        var user = await _dbContext.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+
+        if (user != null)
+        {
+            var resetToken = Guid.NewGuid().ToString("N");
+            await _emailSender.SendEmailAsync(
+                user.Email,
+                "Bookline Password Reset Request",
+                $"Use this token to reset your password: {resetToken}"
+            );
+        }
+
+        // Return 200 OK regardless to prevent user enumeration
+        return Ok(new { Message = "If the email is registered, password reset instructions have been sent." });
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(new { Message = "Email and new password are required." });
+        }
+
+        var user = await _dbContext.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+
+        if (user == null)
+        {
+            return BadRequest(new { Message = "Invalid password reset request." });
+        }
+
+        user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new { Message = "Password reset successfully. You can now log in with your new password." });
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                          ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user token claims." });
+        }
+
+        var user = await _dbContext.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+        {
+            return NotFound(new { Message = "User profile not found." });
+        }
+
+        return Ok(new UserDto(
+            user.Id,
+            user.TenantId,
+            user.Email,
+            user.FirstName,
+            user.LastName,
             user.Role
         ));
     }

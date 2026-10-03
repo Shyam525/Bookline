@@ -11,6 +11,7 @@ import { ResetPasswordPage } from '../../pages/auth/ResetPasswordPage';
 import { DashboardPage } from '../../pages/app/DashboardPage';
 import { PublicBookingPage } from '../../pages/public-booking/PublicBookingPage';
 import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
+import { OnboardingWizardPage } from '../../pages/app/OnboardingWizardPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -33,6 +34,7 @@ export const AppRouter: React.FC = () => {
         {/* Operations App Routes */}
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
+          <Route path="onboarding" element={<OnboardingWizardPage />} />
           <Route path="calendar" element={<DashboardPage />} />
           <Route path="customers" element={<DashboardPage />} />
           <Route path="services" element={<DashboardPage />} />

@@ -12,6 +12,7 @@ import { DashboardPage } from '../../pages/app/DashboardPage';
 import { PublicBookingPage } from '../../pages/public-booking/PublicBookingPage';
 import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
 import { OnboardingWizardPage } from '../../pages/app/OnboardingWizardPage';
+import { LocationsPage } from '../../pages/app/LocationsPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -35,6 +36,7 @@ export const AppRouter: React.FC = () => {
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="onboarding" element={<OnboardingWizardPage />} />
+          <Route path="locations" element={<LocationsPage />} />
           <Route path="calendar" element={<DashboardPage />} />
           <Route path="customers" element={<DashboardPage />} />
           <Route path="services" element={<DashboardPage />} />

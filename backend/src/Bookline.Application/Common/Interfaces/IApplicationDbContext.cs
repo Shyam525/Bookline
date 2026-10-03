@@ -11,6 +11,7 @@ public interface IApplicationDbContext
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<OrganizationMembership> OrganizationMemberships { get; }
     DbSet<Invitation> Invitations { get; }
+    DbSet<Location> Locations { get; }
     DbSet<Service> Services { get; }
     DbSet<DomainStaff> Staff { get; }
     DbSet<StaffService> StaffServices { get; }

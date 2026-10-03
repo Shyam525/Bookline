@@ -1,16 +1,7 @@
-using Bookline.Application.Common.Interfaces;
 using FluentValidation;
 using MediatR;
 
 namespace Bookline.Application.Staff.Commands;
-
-public record StaffDto(
-    Guid Id,
-    string Name,
-    string TimeZoneId,
-    bool IsActive,
-    IReadOnlyList<WorkingHourDto> WorkingHours
-);
 
 public record WorkingHourDto(
     Guid Id,
@@ -28,24 +19,71 @@ public record TimeOffDto(
     string? Reason
 );
 
-public record CreateStaffCommand(string Name, string TimeZoneId) : IRequest<StaffDto>;
+public record StaffDto(
+    Guid Id,
+    Guid TenantId,
+    string Name,
+    string Email,
+    string? Phone,
+    string? Title,
+    string? Bio,
+    string? AvatarUrl,
+    string TimeZoneId,
+    bool IsActive,
+    bool IsArchived,
+    List<Guid> AssignedServiceIds,
+    IReadOnlyList<WorkingHourDto> WorkingHours,
+    DateTime CreatedAtUtc
+);
 
+public record CreateStaffRequest(
+    string Name,
+    string Email,
+    string? Phone = null,
+    string? Title = "Staff Member",
+    string? Bio = null,
+    string? AvatarUrl = null,
+    string TimeZoneId = "UTC",
+    List<Guid>? AssignedServiceIds = null
+);
+
+public record UpdateStaffRequest(
+    string Name,
+    string Email,
+    string? Phone = null,
+    string? Title = "Staff Member",
+    string? Bio = null,
+    string? AvatarUrl = null,
+    string TimeZoneId = "UTC",
+    bool IsActive = true,
+    List<Guid>? AssignedServiceIds = null
+);
+
+// Queries & Commands
+public record GetAllStaffQuery(bool IncludeArchived = false) : IRequest<List<StaffDto>>;
+public record GetStaffByIdQuery(Guid Id) : IRequest<StaffDto>;
+public record CreateStaffCommand(CreateStaffRequest Request) : IRequest<StaffDto>;
+public record UpdateStaffCommand(Guid Id, UpdateStaffRequest Request) : IRequest<StaffDto>;
+public record ArchiveStaffCommand(Guid Id) : IRequest<bool>;
+public record AssignStaffServicesCommand(Guid StaffId, List<Guid> ServiceIds) : IRequest<StaffDto>;
+
+// Working Hours & Time Off Commands
 public record WorkingHourInput(DayOfWeek DayOfWeek, TimeOnly StartTime, TimeOnly EndTime);
-
 public record SetWorkingHoursCommand(Guid StaffId, List<WorkingHourInput> WorkingHours) : IRequest<IReadOnlyList<WorkingHourDto>>;
-
 public record CreateTimeOffCommand(Guid StaffId, DateTimeOffset StartUtc, DateTimeOffset EndUtc, string? Reason) : IRequest<TimeOffDto>;
 
+// Validators
 public class CreateStaffCommandValidator : AbstractValidator<CreateStaffCommand>
 {
     public CreateStaffCommandValidator()
     {
-        RuleFor(x => x.Name)
+        RuleFor(x => x.Request.Name)
             .NotEmpty().WithMessage("Staff name is required.")
             .MaximumLength(100);
 
-        RuleFor(x => x.TimeZoneId)
-            .NotEmpty().WithMessage("TimeZoneId is required.");
+        RuleFor(x => x.Request.Email)
+            .NotEmpty().WithMessage("Email is required.")
+            .EmailAddress().WithMessage("Invalid email address.");
     }
 }
 
@@ -63,22 +101,27 @@ public class SetWorkingHoursCommandValidator : AbstractValidator<SetWorkingHours
         });
 
         RuleFor(x => x.WorkingHours)
-            .Custom((hours, context) =>
+            .Must(HasNoOverlappingHours)
+            .WithMessage("Working hours cannot contain overlapping intervals for the same day.");
+    }
+
+    private static bool HasNoOverlappingHours(List<WorkingHourInput>? hours)
+    {
+        if (hours == null || hours.Count <= 1) return true;
+
+        var grouped = hours.GroupBy(h => h.DayOfWeek);
+        foreach (var group in grouped)
+        {
+            var sorted = group.OrderBy(h => h.StartTime).ToList();
+            for (int i = 0; i < sorted.Count - 1; i++)
             {
-                var groupedByDay = hours.GroupBy(h => h.DayOfWeek);
-                foreach (var group in groupedByDay)
+                if (sorted[i].EndTime > sorted[i + 1].StartTime)
                 {
-                    var sorted = group.OrderBy(h => h.StartTime).ToList();
-                    for (int i = 0; i < sorted.Count - 1; i++)
-                    {
-                        if (sorted[i].EndTime > sorted[i + 1].StartTime)
-                        {
-                            context.AddFailure($"Overlapping working hours detected on {group.Key}.");
-                            break;
-                        }
-                    }
+                    return false;
                 }
-            });
+            }
+        }
+        return true;
     }
 }
 
@@ -87,9 +130,8 @@ public class CreateTimeOffCommandValidator : AbstractValidator<CreateTimeOffComm
     public CreateTimeOffCommandValidator()
     {
         RuleFor(x => x.StaffId).NotEmpty();
-
         RuleFor(x => x.EndUtc)
             .GreaterThan(x => x.StartUtc)
-            .WithMessage("Time off end time must be after start time.");
+            .WithMessage("End time must be after start time.");
     }
 }

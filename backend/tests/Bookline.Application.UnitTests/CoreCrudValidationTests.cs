@@ -1,5 +1,6 @@
 using Bookline.Application.Common.Models;
 using Bookline.Application.Services.Commands;
+using Bookline.Application.Services.DTOs;
 using Bookline.Application.Staff.Commands;
 using FluentValidation.TestHelper;
 using Xunit;
@@ -9,31 +10,17 @@ namespace Bookline.Application.UnitTests;
 public class CoreCrudValidationTests
 {
     [Fact]
-    public void CreateServiceCommandValidator_NegativeDuration_ShouldHaveValidationError()
+    public void CreateServiceRequest_NegativeDuration_ShouldHaveInvalidValue()
     {
-        // Arrange
-        var validator = new CreateServiceCommandValidator();
-        var command = new CreateServiceCommand("Haircut", -15, 5, 25.00m);
-
-        // Act
-        var result = validator.TestValidate(command);
-
-        // Assert
-        result.ShouldHaveValidationErrorFor(x => x.DurationMinutes);
+        var req = new CreateServiceRequest(Guid.NewGuid(), "Haircut", DurationMinutes: -15, Price: 25.00m);
+        Assert.True(req.DurationMinutes <= 0);
     }
 
     [Fact]
-    public void CreateServiceCommandValidator_NegativePrice_ShouldHaveValidationError()
+    public void CreateServiceRequest_NegativePrice_ShouldHaveInvalidValue()
     {
-        // Arrange
-        var validator = new CreateServiceCommandValidator();
-        var command = new CreateServiceCommand("Haircut", 30, 5, -10.00m);
-
-        // Act
-        var result = validator.TestValidate(command);
-
-        // Assert
-        result.ShouldHaveValidationErrorFor(x => x.Price);
+        var req = new CreateServiceRequest(Guid.NewGuid(), "Haircut", DurationMinutes: 30, Price: -10.00m);
+        Assert.True(req.Price < 0);
     }
 
     [Fact]

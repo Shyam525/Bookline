@@ -1,6 +1,5 @@
-using Bookline.Application.Common.Models;
 using Bookline.Application.Services.Commands;
-using Bookline.Application.Services.Handlers;
+using Bookline.Application.Services.DTOs;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,40 +18,79 @@ public class ServicesController : ControllerBase
         _sender = sender;
     }
 
-    [HttpPost]
-    [Authorize(Policy = "ManageServices")]
-    public async Task<ActionResult<ServiceDto>> Create([FromBody] CreateServiceCommand command)
+    // --- Service Categories ---
+
+    [HttpGet("categories")]
+    public async Task<ActionResult<List<ServiceCategoryDto>>> GetCategories()
     {
-        var result = await _sender.Send(command);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        var result = await _sender.Send(new GetServiceCategoriesQuery());
+        return Ok(result);
     }
 
-    [HttpPut("{id:guid}")]
-    [Authorize(Policy = "ManageServices")]
-    public async Task<ActionResult<ServiceDto>> Update(Guid id, [FromBody] UpdateServiceCommand command)
+    [HttpPost("categories")]
+    public async Task<ActionResult<ServiceCategoryDto>> CreateCategory([FromBody] CreateServiceCategoryRequest request)
     {
-        if (id != command.Id)
-        {
-            return BadRequest(new { Message = "URL ID does not match request body ID." });
-        }
+        var result = await _sender.Send(new CreateServiceCategoryCommand(request));
+        return Ok(result);
+    }
 
-        var result = await _sender.Send(command);
+    [HttpPut("categories/{id:guid}")]
+    public async Task<ActionResult<ServiceCategoryDto>> UpdateCategory(Guid id, [FromBody] UpdateServiceCategoryRequest request)
+    {
+        var result = await _sender.Send(new UpdateServiceCategoryCommand(id, request));
+        return Ok(result);
+    }
+
+    [HttpDelete("categories/{id:guid}")]
+    public async Task<ActionResult> DeleteCategory(Guid id)
+    {
+        await _sender.Send(new DeleteServiceCategoryCommand(id));
+        return NoContent();
+    }
+
+    // --- Services ---
+
+    [HttpGet]
+    public async Task<ActionResult<List<ServiceDto>>> GetServices(
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] bool includeArchived = false)
+    {
+        var result = await _sender.Send(new GetServicesQuery(categoryId, includeArchived));
         return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = "ManageBookings")]
-    public async Task<ActionResult<ServiceDto>> GetById(Guid id)
+    public async Task<ActionResult<ServiceDto>> GetServiceById(Guid id)
     {
         var result = await _sender.Send(new GetServiceByIdQuery(id));
         return Ok(result);
     }
 
-    [HttpGet]
-    [Authorize(Policy = "ManageBookings")]
-    public async Task<ActionResult<PagedResult<ServiceDto>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    [HttpPost]
+    public async Task<ActionResult<ServiceDto>> CreateService([FromBody] CreateServiceRequest request)
     {
-        var result = await _sender.Send(new GetServicesQuery(page, pageSize));
+        var result = await _sender.Send(new CreateServiceCommand(request));
+        return CreatedAtAction(nameof(GetServiceById), new { id = result.Id }, result);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ServiceDto>> UpdateService(Guid id, [FromBody] UpdateServiceRequest request)
+    {
+        var result = await _sender.Send(new UpdateServiceCommand(id, request));
+        return Ok(result);
+    }
+
+    [HttpPut("{id:guid}/archive")]
+    public async Task<ActionResult> ArchiveService(Guid id)
+    {
+        await _sender.Send(new ArchiveServiceCommand(id));
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/duplicate")]
+    public async Task<ActionResult<ServiceDto>> DuplicateService(Guid id)
+    {
+        var result = await _sender.Send(new DuplicateServiceCommand(id));
         return Ok(result);
     }
 }

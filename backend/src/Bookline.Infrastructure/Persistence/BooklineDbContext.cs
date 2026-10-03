@@ -22,6 +22,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Location> Locations => Set<Location>();
+    public DbSet<ServiceCategory> ServiceCategories => Set<ServiceCategory>();
     public DbSet<Service> Services => Set<Service>();
     public DbSet<DomainStaff> Staff => Set<DomainStaff>();
     public DbSet<StaffService> StaffServices => Set<StaffService>();

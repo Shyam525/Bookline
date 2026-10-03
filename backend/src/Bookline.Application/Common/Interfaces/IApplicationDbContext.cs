@@ -12,6 +12,7 @@ public interface IApplicationDbContext
     DbSet<OrganizationMembership> OrganizationMemberships { get; }
     DbSet<Invitation> Invitations { get; }
     DbSet<Location> Locations { get; }
+    DbSet<ServiceCategory> ServiceCategories { get; }
     DbSet<Service> Services { get; }
     DbSet<DomainStaff> Staff { get; }
     DbSet<StaffService> StaffServices { get; }

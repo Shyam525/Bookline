@@ -19,6 +19,8 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Service> Services => Set<Service>();
     public DbSet<DomainStaff> Staff => Set<DomainStaff>();
     public DbSet<StaffService> StaffServices => Set<StaffService>();
@@ -45,7 +47,6 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.Property(b => b.Status).HasConversion<string>();
             builder.Property(b => b.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         });
-
 
         // Apply global tenant filter on all TenantEntity types
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())

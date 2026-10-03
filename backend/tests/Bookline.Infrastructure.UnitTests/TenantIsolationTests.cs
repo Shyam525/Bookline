@@ -54,6 +54,40 @@ public class TenantIsolationTests
     }
 
     [Fact]
+    public async Task OrganizationMembershipsAndInvitations_ShouldBeIsolatedByTenant()
+    {
+        // Arrange
+        var dbName = Guid.NewGuid().ToString();
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+
+        var (seedDbA, ctxA) = CreateDbContext(dbName);
+        ctxA.SetTenantId(tenantA);
+        seedDbA.OrganizationMemberships.Add(new OrganizationMembership { UserId = Guid.NewGuid(), Role = "Owner" });
+        seedDbA.Invitations.Add(new Invitation { Email = "inviteA@tenant.com", Role = "Staff" });
+        await seedDbA.SaveChangesAsync();
+
+        var (seedDbB, ctxB) = CreateDbContext(dbName);
+        ctxB.SetTenantId(tenantB);
+        seedDbB.OrganizationMemberships.Add(new OrganizationMembership { UserId = Guid.NewGuid(), Role = "Admin" });
+        seedDbB.Invitations.Add(new Invitation { Email = "inviteB@tenant.com", Role = "Receptionist" });
+        await seedDbB.SaveChangesAsync();
+
+        // Act: Query as Tenant A
+        var (queryDb, queryCtx) = CreateDbContext(dbName);
+        queryCtx.SetTenantId(tenantA);
+
+        var memberships = await queryDb.OrganizationMemberships.ToListAsync();
+        var invitations = await queryDb.Invitations.ToListAsync();
+
+        // Assert
+        Assert.Single(memberships);
+        Assert.Equal("Owner", memberships[0].Role);
+        Assert.Single(invitations);
+        Assert.Equal("inviteA@tenant.com", invitations[0].Email);
+    }
+
+    [Fact]
     public async Task SaveChanges_WithoutActiveTenantContext_ShouldThrowInvalidOperationException()
     {
         // Arrange

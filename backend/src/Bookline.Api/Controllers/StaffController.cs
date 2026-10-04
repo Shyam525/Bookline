@@ -1,3 +1,4 @@
+using Bookline.Application.Availability.Commands;
 using Bookline.Application.Staff.Commands;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -65,4 +66,28 @@ public class StaffController : ControllerBase
         var result = await _sender.Send(new SetWorkingHoursCommand(id, workingHours));
         return Ok(result);
     }
+
+    [HttpGet("{id:guid}/time-off")]
+    public async Task<ActionResult<List<TimeOffDto>>> GetStaffTimeOff(Guid id)
+    {
+        var result = await _sender.Send(new GetStaffTimeOffQuery(id));
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/time-off")]
+    public async Task<ActionResult<TimeOffDto>> CreateStaffTimeOff(Guid id, [FromBody] CreateTimeOffRequest request)
+    {
+        var result = await _sender.Send(new CreateTimeOffCommand(id, request.StartUtc, request.EndUtc, request.Reason));
+        return Ok(result);
+    }
+
+    [HttpDelete("{id:guid}/time-off/{timeOffId:guid}")]
+    public async Task<ActionResult> DeleteStaffTimeOff(Guid id, Guid timeOffId)
+    {
+        await _sender.Send(new DeleteTimeOffCommand(id, timeOffId));
+        return NoContent();
+    }
 }
+
+public record CreateTimeOffRequest(DateTimeOffset StartUtc, DateTimeOffset EndUtc, string? Reason);
+

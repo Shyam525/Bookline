@@ -1,59 +1,25 @@
-# BOOKLINE
-## Elite Production-Grade Appointment & Scheduling Platform
+# Bookline — Elite Production-Grade Appointment Platform
 
-Bookline is a serious, high-concurrency SaaS platform for salons, clinics, spas, barbershops, and appointment-based businesses.
-
----
-
-## 🏛️ Architecture Overview
-
-- **Backend**: ASP.NET Core 8, Entity Framework Core 8, PostgreSQL 16, Redis 7, NodaTime 3.x
-- **Frontend**: React 18, TypeScript, Vite, React Router, TanStack Query, React Hook Form, Zod, Tailwind CSS
-- **Testing**: xUnit, FluentAssertions, Integration Tests, Architecture Tests
-- **Infrastructure**: Docker, Docker Compose, PostgreSQL, Redis, Mailpit
+Bookline is a serious SaaS appointment scheduling and business operations platform engineered for salons, clinics, spas, barbershops, wellness centers, and appointment-based practices.
 
 ---
 
-## 🚀 Quick Start
+## Completed Architecture Phases (Phases 0 — 10)
 
-### 1. Start Infrastructure & Full Application
-```bash
-docker compose up --build -d
-```
-
-### 2. Local Development (API + Frontend)
-Backend:
-```powershell
-dotnet run --project backend/src/Bookline.Api
-```
-
-Frontend:
-```powershell
-cd frontend
-npm run dev
-```
+- [x] **Phase 0 — Foundation**: ASP.NET Core 8 Clean Architecture solution, React 18 frontend, PostgreSQL, Redis, Mailpit, Docker Compose.
+- [x] **Phase 1 — Design System**: Dark luxury design system tokens (`#0A0C13`, `#111520`, `#E8546A`, Playfair Display / DM Sans) & component primitives.
+- [x] **Phase 2 — Application Shell**: Top bar, grouped sidebar navigation, command palette (`Ctrl+K`), and notification center.
+- [x] **Phase 3 — Authentication**: JWT auth, refresh token rotation, user registration/login, AuthProvider.
+- [x] **Phase 4 — Multi-Tenancy**: Organization memberships, invitations, server-side EF query filters, and tenant isolation tests.
+- [x] **Phase 5 — Organization Onboarding**: 10-step wizard engine (`OnboardingStatusDto`, step handlers, UI wizard).
+- [x] **Phase 6 — Location Management**: Physical branch CRUD, timezone/currency settings, soft archival, and location UI.
+- [x] **Phase 7 — Service Catalog**: Categories, duration, buffer intervals, pricing, color coding, duplicate service action, and catalog UI.
+- [x] **Phase 8 — Staff Management**: Team member profiles, service mapping junction, working hours overlap validation, and team UI.
+- [x] **Phase 9 — Availability & Schedule Engine**: Realtime `ISlotEngine` slot computation, NodaTime intervals, working windows, time-off exceptions, and schedule UI.
+- [x] **Phase 10 — Customer Directory & CRM**: Client profiles, lifetime booking counts, lifetime spend tracking, notes drawer, paged search, and CRM UI.
 
 ---
 
-## 🔗 Endpoints
-
-- **Web Application**: `http://localhost:3000` (or `http://localhost:5168` when self-hosted)
-- **API Health**: `http://localhost:5168/health`
-- **API Readiness**: `http://localhost:5168/ready`
-- **Swagger UI**: `http://localhost:5168/swagger`
-- **Mailpit Email Inbox**: `http://localhost:8026`
-
----
-
-## 🧪 Testing
-
-Run backend test suite:
-```powershell
-dotnet test backend/Bookline.slnx -c Release
-```
-
-Run frontend typecheck and build:
-```powershell
-cd frontend
-npm run build
-```
+## Tech Stack
+- **Backend**: ASP.NET Core 8, C#, Entity Framework Core, PostgreSQL, Redis, NodaTime, MediatR CQRS, FluentValidation, xUnit.
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons.

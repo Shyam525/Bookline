@@ -1,32 +1,21 @@
-# Bookline Architecture Overview
+# Bookline Architecture Guide
 
-## Modular Clean Architecture
+## Clean Architecture Principles
 
-Bookline follows a strict **Modular Clean Architecture** pattern designed for enterprise scalability, testability, and strict separation of concerns.
+Bookline is built following strict Clean Architecture and Modular Domain principles.
 
-```text
-c:\z-projects\Bookline\src\
-  ├── Bookline.Domain          (Core domain models, entities, value objects, domain events)
-  ├── Bookline.Application     (Use cases, CQRS queries/commands, interfaces, slot engine)
-  ├── Bookline.Infrastructure  (Persistence, EF Core, Redis slot holds, Outbox, jobs)
-  ├── Bookline.Api             (ASP.NET Core Web API, controllers, middleware, wwwroot UI)
-  └── Bookline.Worker          (Background Outbox and reminder worker service)
+```
+Bookline.Api (Controllers, Middleware, Authorization)
+   └── Bookline.Application (Use Cases, CQRS Commands/Queries, DTOs, Validation)
+          └── Bookline.Domain (Entities, Value Objects, Domain Exceptions)
+   └── Bookline.Infrastructure (Persistence, EF Core, Interceptors, Outbox, Redis)
 ```
 
-## Architectural Principles
+### Dependency Rules
+1. **Domain Layer**: Zero dependencies on Infrastructure, ASP.NET Core, or EF Core. Contains authoritative domain entities (`Location`, `Service`, `Staff`, `Customer`, `Booking`).
+2. **Application Layer**: Depends only on Domain. Implements MediatR CQRS requests, handlers, and validation rules.
+3. **Infrastructure Layer**: Implements Application abstractions (`IApplicationDbContext`, `ITenantContext`, `ISlotEngine`). Handles EF Core database context, global query filters, and save interceptors.
+4. **API Layer**: Coordinates request processing, JWT authentication middleware, and REST response formatting.
 
-1. **Authoritative Persistence (PostgreSQL)**:
-   - PostgreSQL is the sole canonical source of truth for organizations, locations, staff, services, working hours, and appointments.
-   - Exclusion constraints (`EXCLUDE USING gist`) prevent double booking at the database level.
-
-2. **Temporary Slot Coordination (Redis)**:
-   - Redis is used strictly for short-lived, transient slot holds (e.g. 5-minute hold during checkout).
-   - Redis holds automatically expire without degrading persistent database records.
-
-3. **Domain Time Correctness (NodaTime)**:
-   - All appointment timestamps are stored in UTC (`StartUtc`, `EndUtc`) using NodaTime `Instant`.
-   - Local calendar representation relies on `LocalDate` and location timezones (`America/New_York`, `Asia/Kolkata`).
-
-4. **Reliable Side Effects (Transactional Outbox)**:
-   - Appointments and outbox messages are saved within a single atomic database transaction.
-   - Background workers publish notifications asynchronously with retries and dead-letter handling.
+---
+*Updated for Phase 6 - Phase 10 completion.*

@@ -1,13 +1,20 @@
-# Bookline Domain Model
+# Bookline Domain Model Guide
 
-The domain model represents pure enterprise scheduling rules with zero third-party framework dependencies.
+## Authoritative Entities
 
-## Core Entities
-- **Tenant**: Multi-tenant business entity.
-- **Service**: Offerings with duration, buffer time, and price.
-- **Staff**: Team members providing services.
-- **WorkingHours**: Weekly recurring availability intervals per staff member.
-- **TimeOff**: Staff absences and holiday overrides.
-- **Booking**: Appointment aggregate with status machine (`Pending`, `Confirmed`, `CheckedIn`, `Completed`, `Cancelled`, `NoShow`).
-- **Customer**: Client directory record.
-- **OutboxMessage**: Transactional event payload.
+Bookline's domain model represents multi-tenant appointment scheduling capabilities:
+
+### Core Domain Entities
+- **Tenant** (`Id`, `Name`, `Slug`, `Status`): Root organization tenant.
+- **Location** (`Id`, `TenantId`, `Name`, `Address`, `Phone`, `Timezone`, `Currency`): Physical location branch.
+- **ServiceCategory** (`Id`, `TenantId`, `Name`, `Description`, `SortOrder`): Categorization for services.
+- **Service** (`Id`, `TenantId`, `CategoryId`, `Name`, `DurationMinutes`, `BufferBeforeMinutes`, `BufferAfterMinutes`, `Price`): Service offerings.
+- **Staff** (`Id`, `TenantId`, `Name`, `Email`, `Phone`, `Title`, `Bio`, `TimeZoneId`): Staff team members.
+- **StaffService** (`StaffId`, `ServiceId`): Junction entity mapping staff capabilities.
+- **WorkingHours** (`Id`, `StaffId`, `DayOfWeek`, `StartTime`, `EndTime`): Weekly working hours per staff.
+- **TimeOff** (`Id`, `StaffId`, `StartUtc`, `EndUtc`, `Reason`): Staff vacation and leave intervals.
+- **Customer** (`Id`, `TenantId`, `FirstName`, `LastName`, `Email`, `Phone`, `Notes`, `TotalSpentAmount`): Client CRM directory.
+- **Booking** (`Id`, `TenantId`, `StaffId`, `ServiceId`, `CustomerId`, `StartUtc`, `EndUtc`, `Status`): Authoritative booking appointments.
+
+---
+*Updated for Phase 6 - Phase 10 completion.*

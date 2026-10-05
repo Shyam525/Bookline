@@ -1,9 +1,14 @@
-# Launch Bookline Docker Infrastructure and Web API
-Write-Host "Starting Bookline Infrastructure (PostgreSQL, Redis, Mailpit)..." -ForegroundColor Cyan
-docker-compose up -d
+# Local Development Launcher Script for Bookline
 
-Write-Host "Stopping any lingering Bookline API processes..." -ForegroundColor Yellow
-Stop-Process -Name "Bookline.Api" -Force -ErrorAction SilentlyContinue
+Write-Host "Starting Bookline Local Environment..." -ForegroundColor Coral
 
-Write-Host "Starting Bookline Web API in Release Mode..." -ForegroundColor Green
-dotnet run -c Release --project backend/src/Bookline.Api
+if (Get-Command docker-compose -ErrorAction SilentlyContinue) {
+    Write-Host "Starting Docker Compose services (PostgreSQL, Redis, Mailpit)..." -ForegroundColor Cyan
+    docker-compose up -d
+}
+
+Write-Host "Starting ASP.NET Core API server..." -ForegroundColor Cyan
+# dotnet run --project backend/src/Bookline.Api/Bookline.Api.csproj
+
+Write-Host "Starting Vite React frontend app..." -ForegroundColor Cyan
+# npm --prefix frontend run dev

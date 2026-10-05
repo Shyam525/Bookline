@@ -43,7 +43,7 @@ builder.Services.AddHealthChecks();
 
 // MediatR & FluentValidation Pipeline
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CreateServiceCommand>());
-builder.Services.AddValidatorsFromAssemblyContaining<CreateServiceCommandValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<Bookline.Application.Bookings.Commands.CreateBookingCommandValidator>();
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
 // Multi-Tenancy & Infrastructure DI
@@ -199,10 +199,20 @@ try
 
                 db.Tenants.Add(tenant);
 
+                var category = new ServiceCategory
+                {
+                    Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                    TenantId = tenant.Id,
+                    Name = "Hair Services",
+                    Description = "Haircuts and styling services"
+                };
+                db.ServiceCategories.Add(category);
+
                 var service = new Service 
                 { 
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
                     TenantId = tenant.Id, 
+                    CategoryId = category.Id,
                     Name = "Haircut & Style", 
                     DurationMinutes = 45, 
                     BufferMinutes = 15, 
@@ -215,9 +225,17 @@ try
                     Id = Guid.Parse("77777777-7777-7777-7777-777777777777"), 
                     TenantId = tenant.Id, 
                     Name = "Alex Johnson", 
+                    Email = "alex.johnson@example.com",
                     TimeZoneId = "America/New_York" 
                 };
                 db.Staff.Add(staff);
+
+                db.StaffServices.Add(new StaffService
+                {
+                    TenantId = tenant.Id,
+                    StaffId = staff.Id,
+                    ServiceId = service.Id
+                });
 
                 // Add Working Hours for Monday - Friday 09:00 - 17:00
                 for (int day = 1; day <= 5; day++)

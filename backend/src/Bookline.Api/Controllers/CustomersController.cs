@@ -1,5 +1,6 @@
 using Bookline.Application.Common.Models;
 using Bookline.Application.Customers.Commands;
+using Bookline.Application.Customers.DTOs;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,27 +19,42 @@ public class CustomersController : ControllerBase
         _sender = sender;
     }
 
-    [HttpPost]
-    [Authorize(Policy = "ManageBookings")]
-    public async Task<ActionResult<CustomerDto>> Create([FromBody] CreateCustomerCommand command)
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<CustomerDto>>> GetCustomers(
+        [FromQuery] string? searchQuery = null,
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        var result = await _sender.Send(command);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        var result = await _sender.Send(new GetCustomersQuery(searchQuery, includeArchived, page, pageSize));
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = "ManageBookings")]
-    public async Task<ActionResult<CustomerDto>> GetById(Guid id)
+    public async Task<ActionResult<CustomerDto>> GetCustomerById(Guid id)
     {
         var result = await _sender.Send(new GetCustomerByIdQuery(id));
         return Ok(result);
     }
 
-    [HttpGet]
-    [Authorize(Policy = "ManageBookings")]
-    public async Task<ActionResult<PagedResult<CustomerDto>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    [HttpPost]
+    public async Task<ActionResult<CustomerDto>> CreateCustomer([FromBody] CreateCustomerRequest request)
     {
-        var result = await _sender.Send(new GetCustomersQuery(page, pageSize));
+        var result = await _sender.Send(new CreateCustomerCommand(request));
+        return CreatedAtAction(nameof(GetCustomerById), new { id = result.Id }, result);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<CustomerDto>> UpdateCustomer(Guid id, [FromBody] UpdateCustomerRequest request)
+    {
+        var result = await _sender.Send(new UpdateCustomerCommand(id, request));
         return Ok(result);
+    }
+
+    [HttpPut("{id:guid}/archive")]
+    public async Task<ActionResult> ArchiveCustomer(Guid id)
+    {
+        await _sender.Send(new ArchiveCustomerCommand(id));
+        return NoContent();
     }
 }

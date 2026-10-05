@@ -6,4 +6,4 @@ Write-Host "Stopping any lingering Bookline API processes..." -ForegroundColor Y
 Stop-Process -Name "Bookline.Api" -Force -ErrorAction SilentlyContinue
 
 Write-Host "Starting Bookline Web API in Release Mode..." -ForegroundColor Green
-dotnet run -c Release --project src/Bookline.Api
+dotnet run -c Release --project backend/src/Bookline.Api

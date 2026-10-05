@@ -1,22 +1,23 @@
-# Bookline Design System Specification
+# Bookline Dark Luxury Design System
 
-## Color Palette
+## Design System Tokens & Typography
 
-- **Background**: `#0A0C13` (Deep Obsidian)
-- **Surface**: `#111520` (Dark Slate Card)
-- **Accent**: `#E8546A` (Bookline Coral Red)
-- **Free Slot**: `#34D399` (Emerald Green)
-- **Held Slot**: `#FBBF24` (Amber Warning)
-- **Booked Slot**: `#64748B` (Muted Slate)
+Bookline features a dark luxury aesthetic designed specifically for elite salons, clinics, spas, and appointment-based practices.
 
-## Typography
+### Color Tokens
+- **Background**: `#0A0C13` (Deep Obsidian Void)
+- **Surface**: `#111520` (Dark Surface)
+- **Elevated**: `#181D2C` (Elevated Card/Container)
+- **Border**: `#212638` (Subtle Divider Border)
+- **Primary Text**: `#ECEFFE` (Crisp Off-White)
+- **Muted Text**: `#7E88A8` (Muted Slate)
+- **Primary Accent**: `#E8546A` (Coral Accent)
+- **Positive / Free State**: `#34D399` (Emerald Green)
+- **Pending / Held State**: `#FBBF24` (Amber Gold)
 
-- **Display / Headings**: Playfair Display
-- **UI & Body**: DM Sans
+### Typography
+- **Headings**: `Playfair Display`, serif
+- **Interface & Body**: `DM Sans`, sans-serif
 
-## Component States (The Hero Slot Component)
-
-1. **Free**: Emerald outline, "Tap to select".
-2. **Selected**: Coral accent border, active hold countdown timer.
-3. **Held**: Amber badge, "Another customer has it".
-4. **Booked**: Muted slate, locked / unavailable.
+---
+*Updated for Phase 1 - Phase 10 compliance.*

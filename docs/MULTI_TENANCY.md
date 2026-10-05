@@ -1,29 +1,17 @@
-# Bookline Multi-Tenancy & Data Isolation
+# Bookline Multi-Tenancy Architecture
 
-## Tenant Context Resolution
+## Tenant Isolation Strategy
 
-Multi-tenancy is enforced server-side. The backend resolves the active tenant context using `TenantContextMiddleware` and `ITenantContext`:
+Bookline enforces strict database-level multi-tenant data isolation.
 
-1. **Authenticated Users**: Resolved via JWT claim (`tenant_id`).
-2. **Public Booking Pages**: Resolved via route/query slug (e.g. `/api/v1/public/tenant/acme-salon`).
+### Isolation Rules
+1. **Tenant Entity Base**: All tenant-scoped entities inherit from `TenantEntity` (`public Guid TenantId { get; set; }`).
+2. **EF Core Global Query Filters**: Applied automatically to all EF queries:
+   ```csharp
+   builder.HasQueryFilter(e => e.TenantId == _tenantContext.TenantId);
+   ```
+3. **Save Interceptor**: `TenantSaveChangesInterceptor` automatically populates `TenantId` on newly added `TenantEntity` objects during `SaveChangesAsync()`.
+4. **Tenant Context**: Scope-bound `ITenantContext` injected into API controllers and handlers.
 
-## EF Core Global Query Filters
-
-All tenant-owned entities inherit from `TenantEntity`:
-
-```csharp
-public abstract class TenantEntity
-{
-    public Guid TenantId { get; set; }
-}
-```
-
-`BooklineDbContext` automatically configures a global query filter on all `TenantEntity` types:
-
-```csharp
-modelBuilder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == _tenantContext.TenantId);
-```
-
-## Cross-Tenant Security
-
-Public queries explicitly invoke `.IgnoreQueryFilters()` only to cross-check requested resource tenant IDs against the resolved tenant slug, throwing `NotFoundException` (HTTP 404) on any mismatch.
+---
+*Updated for Phase 4 - Phase 10 compliance.*

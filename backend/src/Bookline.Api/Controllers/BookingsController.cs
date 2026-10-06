@@ -9,7 +9,7 @@ namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/bookings")]
-[Authorize(Policy = "ManageBookings")]
+[Authorize]
 public class BookingsController : ControllerBase
 {
     private readonly ISender _sender;

@@ -260,8 +260,8 @@ public class BookingCommandHandlerTests
     }
 
     [Theory]
-    [InlineData("2026-10-05", true)]  // Monday -> Working hours present -> slots returned
-    [InlineData("2026-10-03", false)] // Saturday -> No working hours -> empty slots
+    [InlineData("2028-10-02", true)]  // Future Monday -> Working hours present -> slots returned
+    [InlineData("2028-10-07", false)] // Future Saturday -> No working hours -> empty slots
     public async Task Availability_matches_working_hours(string dateString, bool expectSlots)
     {
         var options = new DbContextOptionsBuilder<BooklineDbContext>()

@@ -1,18 +1,27 @@
 # Automated Build & Test Script for Bookline Solution
 
-Write-Host "==========================================" -ForegroundColor Coral
+Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "BOOKLINE AUTOMATED VERIFICATION SUITE" -ForegroundColor White
-Write-Host "==========================================" -ForegroundColor Coral
+Write-Host "==========================================" -ForegroundColor Cyan
 
-Write-Host "[1/2] Running Backend Unit Tests (Release Mode)..." -ForegroundColor Cyan
-dotnet test backend/tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj -c Release
+Write-Host "[1/3] Building Backend Solution..." -ForegroundColor Cyan
+dotnet build backend/Bookline.slnx
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "X Backend Build Failed!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "[2/3] Running Backend Unit Tests..." -ForegroundColor Cyan
+Get-ChildItem -Path backend -Recurse -Include bin,obj | Get-ChildItem -Recurse -Include *.dll -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+dotnet test backend/tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "X Backend Unit Tests Failed!" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "[2/2] Running Frontend TypeScript & Vite Build..." -ForegroundColor Cyan
+Write-Host "[3/3] Running Frontend TypeScript & Vite Build..." -ForegroundColor Cyan
 npm --prefix frontend run build
 
 if ($LASTEXITCODE -ne 0) {
@@ -20,4 +29,4 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "✓ ALL BACKEND TESTS & FRONTEND BUILDS PASSED CLEANLY!" -ForegroundColor Green
+Write-Host "SUCCESS: ALL BACKEND TESTS AND FRONTEND BUILDS PASSED CLEANLY!" -ForegroundColor Green

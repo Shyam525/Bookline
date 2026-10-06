@@ -18,6 +18,7 @@ import { StaffPage } from '../../pages/app/StaffPage';
 import { AvailabilityPage } from '../../pages/app/AvailabilityPage';
 import { CustomersPage } from '../../pages/app/CustomersPage';
 import { CalendarPage } from '../../pages/app/CalendarPage';
+import { NotificationsPage } from '../../pages/app/NotificationsPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -47,6 +48,7 @@ export const AppRouter: React.FC = () => {
           <Route path="services" element={<ServicesPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="availability" element={<AvailabilityPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="payments" element={<DashboardPage />} />
           <Route path="analytics" element={<DashboardPage />} />
           <Route path="settings" element={<DashboardPage />} />

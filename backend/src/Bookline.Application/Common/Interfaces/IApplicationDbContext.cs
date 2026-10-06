@@ -24,6 +24,8 @@ public interface IApplicationDbContext
     DbSet<WebhookDeliveryLog> WebhookLogs { get; }
     DbSet<OutboxMessage> OutboxMessages { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<NotificationLog> NotificationLogs { get; }
+    DbSet<NotificationSetting> NotificationSettings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

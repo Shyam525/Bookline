@@ -34,6 +34,8 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<WebhookDeliveryLog> WebhookLogs => Set<WebhookDeliveryLog>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +50,14 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasKey(b => b.Id);
             builder.Property(b => b.Status).HasConversion<string>();
             builder.Property(b => b.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<NotificationLog>(builder =>
+        {
+            builder.HasKey(n => n.Id);
+            builder.Property(n => n.NotificationType).HasConversion<string>();
+            builder.Property(n => n.Channel).HasConversion<string>();
+            builder.Property(n => n.Status).HasConversion<string>();
         });
 
         // Apply global tenant filter on all TenantEntity types

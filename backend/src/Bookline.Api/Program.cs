@@ -59,6 +59,8 @@ builder.Services.AddDataProtection();
 builder.Services.AddTransient<IBookingActionTokenService, Bookline.Infrastructure.Services.BookingActionTokenService>();
 builder.Services.AddTransient<ICalendarService, Bookline.Infrastructure.Services.CalendarService>();
 builder.Services.AddTransient<IEmailSender, Bookline.Infrastructure.Services.MailKitEmailSender>();
+builder.Services.AddScoped<INotificationService, Bookline.Infrastructure.Services.NotificationService>();
+builder.Services.AddScoped<Bookline.Application.Notifications.Handlers.NotificationHandlers>();
 
 // Configure CORS
 builder.Services.AddCors(options =>

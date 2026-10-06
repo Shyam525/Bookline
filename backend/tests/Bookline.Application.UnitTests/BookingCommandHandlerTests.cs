@@ -300,22 +300,5 @@ public class BookingCommandHandlerTests
         var slots = await queryHandler.Handle(query, CancellationToken.None);
 
         Assert.Equal(expectSlots, slots.Count > 0);
-    }
-
-    private class TestTenantContext : ITenantContext
-    {
-        public Guid TenantId { get; private set; }
-        public bool IsResolved => true;
-
-        public TestTenantContext(Guid tenantId)
-        {
-            TenantId = tenantId;
-        }
-
-        public void SetTenantId(Guid tenantId)
-        {
-            TenantId = tenantId;
-        }
-    }
-}
+    }}
 

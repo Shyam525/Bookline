@@ -4,7 +4,7 @@ Bookline is a serious SaaS appointment scheduling and business operations platfo
 
 ---
 
-## Completed Architecture Phases (Phases 0 — 10)
+## Completed Architecture Phases (Phases 0 — 13)
 
 - [x] **Phase 0 — Foundation**: ASP.NET Core 8 Clean Architecture solution, React 18 frontend, PostgreSQL, Redis, Mailpit, Docker Compose.
 - [x] **Phase 1 — Design System**: Dark luxury design system tokens (`#0A0C13`, `#111520`, `#E8546A`, Playfair Display / DM Sans) & component primitives.
@@ -17,6 +17,9 @@ Bookline is a serious SaaS appointment scheduling and business operations platfo
 - [x] **Phase 8 — Staff Management**: Team member profiles, service mapping junction, working hours overlap validation, and team UI.
 - [x] **Phase 9 — Availability & Schedule Engine**: Realtime `ISlotEngine` slot computation, NodaTime intervals, working windows, time-off exceptions, and schedule UI.
 - [x] **Phase 10 — Customer Directory & CRM**: Client profiles, lifetime booking counts, lifetime spend tracking, notes drawer, paged search, and CRM UI.
+- [x] **Phase 11 — Booking Engine & Calendar Workspace**: Multi-view Day/Week/Month calendar workspace, status badges, details drawer, and appointment booking engine.
+- [x] **Phase 12 — Notifications & Reminders Engine**: Email & SMS outbox delivery, tenant settings, 24-hour reminder background job, delivery history logs UI.
+- [x] **Phase 13 — Payments & POS Integration**: Financial transactions, Stripe deposit checkout sessions, in-store POS receipts, and refund processing workspace.
 
 ---
 

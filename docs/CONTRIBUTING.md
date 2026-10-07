@@ -17,7 +17,7 @@ When adding features or modifying code in Bookline, adhere strictly to these arc
    - Use reusable components from `components/ui`, `components/forms`, `components/data-display`, and `components/feedback`.
 
 4. **Testing Rules**:
-   - Run `dotnet test backend/tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj -c Release` before committing code.
+   - Run `powershell -ExecutionPolicy Bypass -File scripts/test.ps1` before committing code to ensure both backend unit tests and frontend Vite build compile with zero errors.
 
 ---
-*Updated for Bookline 2026.*
+*Updated for Bookline 2026 (Phases 0 — 13).*

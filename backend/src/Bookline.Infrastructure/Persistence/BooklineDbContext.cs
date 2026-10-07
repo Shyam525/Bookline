@@ -36,6 +36,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
+    public DbSet<Payment> Payments => Set<Payment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +59,15 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.Property(n => n.NotificationType).HasConversion<string>();
             builder.Property(n => n.Channel).HasConversion<string>();
             builder.Property(n => n.Status).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<Payment>(builder =>
+        {
+            builder.HasKey(p => p.Id);
+            builder.Property(p => p.Amount).HasPrecision(18, 2);
+            builder.Property(p => p.PaymentType).HasConversion<string>();
+            builder.Property(p => p.Status).HasConversion<string>();
+            builder.Property(p => p.PaymentMethod).HasConversion<string>();
         });
 
         // Apply global tenant filter on all TenantEntity types

@@ -13,7 +13,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[2/3] Running Backend Unit Tests..." -ForegroundColor Cyan
-Get-ChildItem -Path backend -Recurse -Include bin,obj | Get-ChildItem -Recurse -Include *.dll -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+Get-ChildItem -Path backend -Recurse -Include *.dll,*.exe | Unblock-File -ErrorAction SilentlyContinue
 dotnet test backend/tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj
 
 if ($LASTEXITCODE -ne 0) {

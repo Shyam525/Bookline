@@ -61,6 +61,7 @@ builder.Services.AddTransient<ICalendarService, Bookline.Infrastructure.Services
 builder.Services.AddTransient<IEmailSender, Bookline.Infrastructure.Services.MailKitEmailSender>();
 builder.Services.AddScoped<INotificationService, Bookline.Infrastructure.Services.NotificationService>();
 builder.Services.AddScoped<Bookline.Application.Notifications.Handlers.NotificationHandlers>();
+builder.Services.AddScoped<Bookline.Application.Payments.Handlers.PaymentHandlers>();
 
 // Configure CORS
 builder.Services.AddCors(options =>

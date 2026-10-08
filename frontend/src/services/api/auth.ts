@@ -4,6 +4,9 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  fullName?: string;
+  phone?: string;
+  avatarUrl?: string;
   role: string;
 }
 
@@ -21,6 +24,16 @@ export interface AuthResponse extends AuthTokens {
   role: string;
 }
 
+export interface BusinessSummary {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  city: string;
+  logoUrl?: string;
+  role: string;
+}
+
 const API_BASE = '/api/v1/auth';
 
 export const authApi = {
@@ -33,6 +46,25 @@ export const authApi = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: 'Invalid credentials' }));
       throw new Error(err.message || err.Message || 'Authentication failed');
+    }
+    return res.json();
+  },
+
+  async registerCustomer(data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  }): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE}/register-customer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Registration failed' }));
+      throw new Error(err.message || err.Message || 'Registration failed');
     }
     return res.json();
   },
@@ -53,6 +85,29 @@ export const authApi = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: 'Registration failed' }));
       throw new Error(err.message || err.Message || 'Registration failed');
+    }
+    return res.json();
+  },
+
+  async getMyBusinesses(token: string): Promise<BusinessSummary[]> {
+    const res = await fetch(`${API_BASE}/my-businesses`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async switchBusiness(tenantId: string, token: string): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE}/switch-business`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tenantId }),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to switch business');
     }
     return res.json();
   },

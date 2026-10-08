@@ -62,6 +62,15 @@ builder.Services.AddTransient<IEmailSender, Bookline.Infrastructure.Services.Mai
 builder.Services.AddScoped<INotificationService, Bookline.Infrastructure.Services.NotificationService>();
 builder.Services.AddScoped<Bookline.Application.Notifications.Handlers.NotificationHandlers>();
 builder.Services.AddScoped<Bookline.Application.Payments.Handlers.PaymentHandlers>();
+builder.Services.AddScoped<Bookline.Application.Analytics.Handlers.AnalyticsHandlers>();
+
+// Marketplace Discovery, Geo, Maps & Financial Providers
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISearchIntentService, Bookline.Infrastructure.Search.SearchIntentService>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IGeocodingProvider, Bookline.Infrastructure.Geo.GeocodingProvider>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IMapProvider, Bookline.Infrastructure.Maps.MapProvider>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IProviderSearchService, Bookline.Infrastructure.Search.ProviderSearchService>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPaymentProvider, Bookline.Infrastructure.Payments.PaymentProvider>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPayoutProvider, Bookline.Infrastructure.Payments.PayoutProvider>();
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -79,11 +88,41 @@ builder.Services.AddCors(options =>
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
                        ?? "Host=localhost;Database=bookline_db;Username=postgres;Password=postgrespassword";
 
+bool usePostgres = false;
+try
+{
+    var builderNpgsql = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
+    using var tcp = new System.Net.Sockets.TcpClient();
+    var ar = tcp.BeginConnect(builderNpgsql.Host ?? "localhost", builderNpgsql.Port > 0 ? builderNpgsql.Port : 5432, null, null);
+    var success = ar.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(400));
+    if (success && tcp.Connected)
+    {
+        usePostgres = true;
+    }
+}
+catch
+{
+    usePostgres = false;
+}
+
+if (!usePostgres)
+{
+    Log.Information("Local environment: PostgreSQL not detected on localhost:5432. Initializing Bookline with In-Memory engine and Marketplace Seed.");
+}
+
 builder.Services.AddDbContext<BooklineDbContext>((sp, options) =>
 {
     var interceptor = sp.GetRequiredService<TenantSaveChangesInterceptor>();
-    options.UseNpgsql(connectionString)
-           .AddInterceptors(interceptor);
+    if (usePostgres)
+    {
+        options.UseNpgsql(connectionString)
+               .AddInterceptors(interceptor);
+    }
+    else
+    {
+        options.UseInMemoryDatabase("BooklineDb")
+               .AddInterceptors(interceptor);
+    }
 });
 
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<BooklineDbContext>());
@@ -288,6 +327,11 @@ try
                 db.SaveChanges();
                 Log.Information("Demo owner account seeded for tenant 'acme-salon'.");
             }
+
+            // Seed comprehensive marketplace data (Multi-vendor, products, orders, reviews, demo accounts)
+            var marketplaceHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, marketplaceHasher, logger);
         }
         catch (Exception ex)
         {

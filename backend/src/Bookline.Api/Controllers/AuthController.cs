@@ -288,6 +288,142 @@ public class AuthController : ControllerBase
         ));
     }
 
+    [HttpPost("register-customer")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RegisterCustomer([FromBody] RegisterCustomerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { Message = "Email and password are required." });
+        }
+
+        var existingUser = await _dbContext.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+
+        if (existingUser != null)
+        {
+            return BadRequest(new { Message = "User with this email already exists." });
+        }
+
+        var user = new AppUser
+        {
+            Id = Guid.NewGuid(),
+            TenantId = Guid.Empty,
+            Email = request.Email,
+            PasswordHash = _passwordHasher.HashPassword(request.Password),
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            Phone = request.Phone,
+            Role = "Customer",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _dbContext.Users.Add(user);
+
+        var tokenResult = _tokenGenerator.GenerateAccessToken(user);
+        var rawRefreshToken = _tokenGenerator.GenerateRefreshToken();
+        var hashedRefreshToken = _tokenGenerator.HashRefreshToken(rawRefreshToken);
+        var refreshTokenExpiryUtc = DateTime.UtcNow.AddDays(7);
+
+        var refreshTokenEntity = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            TenantId = Guid.Empty,
+            TokenHash = hashedRefreshToken,
+            ExpiryUtc = refreshTokenExpiryUtc,
+            IsRevoked = false,
+            IsUsed = false,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _dbContext.RefreshTokens.Add(refreshTokenEntity);
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new AuthResponse(
+            tokenResult.Token,
+            tokenResult.ExpiryUtc,
+            rawRefreshToken,
+            refreshTokenExpiryUtc,
+            user.Id,
+            Guid.Empty,
+            user.Email,
+            user.Role
+        ));
+    }
+
+    [HttpGet("my-businesses")]
+    [Authorize]
+    public async Task<IActionResult> GetMyBusinesses()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var memberships = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
+            .Where(m => m.UserId == userId)
+            .ToListAsync();
+
+        var user = await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
+        var tenantIds = memberships.Select(m => m.TenantId).ToList();
+        if (user != null && user.TenantId != Guid.Empty && !tenantIds.Contains(user.TenantId))
+        {
+            tenantIds.Add(user.TenantId);
+        }
+
+        var businesses = await _dbContext.Tenants.IgnoreQueryFilters()
+            .Where(t => tenantIds.Contains(t.Id))
+            .Select(t => new
+            {
+                t.Id,
+                t.Name,
+                t.Slug,
+                t.Category,
+                t.City,
+                t.LogoUrl,
+                Role = user != null && user.TenantId == t.Id ? user.Role : "Staff"
+            })
+            .ToListAsync();
+
+        return Ok(businesses);
+    }
+
+    [HttpPost("switch-business")]
+    [Authorize]
+    public async Task<IActionResult> SwitchBusiness([FromBody] SwitchBusinessRequest request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return NotFound(new { Message = "User not found." });
+
+        var targetTenant = await _dbContext.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == request.TenantId);
+        if (targetTenant == null) return NotFound(new { Message = "Business not found." });
+
+        // Generate new JWT scoped to the switched business
+        var tokenResult = _tokenGenerator.GenerateAccessToken(user, targetTenant.Id);
+        var rawRefreshToken = _tokenGenerator.GenerateRefreshToken();
+        var hashedRefreshToken = _tokenGenerator.HashRefreshToken(rawRefreshToken);
+        var refreshTokenExpiryUtc = DateTime.UtcNow.AddDays(7);
+
+        return Ok(new AuthResponse(
+            tokenResult.Token,
+            tokenResult.ExpiryUtc,
+            rawRefreshToken,
+            refreshTokenExpiryUtc,
+            user.Id,
+            targetTenant.Id,
+            user.Email,
+            user.Role
+        ));
+    }
+
     [HttpPost("logout")]
     [Authorize]
     public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest request)
@@ -308,3 +444,7 @@ public class AuthController : ControllerBase
         return Ok(new { Message = "Logged out successfully." });
     }
 }
+
+public record RegisterCustomerRequest(string Email, string Password, string FirstName, string LastName, string? Phone);
+public record SwitchBusinessRequest(Guid TenantId);
+

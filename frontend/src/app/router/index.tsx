@@ -1,37 +1,84 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { PublicLayout } from '../../layouts/PublicLayout';
-import { AppLayout } from '../../layouts/AppLayout';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { CustomerLayout } from '../../layouts/CustomerLayout';
+import { ProviderLayout } from '../../layouts/ProviderLayout';
+import { AdminLayout } from '../../layouts/AdminLayout';
 import { AuthLayout } from '../../layouts/AuthLayout';
+
+// Customer Pages
 import { HomePage } from '../../pages/marketing/HomePage';
+import { DiscoveryPage } from '../../pages/customer/DiscoveryPage';
+import { ProviderStorefrontPage } from '../../pages/customer/ProviderStorefrontPage';
+import { CustomerAppointmentsPage } from '../../pages/customer/CustomerAppointmentsPage';
+import { CustomerOrdersPage } from '../../pages/customer/CustomerOrdersPage';
+import { FavoritesPage } from '../../pages/customer/FavoritesPage';
+import { CustomerProfilePage } from '../../pages/customer/CustomerProfilePage';
+import { CustomerNotificationsPage } from '../../pages/customer/CustomerNotificationsPage';
+import { CheckoutPage } from '../../pages/customer/CheckoutPage';
+
+// Auth Pages
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { RegisterPage } from '../../pages/auth/RegisterPage';
 import { ForgotPasswordPage } from '../../pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '../../pages/auth/ResetPasswordPage';
+
+// Provider Pages
 import { DashboardPage } from '../../pages/app/DashboardPage';
-import { PublicBookingPage } from '../../pages/public-booking/PublicBookingPage';
-import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
-import { OnboardingWizardPage } from '../../pages/app/OnboardingWizardPage';
-import { LocationsPage } from '../../pages/app/LocationsPage';
-import { ServicesPage } from '../../pages/app/ServicesPage';
-import { StaffPage } from '../../pages/app/StaffPage';
-import { AvailabilityPage } from '../../pages/app/AvailabilityPage';
-import { CustomersPage } from '../../pages/app/CustomersPage';
 import { CalendarPage } from '../../pages/app/CalendarPage';
-import { NotificationsPage } from '../../pages/app/NotificationsPage';
+import { ProviderBookingsPage } from '../../pages/app/ProviderBookingsPage';
+import { CustomersPage } from '../../pages/app/CustomersPage';
+import { ServicesPage } from '../../pages/app/ServicesPage';
+import { ProviderProductsPage } from '../../pages/app/ProviderProductsPage';
+import { StaffPage } from '../../pages/app/StaffPage';
+import { LocationsPage } from '../../pages/app/LocationsPage';
+import { AvailabilityPage } from '../../pages/app/AvailabilityPage';
+import { ProviderOrdersPage } from '../../pages/app/ProviderOrdersPage';
 import { PaymentsPage } from '../../pages/app/PaymentsPage';
+import { AnalyticsPage } from '../../pages/app/AnalyticsPage';
+import { StorefrontSettingsPage } from '../../pages/app/StorefrontSettingsPage';
+import { ProviderTeamPage } from '../../pages/app/ProviderTeamPage';
+import { OnboardingWizardPage } from '../../pages/app/OnboardingWizardPage';
+import { NotificationsPage } from '../../pages/app/NotificationsPage';
+import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
+
+// Platform Admin Pages
+import { AdminDashboardPage } from '../../pages/admin/AdminDashboardPage';
+import { AdminProvidersPage } from '../../pages/admin/AdminProvidersPage';
+import { AdminCustomersPage } from '../../pages/admin/AdminCustomersPage';
+import { AdminCategoriesPage } from '../../pages/admin/AdminCategoriesPage';
+import { AdminFinancialsPage } from '../../pages/admin/AdminFinancialsPage';
+import { AdminReviewsPage } from '../../pages/admin/AdminReviewsPage';
+import { AdminHealthPage } from '../../pages/admin/AdminHealthPage';
 
 export const AppRouter: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
-        <Route element={<PublicLayout />}>
+        {/* ========================================================= */}
+        {/* 1. CUSTOMER MARKETPLACE (CustomerLayout - Section 22)     */}
+        {/* ========================================================= */}
+        <Route element={<CustomerLayout />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/book/:organizationSlug" element={<PublicBookingPage />} />
+          <Route path="/discover" element={<DiscoveryPage />} />
+          <Route path="/discover/:category" element={<DiscoveryPage />} />
+          <Route path="/category/:slug" element={<DiscoveryPage />} />
+          <Route path="/business/:slug" element={<ProviderStorefrontPage />} />
+          <Route path="/book/:businessSlug" element={<ProviderStorefrontPage />} />
+          <Route path="/book/:slug" element={<ProviderStorefrontPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/appointments" element={<CustomerAppointmentsPage />} />
+          <Route path="/appointments/:id" element={<CustomerAppointmentsPage />} />
+          <Route path="/orders" element={<CustomerOrdersPage />} />
+          <Route path="/orders/:id" element={<CustomerOrdersPage />} />
+          <Route path="/notifications" element={<CustomerNotificationsPage />} />
+          <Route path="/profile" element={<CustomerProfilePage />} />
+          <Route path="/settings" element={<CustomerProfilePage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
         </Route>
 
-        {/* Authentication Routes */}
+        {/* ========================================================= */}
+        {/* 2. AUTHENTICATION (AuthLayout)                            */}
+        {/* ========================================================= */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -39,22 +86,53 @@ export const AppRouter: React.FC = () => {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
-        {/* Operations App Routes */}
-        <Route path="/app" element={<AppLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="onboarding" element={<OnboardingWizardPage />} />
-          <Route path="locations" element={<LocationsPage />} />
+        {/* ========================================================= */}
+        {/* 3. PROVIDER OPERATING OS (ProviderLayout)                */}
+        {/* ========================================================= */}
+        <Route path="/provider" element={<ProviderLayout />}>
+          <Route index element={<Navigate to="/provider/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="bookings" element={<ProviderBookingsPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="services" element={<ServicesPage />} />
+          <Route path="products" element={<ProviderProductsPage />} />
           <Route path="staff" element={<StaffPage />} />
+          <Route path="locations" element={<LocationsPage />} />
           <Route path="availability" element={<AvailabilityPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="orders" element={<ProviderOrdersPage />} />
           <Route path="payments" element={<PaymentsPage />} />
-          <Route path="analytics" element={<DashboardPage />} />
-          <Route path="settings" element={<DashboardPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="reports" element={<AnalyticsPage />} />
+          <Route path="storefront" element={<StorefrontSettingsPage />} />
+          <Route path="team" element={<ProviderTeamPage />} />
+          <Route path="settings" element={<StorefrontSettingsPage />} />
+          <Route path="onboarding" element={<OnboardingWizardPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />
         </Route>
+
+        {/* Backward Compatibility for /app -> /provider */}
+        <Route path="/app/*" element={<Navigate to="/provider/dashboard" replace />} />
+
+        {/* ========================================================= */}
+        {/* 4. PLATFORM GOVERNANCE ADMIN (AdminLayout)                */}
+        {/* ========================================================= */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="providers" element={<AdminProvidersPage />} />
+          <Route path="customers" element={<AdminCustomersPage />} />
+          <Route path="categories" element={<AdminCategoriesPage />} />
+          <Route path="bookings" element={<ProviderBookingsPage />} />
+          <Route path="orders" element={<ProviderOrdersPage />} />
+          <Route path="payments" element={<AdminFinancialsPage />} />
+          <Route path="payouts" element={<AdminFinancialsPage />} />
+          <Route path="reviews" element={<AdminReviewsPage />} />
+          <Route path="health" element={<AdminHealthPage />} />
+        </Route>
+
+        {/* Fallback Catch-all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

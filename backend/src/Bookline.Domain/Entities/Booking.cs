@@ -6,12 +6,19 @@ using Bookline.Domain.Exceptions;
 public class Booking : TenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public string BookingReference { get; set; } = $"BL-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
     public Guid StaffId { get; set; }
     public Guid ServiceId { get; set; }
     public Guid CustomerId { get; set; }
+    public Guid? LocationId { get; set; }
     public DateTimeOffset StartUtc { get; set; }
     public DateTimeOffset EndUtc { get; set; }
     public BookingStatus Status { get; private set; } = BookingStatus.Pending;
+    public string? CancellationReason { get; set; }
+    public string? CancelledBy { get; set; }
+    public string? CustomerNotes { get; set; }
+    public decimal TotalPrice { get; set; }
+    public decimal DepositPaid { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }
@@ -32,6 +39,7 @@ public class Booking : TenantEntity
         StartUtc = startUtc;
         EndUtc = endUtc;
         Status = BookingStatus.Pending;
+        BookingReference = $"BL-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
     }
 
     public void Confirm()
@@ -44,9 +52,19 @@ public class Booking : TenantEntity
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    public void Complete()
+    public void CheckIn()
     {
         if (Status != BookingStatus.Confirmed)
+        {
+            throw new InvalidStatusTransitionException(Status, BookingStatus.CheckedIn);
+        }
+        Status = BookingStatus.CheckedIn;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    public void Complete()
+    {
+        if (Status != BookingStatus.Confirmed && Status != BookingStatus.CheckedIn)
         {
             throw new InvalidStatusTransitionException(Status, BookingStatus.Completed);
         }
@@ -54,13 +72,15 @@ public class Booking : TenantEntity
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    public void Cancel()
+    public void Cancel(string? reason = null, string? cancelledBy = null)
     {
-        if (Status != BookingStatus.Pending && Status != BookingStatus.Confirmed)
+        if (Status != BookingStatus.Pending && Status != BookingStatus.Confirmed && Status != BookingStatus.CheckedIn)
         {
             throw new InvalidStatusTransitionException(Status, BookingStatus.Cancelled);
         }
         Status = BookingStatus.Cancelled;
+        CancellationReason = reason;
+        CancelledBy = cancelledBy;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
@@ -82,7 +102,7 @@ public class Booking : TenantEntity
 
     public void MarkNoShow()
     {
-        if (Status != BookingStatus.Confirmed)
+        if (Status != BookingStatus.Confirmed && Status != BookingStatus.CheckedIn)
         {
             throw new InvalidStatusTransitionException(Status, BookingStatus.NoShow);
         }

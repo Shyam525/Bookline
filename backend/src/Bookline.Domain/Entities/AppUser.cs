@@ -9,7 +9,11 @@ public class AppUser : TenantEntity
     public string PasswordHash { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
-    public string Role { get; set; } = "Staff"; // Owner, Staff, Receptionist
+    public string? Phone { get; set; }
+    public string? AvatarUrl { get; set; }
+    public string Role { get; set; } = "Customer"; // Customer, PlatformAdmin, Owner, Admin, Manager, Receptionist, Staff, Viewer
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
+
+    public string FullName => string.IsNullOrWhiteSpace(LastName) ? FirstName : $"{FirstName} {LastName}".Trim();
 }

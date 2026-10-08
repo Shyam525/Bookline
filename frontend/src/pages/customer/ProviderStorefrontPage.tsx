@@ -1022,6 +1022,278 @@ END:VCALENDAR`;
               </div>
             </div>
           </div>
+        {/* TAB 7: LOCATIONS (Section 38) */}
+        {activeTab === 'locations' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div>
+              <h2 className="font-heading text-2xl font-bold text-white">Locations &amp; Branches</h2>
+              <p className="text-xs text-[#7E88A8]">Physical premises, directions, and parking accessibility</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Primary Location */}
+              <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#E8546A]/15 text-[#E8546A] text-[10px] font-bold uppercase tracking-wider">
+                      Flagship Studio
+                    </span>
+                    <span className="text-[11px] text-[#34D399] font-semibold flex items-center gap-1">
+                      <Navigation className="w-3.5 h-3.5" /> 1.2 km away
+                    </span>
+                  </div>
+                  <h3 className="font-heading font-bold text-lg text-white">{provider.name} &bull; {provider.city}</h3>
+                  <div className="text-xs text-[#7E88A8] space-y-1">
+                    <p className="text-white font-medium">{provider.address}</p>
+                    <p>{provider.city}, {provider.state} {provider.postalCode}</p>
+                    {provider.phone && <p className="font-mono text-[#34D399] pt-1">{provider.phone}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-2">
+                    {['Valet Parking Available', 'Private Suites', 'Air Conditioned', 'Card & UPI Accepted'].map((amenity) => (
+                      <span key={amenity} className="px-2 py-0.5 rounded-[6px] bg-[#181D2C] border border-[#212638] text-[10px] text-[#C3CAD6]">
+                        {amenity}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#212638] flex items-center justify-between">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${provider.name} ${provider.address} ${provider.city}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-[#34D399]" />
+                    <span>Get directions</span>
+                  </a>
+                  <button
+                    onClick={() => handleStartBooking()}
+                    className="px-4 py-2 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-md shadow-[#E8546A]/20"
+                  >
+                    Book at this location
+                  </button>
+                </div>
+              </div>
+
+              {/* Additional branch locations if present */}
+              {locations && locations.length > 0 ? (
+                locations.map((loc) => (
+                  <div key={loc.id} className="bg-[#111520] border border-[#212638] rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#181D2C] text-[#C3CAD6] text-[10px] font-bold uppercase tracking-wider">
+                          Branch
+                        </span>
+                      </div>
+                      <h3 className="font-heading font-bold text-lg text-white">{loc.name}</h3>
+                      <div className="text-xs text-[#7E88A8] space-y-1">
+                        <p className="text-white font-medium">{loc.address}</p>
+                        <p>{loc.city}</p>
+                        {loc.phone && <p className="font-mono text-[#34D399] pt-1">{loc.phone}</p>}
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t border-[#212638] flex items-center justify-between">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${loc.name} ${loc.address} ${loc.city}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <Navigation className="w-3.5 h-3.5 text-[#34D399]" />
+                        <span>Get directions</span>
+                      </a>
+                      <button
+                        onClick={() => handleStartBooking()}
+                        className="px-4 py-2 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-md shadow-[#E8546A]/20"
+                      >
+                        Book here
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3">
+                  <MapPin className="w-10 h-10 text-[#7E88A8]" />
+                  <h4 className="font-heading font-bold text-base text-white">Central Studio</h4>
+                  <p className="text-xs text-[#7E88A8] max-w-xs">
+                    All treatments and services are operated directly from our primary flagship salon in {provider.city}.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 8: OPENING HOURS (Section 38) */}
+        {activeTab === 'hours' && (
+          <div className="max-w-3xl space-y-6 animate-fadeIn">
+            <div>
+              <h2 className="font-heading text-2xl font-bold text-white">Opening Hours &amp; Schedule</h2>
+              <p className="text-xs text-[#7E88A8]">Weekly operating timetable and appointment booking guidelines</p>
+            </div>
+
+            <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 sm:p-8 space-y-6">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-[#181D2C] border border-[#212638]">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full bg-[#34D399] animate-pulse" />
+                  <span className="text-xs font-bold text-white">Currently Open</span>
+                </div>
+                <span className="text-xs font-mono text-[#34D399]">Today: 09:00 AM - 08:00 PM</span>
+              </div>
+
+              <div className="divide-y divide-[#212638] text-xs">
+                {[
+                  { day: 'Monday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
+                  { day: 'Tuesday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
+                  { day: 'Wednesday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
+                  { day: 'Thursday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
+                  { day: 'Friday', hours: '09:00 AM - 08:30 PM', status: 'Extended' },
+                  { day: 'Saturday', hours: '10:00 AM - 07:00 PM', status: 'Weekend' },
+                  { day: 'Sunday', hours: '11:00 AM - 05:00 PM', status: 'Short Hours' },
+                ].map((sched) => (
+                  <div key={sched.day} className="py-3 flex items-center justify-between">
+                    <span className="font-medium text-white">{sched.day}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-[#7E88A8] hidden sm:inline">({sched.status})</span>
+                      <span className="font-mono text-[#ECEFFE] font-semibold">{sched.hours}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#181D2C] space-y-2 text-xs text-[#7E88A8]">
+                <p className="font-bold text-white">Appointment &amp; Walk-In Policy</p>
+                <p className="leading-relaxed">
+                  Appointments booked through Bookline receive priority seating and guaranteed 5-minute hold guarantees. Walk-ins are accommodated subject to specialist availability.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 9: BOOKING (Section 38) */}
+        {activeTab === 'booking' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-heading text-2xl font-bold text-white">Book an Appointment</h2>
+                <p className="text-xs text-[#7E88A8]">Real-time calendar lock with guaranteed specialist preparation</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Service Selection Column */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#8F9AAF]">1. Choose Treatment</h3>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {services.map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => setSelectedService(s)}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                        selectedService?.id === s.id
+                          ? 'bg-[#E8546A]/10 border-[#E8546A]'
+                          : 'bg-[#111520] border-[#212638] hover:border-[#8F9AAF]'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="font-heading font-bold text-sm text-white">{s.name}</h4>
+                        <span className="font-bold text-xs text-white">{s.currency || '₹'}{s.price}</span>
+                      </div>
+                      <p className="text-[11px] text-[#7E88A8] line-clamp-1 mt-1">{s.description}</p>
+                      <span className="text-[10px] text-[#34D399] mt-2 block font-mono">{s.durationMinutes} mins</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Specialist Selection Column */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#8F9AAF]">2. Choose Specialist</h3>
+                <div className="space-y-2">
+                  <div
+                    onClick={() => setSelectedStaff(null)}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      selectedStaff === null
+                        ? 'bg-[#E8546A]/10 border-[#E8546A]'
+                        : 'bg-[#111520] border-[#212638] hover:border-[#8F9AAF]'
+                    }`}
+                  >
+                    <h4 className="font-heading font-bold text-sm text-white">Any Available Specialist</h4>
+                    <p className="text-[11px] text-[#7E88A8] mt-1">Assign first available master at your selected time</p>
+                  </div>
+                  {staff.map((st) => (
+                    <div
+                      key={st.id}
+                      onClick={() => setSelectedStaff(st)}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
+                        selectedStaff?.id === st.id
+                          ? 'bg-[#E8546A]/10 border-[#E8546A]'
+                          : 'bg-[#111520] border-[#212638] hover:border-[#8F9AAF]'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#E8546A] to-[#B32D42] text-white flex items-center justify-center font-bold text-sm">
+                        {st.name[0]}
+                      </div>
+                      <div>
+                        <h4 className="font-heading font-bold text-sm text-white">{st.name}</h4>
+                        <p className="text-[11px] text-[#E8546A]">{st.title || 'Master Specialist'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date & Direct Hold Trigger */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#8F9AAF]">3. Reserve Slot</h3>
+                <div className="bg-[#111520] border border-[#212638] rounded-xl p-5 space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7E88A8] mb-1">Appointment Date</label>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full bg-[#181D2C] border border-[#212638] rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7E88A8] mb-2">Available Slots</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {availableTimeSlots.map((slot) => (
+                        <button
+                          key={slot.time}
+                          type="button"
+                          disabled={slot.status !== 'FREE'}
+                          onClick={() => {
+                            setSelectedSlot(slot.time);
+                            handleStartBooking(selectedService || services[0], selectedStaff);
+                          }}
+                          className={`py-2 px-3 rounded-lg text-xs font-mono transition-all text-center ${
+                            slot.status === 'FREE'
+                              ? 'bg-[#181D2C] hover:bg-[#E8546A] text-white hover:font-bold'
+                              : 'bg-[#111520] text-[#7E88A8]/40 cursor-not-allowed line-through'
+                          }`}
+                        >
+                          {slot.time}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleStartBooking(selectedService || services[0], selectedStaff)}
+                    className="w-full py-3 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold shadow-lg shadow-[#E8546A]/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Proceed with Reservation</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

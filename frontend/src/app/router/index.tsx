@@ -37,6 +37,7 @@ import { PaymentsPage } from '../../pages/app/PaymentsPage';
 import { AnalyticsPage } from '../../pages/app/AnalyticsPage';
 import { StorefrontSettingsPage } from '../../pages/app/StorefrontSettingsPage';
 import { ProviderTeamPage } from '../../pages/app/ProviderTeamPage';
+import { ProviderAuditPage } from '../../pages/app/ProviderAuditPage';
 import { OnboardingWizardPage } from '../../pages/app/OnboardingWizardPage';
 import { NotificationsPage } from '../../pages/app/NotificationsPage';
 import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
@@ -107,6 +108,7 @@ export const AppRouter: React.FC = () => {
           <Route path="storefront" element={<StorefrontSettingsPage />} />
           <Route path="team" element={<ProviderTeamPage />} />
           <Route path="settings" element={<StorefrontSettingsPage />} />
+          <Route path="audit" element={<ProviderAuditPage />} />
           <Route path="onboarding" element={<OnboardingWizardPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />

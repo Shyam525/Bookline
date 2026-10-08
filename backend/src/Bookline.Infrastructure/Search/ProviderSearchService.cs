@@ -127,6 +127,15 @@ public class ProviderSearchService : IProviderSearchService
                 }
             }
 
+            // 2b. Specific Service Filter (Section 36)
+            if (!string.IsNullOrWhiteSpace(query.Service) && !query.Service.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!tenantServices.Any(s => s.Name.Contains(query.Service, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+            }
+
             // 3. City / Location Filter (Section 25 & 32)
             if (!string.IsNullOrWhiteSpace(effectiveCity) && !effectiveCity.Equals("All", StringComparison.OrdinalIgnoreCase))
             {

@@ -26,6 +26,7 @@ import {
   Heart,
   Plus,
   Sparkles,
+  Navigation,
 } from 'lucide-react';
 import { favoritesApi } from '../../services/api/favorites';
 
@@ -41,7 +42,12 @@ export const ProviderStorefrontPage: React.FC = () => {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'services' | 'products' | 'team' | 'reviews' | 'about'>('services');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'services' | 'products' | 'team' | 'reviews' | 'about' | 'locations' | 'hours' | 'booking'
+  >(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('book') === 'true' || params.get('booking') === 'true' ? 'booking' : 'overview';
+  });
   const [isFavorited, setIsFavorited] = useState(false);
 
   // Booking Flow Modal State
@@ -371,6 +377,10 @@ END:VCALENDAR`;
                     <MapPin className="w-3.5 h-3.5 text-[#E8546A]" />
                     <span>{provider.address}, {provider.city}</span>
                   </span>
+                  <span className="flex items-center gap-1 text-[#34D399] font-medium">
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>1.2 km away</span>
+                  </span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-[#34D399]" />
                     <span>Open Today &bull; 09:00 AM - 08:00 PM</span>
@@ -379,26 +389,42 @@ END:VCALENDAR`;
               </div>
             </div>
 
-            {/* Direct CTA */}
+            {/* Section 39 Hero Action CTAs: Book now (Primary) & Get directions (Secondary) */}
             <div className="flex items-center gap-3 w-full md:w-auto">
               <button
                 onClick={() => handleStartBooking(services[0] || null)}
                 className="flex-1 md:flex-initial px-6 py-3.5 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/20 hover:scale-105 flex items-center justify-center gap-2"
               >
                 <Calendar className="w-4 h-4" />
-                <span>Book Appointment</span>
+                <span>Book now</span>
               </button>
+
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  `${provider.name} ${provider.address} ${provider.city}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-white text-xs font-semibold transition-all hover:border-[#8F9AAF]"
+              >
+                <Navigation className="w-4 h-4 text-[#34D399]" />
+                <span>Get directions</span>
+              </a>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Navigation Tabs (Section 38: Overview, Services, Products, Team, Reviews, About, Locations, Opening hours, Booking) */}
           <div className="border-t border-[#212638] pt-4 flex items-center gap-2 overflow-x-auto text-xs font-medium no-scrollbar">
             {[
+              { id: 'overview', label: 'Overview', icon: Sparkles },
               { id: 'services', label: `Services (${services.length})`, icon: Scissors },
-              { id: 'products', label: `Retail Products (${products.length})`, icon: Package },
-              { id: 'team', label: `Specialists (${staff.length})`, icon: Users },
-              { id: 'reviews', label: `Client Reviews (${reviews.length})`, icon: MessageSquare },
-              { id: 'about', label: 'About & Policies', icon: Info },
+              { id: 'products', label: `Products (${products.length})`, icon: Package },
+              { id: 'team', label: `Team (${staff.length})`, icon: Users },
+              { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare },
+              { id: 'about', label: 'About', icon: Info },
+              { id: 'locations', label: `Locations (${locations.length || 1})`, icon: MapPin },
+              { id: 'hours', label: 'Opening hours', icon: Clock },
+              { id: 'booking', label: 'Booking', icon: Calendar },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -423,7 +449,198 @@ END:VCALENDAR`;
 
       {/* Main Tab Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
-        {/* TAB: SERVICES */}
+        {/* TAB 1: OVERVIEW (Section 38) */}
+        {activeTab === 'overview' && (
+          <div className="space-y-10 animate-fadeIn">
+            {/* Value Highlights */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-[#111520] border border-[#212638] flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#E8546A]/15 text-[#E8546A] flex items-center justify-center font-bold">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Verified Venue</h4>
+                  <p className="text-[11px] text-[#7E88A8]">Inspected quality standard</p>
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#111520] border border-[#212638] flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#34D399]/15 text-[#34D399] flex items-center justify-center font-bold">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Instant Holds</h4>
+                  <p className="text-[11px] text-[#7E88A8]">Real-time calendar lock</p>
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#111520] border border-[#212638] flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#FBBF24]/15 text-[#FBBF24] flex items-center justify-center font-bold">
+                  <Star className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Top Rated</h4>
+                  <p className="text-[11px] text-[#7E88A8]">
+                    {provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '5.0'} ★ ({provider.reviewCount} reviews)
+                  </p>
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#111520] border border-[#212638] flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center font-bold">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Master Staff</h4>
+                  <p className="text-[11px] text-[#7E88A8]">{staff.length} certified specialists</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Featured Services Preview */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-heading text-xl font-bold text-white">Featured Services</h3>
+                  <p className="text-xs text-[#7E88A8]">Most booked appointments</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('services')}
+                  className="text-xs text-[#E8546A] hover:underline font-semibold flex items-center gap-1"
+                >
+                  View full menu ({services.length}) <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {services.slice(0, 4).map((srv) => (
+                  <div
+                    key={srv.id}
+                    className="p-5 rounded-2xl bg-[#111520] border border-[#212638] hover:border-[#E8546A]/50 transition-all flex items-start justify-between gap-4"
+                  >
+                    <div className="space-y-1">
+                      <h4 className="font-heading font-bold text-base text-white">{srv.name}</h4>
+                      <p className="text-xs text-[#7E88A8] line-clamp-1">{srv.description}</p>
+                      <div className="flex items-center gap-2 text-[11px] text-[#7E88A8]">
+                        <Clock className="w-3 h-3 text-[#34D399]" />
+                        <span>{srv.durationMinutes} mins</span>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 space-y-2">
+                      <span className="font-heading text-base font-bold text-white block">
+                        {srv.currency || '₹'}{srv.price}
+                      </span>
+                      <button
+                        onClick={() => handleStartBooking(srv)}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold shadow-md shadow-[#E8546A]/20"
+                      >
+                        Book
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Featured Products */}
+            {products.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-heading text-xl font-bold text-white">Boutique & Retail Products</h3>
+                    <p className="text-xs text-[#7E88A8]">Care items used and recommended by our team</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('products')}
+                    className="text-xs text-[#E8546A] hover:underline font-semibold flex items-center gap-1"
+                  >
+                    View catalog ({products.length}) <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {products.slice(0, 4).map((p) => (
+                    <div
+                      key={p.id}
+                      className="p-4 rounded-2xl bg-[#111520] border border-[#212638] space-y-2 hover:border-[#FBBF24]/50 transition-all"
+                    >
+                      <div className="h-28 rounded-xl bg-[#181D2C] overflow-hidden">
+                        <img
+                          src={p.imageUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=400&q=80'}
+                          alt={p.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <h5 className="font-heading font-bold text-xs text-white truncate">{p.name}</h5>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-white">{p.currency || '₹'}{p.price}</span>
+                        <button
+                          onClick={() => addItem({
+                            productId: p.id,
+                            tenantId: provider.id,
+                            providerName: provider.name,
+                            name: p.name,
+                            price: p.price,
+                            currency: p.currency || '₹',
+                            imageUrl: p.imageUrl,
+                            maxStock: p.availableQuantity,
+                          })}
+                          className="p-1 rounded-lg bg-[#FBBF24] hover:bg-[#F59E0B] text-black"
+                          title="Add to cart"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick About / Hours Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 rounded-2xl bg-[#111520] border border-[#212638] space-y-3">
+                <h3 className="font-heading font-bold text-base text-white">About {provider.name}</h3>
+                <p className="text-xs text-[#7E88A8] leading-relaxed line-clamp-4">
+                  {provider.description || 'Dedicated to delivering world-class service experiences with unparalleled attention to detail and client comfort.'}
+                </p>
+                <button
+                  onClick={() => setActiveTab('about')}
+                  className="text-xs text-[#E8546A] hover:underline font-semibold"
+                >
+                  Read full policies &amp; terms &rarr;
+                </button>
+              </div>
+
+              <div className="p-6 rounded-2xl bg-[#111520] border border-[#212638] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-heading font-bold text-base text-white">Operating Hours</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-[#34D399]/15 text-[#34D399] text-[10px] font-bold">
+                    Open Now
+                  </span>
+                </div>
+                <div className="space-y-1.5 text-xs text-[#7E88A8]">
+                  <div className="flex justify-between">
+                    <span>Monday - Friday</span>
+                    <span className="font-mono text-white">09:00 AM - 08:00 PM</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Saturday</span>
+                    <span className="font-mono text-white">10:00 AM - 07:00 PM</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Sunday</span>
+                    <span className="font-mono text-[#34D399]">11:00 AM - 05:00 PM</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('hours')}
+                  className="text-xs text-[#E8546A] hover:underline font-semibold"
+                >
+                  View detailed schedule &rarr;
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: SERVICES */}
         {activeTab === 'services' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">

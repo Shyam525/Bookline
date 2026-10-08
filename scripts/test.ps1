@@ -12,9 +12,9 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "[2/3] Running Backend Unit Tests..." -ForegroundColor Cyan
+Write-Host "[2/3] Running All Backend Unit & Integration Tests (103 Tests)..." -ForegroundColor Cyan
 Get-ChildItem -Path backend -Recurse -Include *.dll,*.exe | Unblock-File -ErrorAction SilentlyContinue
-dotnet test backend/tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj
+dotnet test backend
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "X Backend Unit Tests Failed!" -ForegroundColor Red

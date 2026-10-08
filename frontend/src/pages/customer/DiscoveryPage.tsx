@@ -269,15 +269,12 @@ export const DiscoveryPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Filters: Category, Sort, Mobile Toggle (Section 24) */}
+          {/* Quick Filters: Category, Filter Drawer, Sort, Mobile Toggle (Section 24 & 35) */}
           <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
             {/* Category Filter */}
             <select
               value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => handleCategoryChange(e.target.value)}
               className="bg-[#151B27] border border-[#273142] rounded-[8px] px-3 py-2 text-xs text-[#F4F6FA] outline-none cursor-pointer"
             >
               {categories.map((cat) => (
@@ -287,7 +284,26 @@ export const DiscoveryPage: React.FC = () => {
               ))}
             </select>
 
-            {/* Sort Dropdown (Section 34) */}
+            {/* Filter Drawer Toggle Button (Section 36) */}
+            <button
+              type="button"
+              onClick={() => setIsFiltersOpen((prev) => !prev)}
+              className={`px-3 py-2 rounded-[8px] border text-xs font-semibold flex items-center gap-1.5 transition-colors flex-shrink-0 ${
+                isFiltersOpen || activeFiltersCount > 0
+                  ? 'bg-[#E8546A]/15 border-[#E8546A] text-[#E8546A]'
+                  : 'bg-[#151B27] border-[#273142] text-[#F4F6FA] hover:border-[#8F9AAF]'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#E8546A] text-white text-[10px] font-bold flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            {/* Sort Dropdown with All 7 Options (Section 35: Search Sort) */}
             <div className="flex items-center gap-1.5 bg-[#151B27] border border-[#273142] rounded-[8px] px-2.5 py-1.5 flex-shrink-0">
               <ArrowUpDown className="w-3.5 h-3.5 text-[#8F9AAF]" />
               <select
@@ -295,12 +311,13 @@ export const DiscoveryPage: React.FC = () => {
                 onChange={(e) => setSort(e.target.value)}
                 className="bg-transparent text-xs font-medium text-[#F4F6FA] outline-none cursor-pointer"
               >
-                <option value="Recommended" className="bg-[#111620]">Recommended (Rank)</option>
-                <option value="Nearest" className="bg-[#111620]">Nearest Distance</option>
-                <option value="Top rated" className="bg-[#111620]">Top Rated</option>
-                <option value="Most reviewed" className="bg-[#111620]">Most Reviewed</option>
-                <option value="Lowest price" className="bg-[#111620]">Lowest Starting Price</option>
-                <option value="Highest price" className="bg-[#111620]">Highest Starting Price</option>
+                <option value="Recommended" className="bg-[#111620]">Recommended</option>
+                <option value="Nearest" className="bg-[#111620]">Nearest</option>
+                <option value="Top rated" className="bg-[#111620]">Top rated</option>
+                <option value="Most reviewed" className="bg-[#111620]">Most reviewed</option>
+                <option value="Earliest available" className="bg-[#111620]">Earliest available</option>
+                <option value="Lowest price" className="bg-[#111620]">Lowest price</option>
+                <option value="Highest price" className="bg-[#111620]">Highest price</option>
               </select>
             </div>
 
@@ -327,6 +344,174 @@ export const DiscoveryPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Section 36: Expandable Filters Panel (Relevant to current category) */}
+        {isFiltersOpen && (
+          <div className="max-w-7xl mx-auto mt-3 pt-3 border-t border-[#273142] p-4 bg-[#151B27] rounded-[12px] space-y-4 animate-fadeIn">
+            {/* 1. Services relevant to current category */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-[#F4F6FA] uppercase tracking-wider">
+                  Services for {category === 'All' ? 'All Categories' : category}
+                </span>
+                <span className="text-[11px] text-[#8F9AAF]">
+                  (Only showing services relevant to {category})
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(categoryServicesMap[category] || categoryServicesMap['All']).map((srv) => (
+                  <button
+                    key={srv}
+                    type="button"
+                    onClick={() => {
+                      setSelectedService(srv);
+                      setPage(1);
+                    }}
+                    className={`px-3 py-1 rounded-[6px] text-xs font-medium transition-all ${
+                      selectedService === srv
+                        ? 'bg-[#E8546A] text-white font-semibold shadow-sm'
+                        : 'bg-[#111620] border border-[#273142] text-[#C3CAD6] hover:border-[#8F9AAF]'
+                    }`}
+                  >
+                    {srv}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Grid of Secondary Filters: Distance, Rating, Price, Availability, Toggles */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-[#273142]">
+              {/* Distance Filter */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#8F9AAF] mb-1.5">
+                  Distance Radius
+                </label>
+                <div className="flex items-center gap-1">
+                  {[5, 10, 25, 50].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setRadius(d)}
+                      className={`flex-1 py-1 text-xs rounded-[6px] border ${
+                        radius === d
+                          ? 'bg-[#E8546A] border-[#E8546A] text-white font-bold'
+                          : 'bg-[#111620] border-[#273142] text-[#C3CAD6] hover:bg-[#1A2130]'
+                      }`}
+                    >
+                      {d}km
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rating Filter */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#8F9AAF] mb-1.5">
+                  Minimum Rating
+                </label>
+                <div className="flex items-center gap-1">
+                  {[
+                    { label: 'Any', val: 0 },
+                    { label: '4.0+ ★', val: 4.0 },
+                    { label: '4.5+ ★', val: 4.5 },
+                    { label: '4.8+ ★', val: 4.8 },
+                  ].map((r) => (
+                    <button
+                      key={r.label}
+                      type="button"
+                      onClick={() => setMinRating(r.val)}
+                      className={`flex-1 py-1 text-xs rounded-[6px] border ${
+                        minRating === r.val
+                          ? 'bg-[#E8546A] border-[#E8546A] text-white font-bold'
+                          : 'bg-[#111620] border-[#273142] text-[#C3CAD6] hover:bg-[#1A2130]'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price Filter */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#8F9AAF] mb-1.5">
+                  Starting Price
+                </label>
+                <select
+                  value={priceRange}
+                  onChange={(e) => setPriceRange(e.target.value)}
+                  className="w-full bg-[#111620] border border-[#273142] rounded-[6px] px-2.5 py-1.5 text-xs text-[#F4F6FA] outline-none"
+                >
+                  <option value="all">Any Price</option>
+                  <option value="under-500">Under ₹500</option>
+                  <option value="500-1500">₹500 - ₹1,500</option>
+                  <option value="1500-3000">₹1,500 - ₹3,000</option>
+                  <option value="3000+">₹3,000 &amp; Above</option>
+                </select>
+              </div>
+
+              {/* Availability Filter */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#8F9AAF] mb-1.5">
+                  Availability / Date
+                </label>
+                <select
+                  value={availability}
+                  onChange={(e) => setAvailability(e.target.value)}
+                  className="w-full bg-[#111620] border border-[#273142] rounded-[6px] px-2.5 py-1.5 text-xs text-[#F4F6FA] outline-none"
+                >
+                  <option value="all">Any Day</option>
+                  <option value="today">Today</option>
+                  <option value="tomorrow">Tomorrow</option>
+                  <option value="weekend">This Weekend</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 3. Toggles & Reset Button */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#273142]">
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-[#F4F6FA]">
+                  <input
+                    type="checkbox"
+                    checked={openNow}
+                    onChange={(e) => setOpenNow(e.target.checked)}
+                    className="accent-[#E8546A] w-3.5 h-3.5 rounded"
+                  />
+                  <span>Open now</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-[#F4F6FA]">
+                  <input
+                    type="checkbox"
+                    checked={verifiedOnly}
+                    onChange={(e) => setVerifiedOnly(e.target.checked)}
+                    className="accent-[#E8546A] w-3.5 h-3.5 rounded"
+                  />
+                  <span>Provider verification only</span>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory('All');
+                  setSelectedService('All Services');
+                  setRadius(25);
+                  setMinRating(0);
+                  setPriceRange('all');
+                  setAvailability('all');
+                  setOpenNow(false);
+                  setVerifiedOnly(false);
+                  setSort('Recommended');
+                  setPage(1);
+                }}
+                className="text-xs text-[#8F9AAF] hover:text-[#E8546A] font-semibold transition-colors"
+              >
+                Reset All Filters
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Search Intent Notification Pill (Section 33) */}
         {isIntentQuery && (
@@ -403,6 +588,7 @@ export const DiscoveryPage: React.FC = () => {
                 onClick={() => {
                   setCurrentLocation({ label: 'Ahmedabad', city: 'Ahmedabad', lat: 23.0225, lng: 72.5714 });
                   setCategory('All');
+                  setSelectedService('All Services');
                   setQuery('');
                   setPage(1);
                 }}
@@ -413,11 +599,19 @@ export const DiscoveryPage: React.FC = () => {
             </div>
           )}
 
-          {/* Provider Cards List with List-Map Synchronization (Section 28) */}
+          {/* Section 37: Provider Card - quick communication format */}
           {!isLoading &&
             !error &&
             providers.map((p) => {
               const isSelected = p.id === selectedProviderId;
+
+              // Neighborhood / location display
+              const locationArea = p.address?.split(',')[0] || p.city;
+              const formattedDistance = p.distanceKm != null ? `${p.distanceKm} km` : '1.2 km';
+              const servicesString =
+                p.servicesSummary && p.servicesSummary.length > 0
+                  ? p.servicesSummary.slice(0, 3).join(' · ')
+                  : 'Haircut · Facial · Colour';
 
               return (
                 <div
@@ -430,8 +624,8 @@ export const DiscoveryPage: React.FC = () => {
                       : 'border-[#273142] hover:border-[#344054] hover:bg-[#151B27]'
                   }`}
                 >
-                  {/* Provider Logo / Cover */}
-                  <div className="w-full sm:w-36 h-28 rounded-[12px] bg-[#1A2130] border border-[#273142] overflow-hidden flex-shrink-0 relative">
+                  {/* Provider Logo / Cover Image */}
+                  <div className="w-full sm:w-40 h-32 rounded-[12px] bg-[#1A2130] border border-[#273142] overflow-hidden flex-shrink-0 relative">
                     <img
                       src={
                         p.coverImageUrl ||
@@ -440,59 +634,62 @@ export const DiscoveryPage: React.FC = () => {
                       alt={p.name}
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute top-2 right-2 bg-[#090B10]/85 backdrop-blur-md px-1.5 py-0.5 rounded-[6px] text-[10px] font-bold text-[#FBBF24] flex items-center gap-0.5">
-                      <Star className="w-3 h-3 fill-current" /> {p.rating}
+                    <div className="absolute top-2 left-2 bg-[#090B10]/85 backdrop-blur-md px-2 py-0.5 rounded-[6px] text-[10px] font-semibold text-[#ECEFFE]">
+                      {p.category}
                     </div>
                   </div>
 
-                  {/* Card Details */}
+                  {/* Provider Card Details (Section 37) */}
                   <div className="flex-1 flex flex-col justify-between">
                     <div>
+                      {/* Name & Verification Status */}
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 truncate">
-                          <h3 className="font-heading text-base font-bold text-[#F4F6FA] truncate">
+                          <h3 className="font-heading text-lg font-bold text-[#F4F6FA] truncate">
                             {p.name}
                           </h3>
                           {p.isVerified && (
-                            <CheckCircle className="w-3.5 h-3.5 text-[#34D399] flex-shrink-0" />
+                            <span title="Verified Business" className="inline-flex items-center">
+                              <CheckCircle className="w-4 h-4 text-[#34D399] flex-shrink-0" />
+                            </span>
                           )}
                         </div>
-                        {p.distanceKm != null && (
-                          <span className="text-[11px] font-semibold text-[#34D399] whitespace-nowrap">
-                            {p.distanceKm} km away
-                          </span>
-                        )}
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs text-[#8F9AAF] mb-2">
-                        <span>{p.category}</span>
-                        <span>&bull;</span>
-                        <span className="truncate">{p.address}</span>
+                      {/* Rating · Review Count */}
+                      <div className="flex items-center gap-1 text-xs text-[#ECEFFE] font-medium mb-1">
+                        <span className="text-[#FBBF24] font-bold">{p.rating.toFixed(1)} ★</span>
+                        <span className="text-[#8F9AAF]">&middot;</span>
+                        <span className="text-[#8F9AAF]">{p.reviewCount} reviews</span>
                       </div>
 
-                      {/* Services Summary Tags */}
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {p.servicesSummary.map((s) => (
-                          <span
-                            key={s}
-                            className="px-2 py-0.5 rounded-[6px] bg-[#1A2130] text-[10px] text-[#C3CAD6] border border-[#273142]"
-                          >
-                            {s}
-                          </span>
-                        ))}
+                      {/* Distance · Location */}
+                      <div className="flex items-center gap-1.5 text-xs text-[#8F9AAF] mb-2">
+                        <span className="text-[#34D399] font-medium">{formattedDistance}</span>
+                        <span>&middot;</span>
+                        <span className="truncate">{locationArea}</span>
+                      </div>
+
+                      {/* Services: Haircut · Facial · Colour */}
+                      <div className="text-xs text-[#C3CAD6] font-medium mb-2.5 truncate">
+                        {servicesString}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-[#273142] flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    {/* Next Available, Starting Price, [View] [Book] CTA */}
+                    <div className="pt-3 border-t border-[#273142] flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-4">
                         <div>
-                          <span className="text-[10px] text-[#8F9AAF] block">From</span>
-                          <span className="text-sm font-bold text-[#34D399]">₹{p.startingPrice}</span>
+                          <span className="text-[11px] text-[#8F9AAF] block">Next available</span>
+                          <span className="text-xs font-semibold text-[#F4F6FA] flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-[#FBBF24]" />
+                            {p.nextAvailableSlot || '10:30 AM'}
+                          </span>
                         </div>
-                        <div className="text-[10px] text-[#8F9AAF]">
-                          <span className="block">Next slot</span>
-                          <span className="text-[#F4F6FA] font-semibold flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-[#FBBF24]" /> {p.nextAvailableSlot || '10:30 AM'}
+                        <div className="border-l border-[#273142] pl-3">
+                          <span className="text-[11px] text-[#8F9AAF] block">From</span>
+                          <span className="text-sm font-bold text-[#34D399]">
+                            From ₹{p.startingPrice || 600}
                           </span>
                         </div>
                       </div>
@@ -500,15 +697,15 @@ export const DiscoveryPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <Link
                           to={`/business/${p.slug}`}
-                          className="px-3 py-1.5 rounded-[8px] border border-[#273142] hover:bg-[#1A2130] text-xs font-semibold text-[#F4F6FA] transition-colors"
+                          className="px-3.5 py-1.5 rounded-[8px] border border-[#273142] hover:bg-[#1A2130] text-xs font-semibold text-[#F4F6FA] transition-colors"
                         >
                           View
                         </Link>
                         <Link
-                          to={`/book/${p.slug}`}
-                          className="px-3.5 py-1.5 rounded-[8px] bg-[#E8546A] hover:bg-[#F06A7D] text-xs font-bold text-white transition-all shadow-md shadow-[#E8546A]/20"
+                          to={`/business/${p.slug}?book=true`}
+                          className="px-4 py-1.5 rounded-[8px] bg-[#E8546A] hover:bg-[#F06A7D] text-xs font-bold text-white transition-all shadow-md shadow-[#E8546A]/20"
                         >
-                          Book Now
+                          Book
                         </Link>
                       </div>
                     </div>

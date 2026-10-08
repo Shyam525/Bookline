@@ -20,6 +20,15 @@ public interface IApplicationDbContext
     DbSet<TimeOff> TimeOffs { get; }
     DbSet<Customer> Customers { get; }
     DbSet<Booking> Bookings { get; }
+    DbSet<Product> Products { get; }
+    DbSet<Resource> Resources { get; }
+    DbSet<Review> Reviews { get; }
+    DbSet<Favorite> Favorites { get; }
+    DbSet<Order> Orders { get; }
+    DbSet<OrderItem> OrderItems { get; }
+    DbSet<Commission> Commissions { get; }
+    DbSet<Payout> Payouts { get; }
+    DbSet<BookingHold> BookingHolds { get; }
     DbSet<WebhookSubscription> Webhooks { get; }
     DbSet<WebhookDeliveryLog> WebhookLogs { get; }
     DbSet<OutboxMessage> OutboxMessages { get; }
@@ -29,4 +38,5 @@ public interface IApplicationDbContext
     DbSet<Payment> Payments { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    int SaveChanges();
 }

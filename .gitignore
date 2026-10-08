@@ -12,3 +12,8 @@
 ## OS Generated Files
 .DS_Store
 Thumbs.db
+
+## Node / Frontend / Archives
+node_modules/
+dist/
+*.zip

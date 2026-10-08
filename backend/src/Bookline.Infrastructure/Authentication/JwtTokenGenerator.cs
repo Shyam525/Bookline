@@ -22,19 +22,22 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _audience = configuration["JwtSettings:Audience"] ?? "BooklineApp";
     }
 
-    public AccessTokenResult GenerateAccessToken(AppUser user)
+    public AccessTokenResult GenerateAccessToken(AppUser user, Guid? overrideTenantId = null)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(_secretKey);
 
-        var expiryUtc = DateTime.UtcNow.AddMinutes(15);
+        var expiryUtc = DateTime.UtcNow.AddMinutes(60);
+        var activeTenantId = overrideTenantId ?? user.TenantId;
 
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new("tenant_id", user.TenantId.ToString()),
-            new(ClaimTypes.Role, user.Role)
+            new("tenant_id", activeTenantId.ToString()),
+            new(ClaimTypes.Role, user.Role),
+            new("role", user.Role),
+            new("name", user.FullName)
         };
 
         var tokenDescriptor = new SecurityTokenDescriptor

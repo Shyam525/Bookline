@@ -32,6 +32,11 @@ public class TenantSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var entry in context.ChangeTracker.Entries<TenantEntity>())
         {
+            if (entry.Entity is AppUser user && (user.Role == "PlatformAdmin" || user.Role == "Customer" || user.TenantId == Guid.Empty))
+            {
+                continue;
+            }
+
             if (entry.State == EntityState.Added)
             {
                 if (!_tenantContext.IsResolved)

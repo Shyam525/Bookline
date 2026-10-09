@@ -16,8 +16,10 @@ import {
 interface InteractiveMapProps {
   providers: ProviderCard[];
   selectedProviderId?: string | null;
+  hoveredProviderId?: string | null;
   onSelectProvider: (provider: ProviderCard) => void;
-  onSearchThisArea?: () => void;
+  onHoverProvider?: (providerId: string | null) => void;
+  onSearchThisArea?: (viewport?: { lat: number; lng: number; zoom: number }) => void;
   center?: { lat: number; lng: number };
   userLocation?: { lat: number; lng: number } | null;
   zoom?: number;
@@ -26,7 +28,9 @@ interface InteractiveMapProps {
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   providers,
   selectedProviderId,
+  hoveredProviderId,
   onSelectProvider,
+  onHoverProvider,
   onSearchThisArea,
   center = { lat: 23.0225, lng: 72.5714 },
   userLocation = null,
@@ -184,14 +188,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </button>
       </div>
 
-      {/* "Search this area" Viewport Button (Section 28) */}
+      {/* "Search this area" Viewport Button (Section 102: Throttled/Debounced Viewport Query) */}
       {hasMoved && onSearchThisArea && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 animate-fadeIn">
           <button
             type="button"
             onClick={() => {
               setHasMoved(false);
-              onSearchThisArea();
+              onSearchThisArea({ lat: mapCenter.lat, lng: mapCenter.lng, zoom: currentZoom });
             }}
             className="px-4 py-2 bg-[#E8546A] hover:bg-[#F06A7D] text-white text-xs font-bold rounded-full shadow-lg shadow-[#E8546A]/25 flex items-center gap-2 transition-all hover:scale-105"
           >
@@ -208,7 +212,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         <span className="text-[#8F9AAF] font-mono">({providers.length} venues)</span>
       </div>
 
-      {/* Interactive Markers Container (Section 28) */}
+      {/* Interactive Markers Container (Section 101 Map+List Synchronization) */}
       <div className="relative flex-1 w-full h-full z-10 pointer-events-auto">
         {/* Current User Location Pulsing Dot (Section 26 & 28) */}
         {userLocation && (
@@ -242,6 +246,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         ) : (
           providers.map((p) => {
             const isSelected = p.id === selectedProviderId;
+            const isHovered = p.id === hoveredProviderId;
             const pos = getCoordinates(p.latitude, p.longitude);
 
             return (
@@ -252,13 +257,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   e.stopPropagation();
                   onSelectProvider(p);
                 }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110 z-20 group"
+                onMouseEnter={() => onHoverProvider?.(p.id)}
+                onMouseLeave={() => onHoverProvider?.(null)}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-115 ${
+                  isSelected || isHovered ? 'z-30 scale-115' : 'z-20'
+                }`}
               >
                 {/* Marker Pill */}
                 <div
                   className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-xl transition-all ${
-                    isSelected
-                      ? 'bg-[#E8546A] text-white scale-110 ring-4 ring-[#E8546A]/35 shadow-[#E8546A]/30'
+                    isSelected || isHovered
+                      ? 'bg-[#E8546A] text-white ring-4 ring-[#E8546A]/40 shadow-[#E8546A]/30'
                       : 'bg-[#151B27] hover:bg-[#1A2130] text-[#F4F6FA] border border-[#273142]'
                   }`}
                 >
@@ -269,7 +278,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 {/* Pin Pointer */}
                 <div
                   className={`w-2 h-2 rotate-45 mx-auto -mt-1 transition-colors ${
-                    isSelected ? 'bg-[#E8546A]' : 'bg-[#151B27]'
+                    isSelected || isHovered ? 'bg-[#E8546A]' : 'bg-[#151B27]'
                   }`}
                 />
               </div>

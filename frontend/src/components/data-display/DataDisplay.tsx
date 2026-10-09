@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, AlertTriangle, Inbox } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Inbox, HelpCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -15,8 +15,10 @@ export interface MetricCardProps {
   label: string;
   metric: string | number;
   comparison?: string;
+  period?: string;
   trend?: 'up' | 'down' | 'neutral';
   icon?: React.ReactNode;
+  tooltip?: string;
   isLoading?: boolean;
 }
 
@@ -24,8 +26,10 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   label,
   metric,
   comparison,
+  period,
   trend = 'up',
   icon,
+  tooltip,
   isLoading = false,
 }) => {
   if (isLoading) {
@@ -39,25 +43,41 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   }
 
   return (
-    <Card className="space-y-3">
+    <Card className="space-y-3 relative group">
       <div className="flex items-center justify-between text-[#7E88A8]">
-        <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+          {tooltip && (
+            <div className="relative cursor-help" title={tooltip}>
+              <HelpCircle className="w-3.5 h-3.5 text-[#7E88A8]/60 hover:text-[#ECEFFE] transition-colors" />
+            </div>
+          )}
+        </div>
         {icon && <div className="text-[#E8546A]">{icon}</div>}
       </div>
       <p className="font-heading text-3xl font-bold text-[#ECEFFE] tracking-tight">{metric}</p>
-      {comparison && (
-        <div className="flex items-center gap-1.5 text-xs font-medium">
-          {trend === 'up' && (
-            <span className="text-[#34D399] flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" /> {comparison}
+      {(comparison || period) && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium">
+          {comparison && (
+            <>
+              {trend === 'up' && (
+                <span className="text-[#34D399] flex items-center gap-1">
+                  <TrendingUp className="w-3.5 h-3.5" /> {comparison}
+                </span>
+              )}
+              {trend === 'down' && (
+                <span className="text-red-400 flex items-center gap-1">
+                  <TrendingDown className="w-3.5 h-3.5" /> {comparison}
+                </span>
+              )}
+              {trend === 'neutral' && <span className="text-[#7E88A8]">{comparison}</span>}
+            </>
+          )}
+          {period && (
+            <span className="text-[#7E88A8]/70 text-[11px] font-normal">
+              · {period}
             </span>
           )}
-          {trend === 'down' && (
-            <span className="text-red-400 flex items-center gap-1">
-              <TrendingDown className="w-3.5 h-3.5" /> {comparison}
-            </span>
-          )}
-          {trend === 'neutral' && <span className="text-[#7E88A8]">{comparison}</span>}
         </div>
       )}
     </Card>
@@ -178,3 +198,6 @@ export const ErrorState: React.FC<{ title?: string; message: string; onRetry?: (
     </div>
   );
 };
+
+export * from '../common/ProviderImage';
+

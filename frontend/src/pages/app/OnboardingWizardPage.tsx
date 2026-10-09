@@ -4,8 +4,32 @@ import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/forms/Inputs';
 import { Card } from '../../components/data-display/DataDisplay';
 import { Alert } from '../../components/feedback/Feedback';
-import { ArrowRight, ArrowLeft, Sparkles, Building2, MapPin, Globe, DollarSign, Briefcase, Shield, Clock, Sliders, Rocket } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
+  Building2,
+  MapPin,
+  Globe,
+  DollarSign,
+  Briefcase,
+  Shield,
+  Clock,
+  Sliders,
+  Rocket,
+  UserCheck,
+  Package,
+  Layers,
+  FileText,
+  User,
+} from 'lucide-react';
 
+/**
+ * Specification Section 74: PROVIDER ONBOARDING FLOW
+ * Flow:
+ * Register -> Business -> Category -> Profile -> Location -> Timezone ->
+ * Currency -> Services -> Products -> Staff -> Hours -> Booking rules -> Publish
+ */
 export const OnboardingWizardPage: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -13,37 +37,68 @@ export const OnboardingWizardPage: React.FC = () => {
   const [isCompleted, setIsCompleted] = useState(false);
 
   const [form, setForm] = useState({
-    businessName: 'Bookline Demo Salon',
-    businessType: 'Salon',
-    address: '123 Main St, Central District',
+    // Step 1: Register
+    ownerName: 'Ananya Sharma',
+    ownerEmail: 'owner@bookline.local',
+    ownerPhone: '+91 98250 11223',
+    // Step 2: Business
+    businessName: 'Glow Luxury Studio',
+    businessSlug: 'glow-luxury-studio',
+    // Step 3: Category
+    category: 'Hair Salon',
+    // Step 4: Profile
+    profileBio: 'Premium boutique hair styling, creative coloring, and restorative scalp therapy.',
+    websiteUrl: 'https://glowstudio.example.com',
+    // Step 5: Location
+    city: 'Ahmedabad',
+    address: '402 Bodakdev Commercial Hub, SG Highway',
+    postalCode: '380054',
+    // Step 6: Timezone
     timeZoneId: 'Asia/Kolkata',
-    currency: 'USD',
-    firstServiceName: 'Haircut & Styling',
-    firstServiceDurationMinutes: 45,
-    firstServicePrice: 50,
-    firstStaffName: 'Alex Johnson',
+    // Step 7: Currency
+    currency: 'INR',
+    // Step 8: Services
+    firstServiceName: 'Signature Balayage & Cut',
+    firstServiceDurationMinutes: 60,
+    firstServicePrice: 3200,
+    // Step 9: Products
+    firstProductName: 'Botanical Argan Hair Oil (100ml)',
+    firstProductPrice: 850,
+    firstProductStock: 25,
+    firstProductSku: 'GLW-OIL-100',
+    // Step 10: Staff
+    firstStaffName: 'Marcus Brody',
+    firstStaffTitle: 'Master Stylist',
+    // Step 11: Hours
     startTime: '09:00',
-    endTime: '17:00',
+    endTime: '18:00',
+    interval1: '09:00–13:00',
+    interval2: '14:00–18:00',
+    // Step 12: Booking rules
     holdDurationMinutes: 5,
     minimumNoticeHours: 2,
     bookingHorizonDays: 30,
+    cancellationWindowHours: 4,
   });
 
   const steps = [
-    { number: 1, title: 'Business Name', icon: Building2 },
-    { number: 2, title: 'Business Type', icon: Sparkles },
-    { number: 3, title: 'Location', icon: MapPin },
-    { number: 4, title: 'Timezone', icon: Globe },
-    { number: 5, title: 'Currency', icon: DollarSign },
-    { number: 6, title: 'First Service', icon: Briefcase },
-    { number: 7, title: 'First Staff', icon: Shield },
-    { number: 8, title: 'Working Hours', icon: Clock },
-    { number: 9, title: 'Booking Settings', icon: Sliders },
-    { number: 10, title: 'Publish', icon: Rocket },
+    { number: 1, title: 'Register', icon: User },
+    { number: 2, title: 'Business', icon: Building2 },
+    { number: 3, title: 'Category', icon: Layers },
+    { number: 4, title: 'Profile', icon: FileText },
+    { number: 5, title: 'Location', icon: MapPin },
+    { number: 6, title: 'Timezone', icon: Globe },
+    { number: 7, title: 'Currency', icon: DollarSign },
+    { number: 8, title: 'Services', icon: Briefcase },
+    { number: 9, title: 'Products', icon: Package },
+    { number: 10, title: 'Staff', icon: UserCheck },
+    { number: 11, title: 'Hours', icon: Clock },
+    { number: 12, title: 'Booking Rules', icon: Sliders },
+    { number: 13, title: 'Publish', icon: Rocket },
   ];
 
   const handleNext = () => {
-    if (currentStep < 10) {
+    if (currentStep < 13) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -67,14 +122,14 @@ export const OnboardingWizardPage: React.FC = () => {
       {/* Header */}
       <div className="text-center space-y-2 border-b border-[#212638] pb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#181D2C] border border-[#212638] text-xs font-mono text-[#E8546A]">
-          <span>PHASE 5 ORGANIZATION ONBOARDING</span>
+          <span>SECTION 74: PROVIDER ONBOARDING PIPELINE</span>
         </div>
-        <h1 className="font-heading text-3xl font-extrabold text-white">Business Setup Wizard</h1>
-        <p className="text-sm text-[#7E88A8]">10-step server-persisted onboarding flow</p>
+        <h1 className="font-heading text-3xl font-extrabold text-white">Business Onboarding Operating Flow</h1>
+        <p className="text-sm text-[#7E88A8]">13-step server-persisted onboarding setup pipeline</p>
       </div>
 
       {/* Progress Bar */}
-      <div className="grid grid-cols-5 sm:grid-cols-10 gap-1">
+      <div className="grid grid-cols-7 sm:grid-cols-13 gap-1">
         {steps.map((s) => (
           <div
             key={s.number}
@@ -99,58 +154,124 @@ export const OnboardingWizardPage: React.FC = () => {
               {React.createElement(steps[currentStep - 1].icon, { className: 'w-5 h-5' })}
             </div>
             <div>
-              <span className="text-xs font-mono text-[#7E88A8]">STEP {currentStep} OF 10</span>
+              <span className="text-xs font-mono text-[#7E88A8]">STEP {currentStep} OF 13</span>
               <h3 className="font-heading text-xl font-bold text-white">{steps[currentStep - 1].title}</h3>
             </div>
           </div>
           <span className="text-xs text-[#34D399] font-mono border border-[#34D399]/30 bg-[#34D399]/10 px-2.5 py-1 rounded-lg">
-            Progress Saved Server-Side
+            Progress Saved
           </span>
         </div>
 
         {/* Step Forms */}
+        {/* Step 1: Register */}
         {currentStep === 1 && (
           <div className="space-y-4">
             <Input
-              label="Business Name"
-              value={form.businessName}
-              onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-              placeholder="e.g. Acme Hair Salon"
+              label="Account Owner Name"
+              value={form.ownerName}
+              onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
             />
-            <p className="text-xs text-[#7E88A8]">This name will appear on your public booking page and customer receipts.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Owner Email Address"
+                type="email"
+                value={form.ownerEmail}
+                onChange={(e) => setForm({ ...form, ownerEmail: e.target.value })}
+              />
+              <Input
+                label="Direct Mobile Phone"
+                value={form.ownerPhone}
+                onChange={(e) => setForm({ ...form, ownerPhone: e.target.value })}
+              />
+            </div>
           </div>
         )}
 
+        {/* Step 2: Business */}
         {currentStep === 2 && (
           <div className="space-y-4">
+            <Input
+              label="Business Trade Name"
+              value={form.businessName}
+              onChange={(e) => setForm({ ...form, businessName: e.target.value })}
+              placeholder="e.g. Glow Studio"
+            />
+            <Input
+              label="Storefront URL Slug"
+              value={form.businessSlug}
+              onChange={(e) => setForm({ ...form, businessSlug: e.target.value })}
+              placeholder="e.g. glow-studio"
+            />
+          </div>
+        )}
+
+        {/* Step 3: Category */}
+        {currentStep === 3 && (
+          <div className="space-y-4">
             <Select
-              label="Business Industry Type"
-              value={form.businessType}
-              onChange={(e) => setForm({ ...form, businessType: e.target.value })}
+              label="Primary Marketplace Category"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
               options={[
-                { value: 'Salon', label: 'Hair & Beauty Salon' },
-                { value: 'Clinic', label: 'Medical & Dental Clinic' },
-                { value: 'Spa', label: 'Spa & Wellness Center' },
-                { value: 'Barbershop', label: 'Barbershop' },
-                { value: 'Studio', label: 'Fitness & Yoga Studio' },
-                { value: 'Consultant', label: 'Professional Consulting' },
+                { value: 'Hair Salon', label: 'Hair Salon & Stylists' },
+                { value: 'Wellness & Spa', label: 'Wellness, Spa & Massage' },
+                { value: 'Barbershop', label: 'Barbershop & Grooming' },
+                { value: 'Aesthetic Clinic', label: 'Aesthetic & Skin Clinic' },
+                { value: 'Fitness Studio', label: 'Fitness & Personal Training' },
+                { value: 'Nail Lounge', label: 'Nail & Lash Lounge' },
               ]}
             />
           </div>
         )}
 
-        {currentStep === 3 && (
+        {/* Step 4: Profile */}
+        {currentStep === 4 && (
           <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                Storefront Bio & Treatment Philosophy
+              </label>
+              <textarea
+                rows={4}
+                value={form.profileBio}
+                onChange={(e) => setForm({ ...form, profileBio: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+              />
+            </div>
             <Input
-              label="Primary Location Address"
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="e.g. 123 Main St, Suite 400"
+              label="Official Website URL"
+              value={form.websiteUrl}
+              onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })}
             />
           </div>
         )}
 
-        {currentStep === 4 && (
+        {/* Step 5: Location */}
+        {currentStep === 5 && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="City"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
+              <Input
+                label="Postal Code"
+                value={form.postalCode}
+                onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
+              />
+            </div>
+            <Input
+              label="Street Address / Suite"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+            />
+          </div>
+        )}
+
+        {/* Step 6: Timezone */}
+        {currentStep === 6 && (
           <div className="space-y-4">
             <Select
               label="Operating Timezone"
@@ -166,31 +287,30 @@ export const OnboardingWizardPage: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 5 && (
+        {/* Step 7: Currency */}
+        {currentStep === 7 && (
           <div className="space-y-4">
             <Select
-              label="Primary Business Currency"
+              label="Billing & Payout Currency"
               value={form.currency}
               onChange={(e) => setForm({ ...form, currency: e.target.value })}
               options={[
+                { value: 'INR', label: 'INR (₹) Indian Rupee' },
                 { value: 'USD', label: 'USD ($) United States Dollar' },
                 { value: 'EUR', label: 'EUR (€) Euro' },
                 { value: 'GBP', label: 'GBP (£) British Pound' },
-                { value: 'INR', label: 'INR (₹) Indian Rupee' },
-                { value: 'CAD', label: 'CAD ($) Canadian Dollar' },
-                { value: 'AUD', label: 'AUD ($) Australian Dollar' },
               ]}
             />
           </div>
         )}
 
-        {currentStep === 6 && (
+        {/* Step 8: Services */}
+        {currentStep === 8 && (
           <div className="space-y-4">
             <Input
               label="First Service Offering"
               value={form.firstServiceName}
               onChange={(e) => setForm({ ...form, firstServiceName: e.target.value })}
-              placeholder="e.g. Haircut & Style"
             />
             <div className="grid grid-cols-2 gap-4">
               <Input
@@ -200,7 +320,7 @@ export const OnboardingWizardPage: React.FC = () => {
                 onChange={(e) => setForm({ ...form, firstServiceDurationMinutes: Number(e.target.value) })}
               />
               <Input
-                label="Price ($)"
+                label="Price"
                 type="number"
                 value={form.firstServicePrice}
                 onChange={(e) => setForm({ ...form, firstServicePrice: Number(e.target.value) })}
@@ -209,28 +329,68 @@ export const OnboardingWizardPage: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 7 && (
+        {/* Step 9: Products */}
+        {currentStep === 9 && (
           <div className="space-y-4">
             <Input
-              label="First Staff Member Name"
+              label="First Retail Product Name"
+              value={form.firstProductName}
+              onChange={(e) => setForm({ ...form, firstProductName: e.target.value })}
+            />
+            <div className="grid grid-cols-3 gap-4">
+              <Input
+                label="Retail Price"
+                type="number"
+                value={form.firstProductPrice}
+                onChange={(e) => setForm({ ...form, firstProductPrice: Number(e.target.value) })}
+              />
+              <Input
+                label="Stock Quantity"
+                type="number"
+                value={form.firstProductStock}
+                onChange={(e) => setForm({ ...form, firstProductStock: Number(e.target.value) })}
+              />
+              <Input
+                label="Inventory SKU"
+                value={form.firstProductSku}
+                onChange={(e) => setForm({ ...form, firstProductSku: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Step 10: Staff */}
+        {currentStep === 10 && (
+          <div className="space-y-4">
+            <Input
+              label="First Specialist / Staff Member Name"
               value={form.firstStaffName}
               onChange={(e) => setForm({ ...form, firstStaffName: e.target.value })}
-              placeholder="e.g. Alex Johnson"
+            />
+            <Input
+              label="Staff Title / Role"
+              value={form.firstStaffTitle}
+              onChange={(e) => setForm({ ...form, firstStaffTitle: e.target.value })}
             />
           </div>
         )}
 
-        {currentStep === 8 && (
+        {/* Step 11: Hours */}
+        {currentStep === 11 && (
           <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-[#181D2C] border border-[#212638] text-xs text-[#7E88A8]">
+              <strong className="text-white block mb-1">Multiple Daily Shift Intervals (Section 77)</strong>
+              Shift 1: {form.interval1} &bull; Shift 2: {form.interval2} (Lunch break between 13:00–14:00 automatically consumes availability)
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Opening Time"
+                label="Morning Interval Start"
                 type="time"
                 value={form.startTime}
                 onChange={(e) => setForm({ ...form, startTime: e.target.value })}
               />
               <Input
-                label="Closing Time"
+                label="Evening Interval End"
                 type="time"
                 value={form.endTime}
                 onChange={(e) => setForm({ ...form, endTime: e.target.value })}
@@ -239,9 +399,10 @@ export const OnboardingWizardPage: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 9 && (
+        {/* Step 12: Booking rules */}
+        {currentStep === 12 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <Input
                 label="Atomic Hold (Mins)"
                 type="number"
@@ -260,28 +421,39 @@ export const OnboardingWizardPage: React.FC = () => {
                 value={form.bookingHorizonDays}
                 onChange={(e) => setForm({ ...form, bookingHorizonDays: Number(e.target.value) })}
               />
+              <Input
+                label="Cancellation Window (Hrs)"
+                type="number"
+                value={form.cancellationWindowHours}
+                onChange={(e) => setForm({ ...form, cancellationWindowHours: Number(e.target.value) })}
+              />
             </div>
           </div>
         )}
 
-        {currentStep === 10 && (
+        {/* Step 13: Publish */}
+        {currentStep === 13 && (
           <div className="space-y-6">
             {isCompleted ? (
-              <Alert variant="success" title="Booking Page Published & Live!">
-                Your organization is fully configured. Guests can now book appointments at:
+              <Alert variant="success" title="Storefront Published & Live on Marketplace!">
+                Your organization is fully operational. Clients can now discover and book your services at:
                 <br />
                 <code className="text-[#34D399] font-mono text-xs">
-                  http://localhost:5168/?tenant=acme-salon
+                  /business/{form.businessSlug}
                 </code>
               </Alert>
             ) : (
-              <div className="bg-[#181D2C] p-6 rounded-2xl border border-[#212638] space-y-3">
-                <h4 className="font-heading font-bold text-white text-lg">Onboarding Summary</h4>
-                <div className="text-sm text-[#7E88A8] space-y-1">
-                  <p><strong className="text-white">Business:</strong> {form.businessName} ({form.businessType})</p>
-                  <p><strong className="text-white">Location:</strong> {form.address} ({form.timeZoneId})</p>
-                  <p><strong className="text-white">First Service:</strong> {form.firstServiceName} (${form.firstServicePrice})</p>
-                  <p><strong className="text-white">First Staff:</strong> {form.firstStaffName}</p>
+              <div className="bg-[#181D2C] p-6 rounded-2xl border border-[#212638] space-y-4">
+                <h4 className="font-heading font-bold text-white text-lg">Onboarding Summary &amp; Verification</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-[#7E88A8]">
+                  <p><strong className="text-white">Business:</strong> {form.businessName} ({form.category})</p>
+                  <p><strong className="text-white">Location:</strong> {form.address}, {form.city}</p>
+                  <p><strong className="text-white">Timezone &amp; Currency:</strong> {form.timeZoneId} &bull; {form.currency}</p>
+                  <p><strong className="text-white">Service:</strong> {form.firstServiceName} ({form.currency} {form.firstServicePrice})</p>
+                  <p><strong className="text-white">Product:</strong> {form.firstProductName} ({form.currency} {form.firstProductPrice})</p>
+                  <p><strong className="text-white">Specialist:</strong> {form.firstStaffName} ({form.firstStaffTitle})</p>
+                  <p><strong className="text-white">Shift Intervals:</strong> {form.interval1}, {form.interval2}</p>
+                  <p><strong className="text-white">Hold &amp; Notice:</strong> {form.holdDurationMinutes}m Hold &bull; {form.minimumNoticeHours}h Notice</p>
                 </div>
               </div>
             )}
@@ -294,17 +466,17 @@ export const OnboardingWizardPage: React.FC = () => {
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
 
-          {currentStep < 10 ? (
+          {currentStep < 13 ? (
             <Button variant="primary" onClick={handleNext}>
               Next Step <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
             <Button
               variant="primary"
-              onClick={isCompleted ? () => navigate('/app') : handleComplete}
+              onClick={isCompleted ? () => navigate('/provider/dashboard') : handleComplete}
               isLoading={isSaving}
             >
-              {isCompleted ? 'Go to Operations Dashboard' : 'Publish & Launch Booking Page'}
+              {isCompleted ? 'Go to Provider OS Dashboard' : 'Publish & Launch Storefront'}
             </Button>
           )}
         </div>

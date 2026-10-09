@@ -14,6 +14,7 @@ import { CustomerOrdersPage } from '../../pages/customer/CustomerOrdersPage';
 import { FavoritesPage } from '../../pages/customer/FavoritesPage';
 import { CustomerProfilePage } from '../../pages/customer/CustomerProfilePage';
 import { CustomerNotificationsPage } from '../../pages/customer/CustomerNotificationsPage';
+import { CustomerDashboardPage } from '../../pages/customer/CustomerDashboardPage';
 import { CheckoutPage } from '../../pages/customer/CheckoutPage';
 
 // Auth Pages
@@ -45,10 +46,16 @@ import { DesignSystemPage } from '../../pages/app/DesignSystemPage';
 // Platform Admin Pages
 import { AdminDashboardPage } from '../../pages/admin/AdminDashboardPage';
 import { AdminProvidersPage } from '../../pages/admin/AdminProvidersPage';
+import { AdminBusinessesPage } from '../../pages/admin/AdminBusinessesPage';
 import { AdminCustomersPage } from '../../pages/admin/AdminCustomersPage';
 import { AdminCategoriesPage } from '../../pages/admin/AdminCategoriesPage';
+import { AdminBookingsPage } from '../../pages/admin/AdminBookingsPage';
+import { AdminOrdersPage } from '../../pages/admin/AdminOrdersPage';
 import { AdminFinancialsPage } from '../../pages/admin/AdminFinancialsPage';
 import { AdminReviewsPage } from '../../pages/admin/AdminReviewsPage';
+import { AdminModerationPage } from '../../pages/admin/AdminModerationPage';
+import { AdminReportsPage } from '../../pages/admin/AdminReportsPage';
+import { AdminAuditPage } from '../../pages/admin/AdminAuditPage';
 import { AdminHealthPage } from '../../pages/admin/AdminHealthPage';
 
 export const AppRouter: React.FC = () => {
@@ -72,6 +79,9 @@ export const AppRouter: React.FC = () => {
           <Route path="/orders" element={<CustomerOrdersPage />} />
           <Route path="/orders/:id" element={<CustomerOrdersPage />} />
           <Route path="/notifications" element={<CustomerNotificationsPage />} />
+          <Route path="/dashboard" element={<CustomerDashboardPage />} />
+          <Route path="/customer/dashboard" element={<CustomerDashboardPage />} />
+          <Route path="/account" element={<CustomerDashboardPage />} />
           <Route path="/profile" element={<CustomerProfilePage />} />
           <Route path="/settings" element={<CustomerProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
@@ -123,13 +133,19 @@ export const AppRouter: React.FC = () => {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboardPage />} />
           <Route path="providers" element={<AdminProvidersPage />} />
+          <Route path="businesses" element={<AdminBusinessesPage />} />
           <Route path="customers" element={<AdminCustomersPage />} />
           <Route path="categories" element={<AdminCategoriesPage />} />
-          <Route path="bookings" element={<ProviderBookingsPage />} />
-          <Route path="orders" element={<ProviderOrdersPage />} />
+          <Route path="bookings" element={<AdminBookingsPage />} />
+          <Route path="orders" element={<AdminOrdersPage />} />
           <Route path="payments" element={<AdminFinancialsPage />} />
+          <Route path="commissions" element={<AdminFinancialsPage />} />
           <Route path="payouts" element={<AdminFinancialsPage />} />
           <Route path="reviews" element={<AdminReviewsPage />} />
+          <Route path="moderation" element={<AdminModerationPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="audit" element={<AdminAuditPage />} />
+          <Route path="system" element={<AdminHealthPage />} />
           <Route path="health" element={<AdminHealthPage />} />
         </Route>
 

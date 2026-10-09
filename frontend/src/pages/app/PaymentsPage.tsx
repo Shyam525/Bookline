@@ -24,9 +24,9 @@ export const PaymentsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
-  // Modals state
   const [isPosModalOpen, setIsPosModalOpen] = useState(false);
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentItem | null>(null);
 
   // Form states
@@ -37,10 +37,18 @@ export const PaymentsPage: React.FC = () => {
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
 
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutAccount, setPayoutAccount] = useState('Primary Connected Bank Account');
+
   // Queries
   const { data: summaryData } = useQuery({
     queryKey: ['paymentSummary'],
     queryFn: () => paymentsApi.getSummary('mock-token')
+  });
+
+  const { data: payoutData, refetch: refetchPayout } = useQuery({
+    queryKey: ['payoutBalance'],
+    queryFn: () => paymentsApi.getPayoutBalance('mock-token')
   });
 
   const { data: paymentsData, isLoading, refetch } = useQuery({
@@ -73,6 +81,16 @@ export const PaymentsPage: React.FC = () => {
     }
   });
 
+  const payoutMutation = useMutation({
+    mutationFn: (data: { amount: number; destinationAccount: string }) =>
+      paymentsApi.requestPayout('mock-token', data),
+    onSuccess: () => {
+      refetchPayout();
+      setIsPayoutModalOpen(false);
+      setPayoutAmount('');
+    }
+  });
+
   const handlePosSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(posAmount);
@@ -93,6 +111,16 @@ export const PaymentsPage: React.FC = () => {
       paymentId: selectedPayment.id,
       refundAmount: numAmount,
       reason: refundReason || 'Customer refund requested'
+    });
+  };
+
+  const handlePayoutSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const numAmount = parseFloat(payoutAmount);
+    if (isNaN(numAmount) || numAmount <= 0) return;
+    payoutMutation.mutate({
+      amount: numAmount,
+      destinationAccount: payoutAccount
     });
   };
 
@@ -124,6 +152,71 @@ export const PaymentsPage: React.FC = () => {
             <PlusCircle className="w-4 h-4" />
             Record In-Store POS Payment
           </button>
+        </div>
+      </div>
+
+      {/* SECTION 89: PROVIDER FINANCIAL VIEW (PENDING, AVAILABLE, PAID) */}
+      <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#212638] pb-4">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#34D399] px-2.5 py-0.5 rounded-full bg-[#34D399]/10 border border-[#34D399]/20">
+              Provider Treasury &amp; Disbursal Engine (Section 89)
+            </span>
+            <h2 className="font-heading font-bold text-lg text-white mt-1.5">
+              Financial Balances &amp; Payout Abstraction
+            </h2>
+          </div>
+          <button
+            onClick={() => setIsPayoutModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#34D399] hover:bg-[#2EB885] text-black font-bold rounded-xl text-xs transition shadow-lg shadow-[#34D399]/20 self-start sm:self-auto"
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Disburse / Request Payout</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          {/* 1. Pending */}
+          <div className="p-4 rounded-xl bg-[#181D2C] border border-[#212638] space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-[#7E88A8]">
+              <span className="font-semibold uppercase tracking-wider">Pending Payout</span>
+              <Clock className="w-4 h-4 text-[#FBBF24]" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-[#FBBF24]">
+              ₹{(payoutData?.pendingPayoutBalance ?? 2400.0).toFixed(2)}
+            </div>
+            <p className="text-[11px] text-[#7E88A8]">
+              Funds currently in clearing / escrow hold period
+            </p>
+          </div>
+
+          {/* 2. Available */}
+          <div className="p-4 rounded-xl bg-[#181D2C] border border-[#212638] space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-[#7E88A8]">
+              <span className="font-semibold uppercase tracking-wider">Available For Payout</span>
+              <CheckCircle2 className="w-4 h-4 text-[#34D399]" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-[#34D399]">
+              ₹{(payoutData?.availablePayoutBalance ?? 8650.0).toFixed(2)}
+            </div>
+            <p className="text-[11px] text-[#7E88A8]">
+              Immediately ready for payout transfer
+            </p>
+          </div>
+
+          {/* 3. Paid */}
+          <div className="p-4 rounded-xl bg-[#181D2C] border border-[#212638] space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-[#7E88A8]">
+              <span className="font-semibold uppercase tracking-wider">Total Paid Out</span>
+              <Building2 className="w-4 h-4 text-slate-300" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-white">
+              ₹{(payoutData?.paidOutBalance ?? 34500.0).toFixed(2)}
+            </div>
+            <p className="text-[11px] text-[#7E88A8]">
+              Lifetime disbursed to connected bank accounts
+            </p>
+          </div>
         </div>
       </div>
 
@@ -460,6 +553,101 @@ export const PaymentsPage: React.FC = () => {
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
                 >
                   {refundMutation.isPending ? 'Processing...' : 'Confirm Refund'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DISBURSE PAYOUT MODAL (Section 89) */}
+      {isPayoutModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#111520] border border-[#212638] rounded-2xl max-w-md w-full p-6 space-y-5 relative shadow-2xl">
+            <button
+              onClick={() => setIsPayoutModalOpen(false)}
+              className="absolute top-4 right-4 text-[#7E88A8] hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#34D399] px-2 py-0.5 rounded-md bg-[#34D399]/10 border border-[#34D399]/20">
+                IPayoutProvider Disbursal
+              </span>
+              <h3 className="text-lg font-heading font-bold text-white mt-1 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-[#34D399]" />
+                Request Payout Disbursement
+              </h3>
+            </div>
+
+            <div className="p-3.5 bg-[#181D2C] border border-[#212638] rounded-xl text-xs space-y-1.5">
+              <div className="flex justify-between text-[#7E88A8]">
+                <span>Available Balance:</span>
+                <span className="font-mono text-[#34D399] font-bold">
+                  ₹{(payoutData?.availablePayoutBalance ?? 8650.0).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#7E88A8]">
+                <span>Pending Clearance:</span>
+                <span className="font-mono text-[#FBBF24]">
+                  ₹{(payoutData?.pendingPayoutBalance ?? 2400.0).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handlePayoutSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                  Disbursement Amount (₹ INR) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="1"
+                  max={payoutData?.availablePayoutBalance || 999999}
+                  value={payoutAmount}
+                  onChange={(e) => setPayoutAmount(e.target.value)}
+                  placeholder={`Max ₹${(payoutData?.availablePayoutBalance ?? 8650).toFixed(2)}`}
+                  className="w-full bg-[#181D2C] border border-[#212638] rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-[#34D399]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                  Destination Connected Account
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={payoutAccount}
+                  onChange={(e) => setPayoutAccount(e.target.value)}
+                  className="w-full bg-[#181D2C] border border-[#212638] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#34D399]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPayoutModalOpen(false)}
+                  className="px-4 py-2.5 bg-[#181D2C] text-[#7E88A8] hover:text-white text-xs font-semibold rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={payoutMutation.isPending}
+                  className="px-5 py-2.5 bg-[#34D399] hover:bg-[#2EB885] text-black text-xs font-bold rounded-xl transition shadow-lg shadow-[#34D399]/20 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {payoutMutation.isPending ? (
+                    <span>Disbursing Funds...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Authorize Disbursal</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -1,5 +1,6 @@
 using Bookline.Application.Common.Interfaces;
 using Bookline.Domain.Common;
+using Bookline.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -33,6 +34,11 @@ public class TenantSaveChangesInterceptor : SaveChangesInterceptor
         foreach (var entry in context.ChangeTracker.Entries<TenantEntity>())
         {
             if (entry.Entity is AppUser user && (user.Role == "PlatformAdmin" || user.Role == "Customer" || user.TenantId == Guid.Empty))
+            {
+                continue;
+            }
+
+            if (entry.Entity is RefreshToken rt && rt.TenantId == Guid.Empty)
             {
                 continue;
             }

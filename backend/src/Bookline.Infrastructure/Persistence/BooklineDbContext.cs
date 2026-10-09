@@ -46,6 +46,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Refund> Refunds => Set<Refund>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,7 +61,9 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasKey(t => t.Id);
             builder.HasIndex(t => t.Slug).IsUnique();
             builder.HasIndex(t => new { t.City, t.Category, t.IsPublished });
+            builder.HasIndex(t => new { t.Latitude, t.Longitude });
             builder.Property(t => t.VerificationStatus).HasConversion<string>();
+            builder.Property(t => t.ModerationStatus).HasConversion<string>();
             builder.Property(t => t.DepositType).HasConversion<string>();
             builder.Property(t => t.DepositAmount).HasPrecision(18, 2);
             builder.Property(t => t.CommissionRatePercentage).HasPrecision(18, 2);
@@ -93,6 +96,15 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasKey(p => p.Id);
             builder.HasIndex(p => new { p.TenantId, p.IsActive, p.IsPurchasableOnline });
             builder.Property(p => p.Price).HasPrecision(18, 2);
+            builder.Property(p => p.ModerationStatus).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<Service>(builder =>
+        {
+            builder.HasKey(s => s.Id);
+            builder.HasIndex(s => new { s.TenantId, s.IsActive, s.IsOnlineBookingEnabled });
+            builder.Property(s => s.Price).HasPrecision(18, 2);
+            builder.Property(s => s.ModerationStatus).HasConversion<string>();
         });
 
         modelBuilder.Entity<Order>(builder =>
@@ -177,6 +189,13 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.Property(p => p.PaymentType).HasConversion<string>();
             builder.Property(p => p.Status).HasConversion<string>();
             builder.Property(p => p.PaymentMethod).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<Refund>(builder =>
+        {
+            builder.HasKey(r => r.Id);
+            builder.Property(r => r.Amount).HasPrecision(18, 2);
+            builder.HasIndex(r => new { r.TenantId, r.PaymentId });
         });
 
         // Apply global tenant filter on all TenantEntity types

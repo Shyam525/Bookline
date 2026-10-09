@@ -18,7 +18,8 @@ public record CreateBookingCommand(
     Guid HoldId,
     string? CustomerName = null,
     string? CustomerEmail = null,
-    string? CustomerPhone = null
+    string? CustomerPhone = null,
+    string? CustomerNotes = null
 ) : IRequest<BookingDto>;
 
 public class CreateBookingCommandValidator : AbstractValidator<CreateBookingCommand>
@@ -97,7 +98,46 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             request.StartUtc,
             endUtc);
 
+        booking.CustomerNotes = request.CustomerNotes;
+
         _context.Bookings.Add(booking);
+
+        // Section 90 & 91: Atomic Audit & Outbox Event
+        _context.AuditLogs.Add(new AuditLog
+        {
+            TenantId = tenantId,
+            Actor = request.CustomerId?.ToString() ?? request.CustomerEmail ?? "Customer",
+            Action = "Booking.Created",
+            Target = booking.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingReference = booking.BookingReference,
+                ServiceId = booking.ServiceId,
+                StaffId = booking.StaffId,
+                StartUtc = booking.StartUtc,
+                EndUtc = booking.EndUtc
+            })
+        });
+
+        _context.OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = tenantId,
+            EventType = Bookline.Domain.Constants.NotificationEvents.AppointmentCreated,
+            Content = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingId = booking.Id,
+                BookingReference = booking.BookingReference,
+                TenantId = tenantId,
+                CustomerId = booking.CustomerId,
+                CustomerEmail = request.CustomerEmail ?? customer.Email,
+                CustomerPhone = request.CustomerPhone ?? customer.Phone,
+                StaffId = booking.StaffId,
+                ServiceId = booking.ServiceId,
+                ServiceName = service.Name,
+                StartUtc = booking.StartUtc,
+                EndUtc = booking.EndUtc
+            })
+        });
 
         try
         {

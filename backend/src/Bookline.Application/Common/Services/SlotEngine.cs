@@ -78,11 +78,13 @@ public class SlotEngine : ISlotEngine
         // 5. Slice free intervals into candidate slots of duration `svc.Duration` at `step` increments
         var validSlots = new List<Slot>();
 
+        var requiredInterval = svc.Duration + svc.Buffer;
+
         foreach (var free in freeIntervals)
         {
             var currentStart = free.Start;
 
-            while (currentStart + svc.Duration <= free.End)
+            while (currentStart + requiredInterval <= free.End)
             {
                 var currentEnd = currentStart + svc.Duration;
 

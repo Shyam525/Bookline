@@ -28,6 +28,38 @@ public class ConfirmBookingCommandHandler : IRequestHandler<ConfirmBookingComman
         }
 
         booking.Confirm();
+
+        // Section 90 & 91: Record Audit & Outbox event
+        _context.AuditLogs.Add(new AuditLog
+        {
+            TenantId = booking.TenantId,
+            Actor = "Provider/System",
+            Action = "Booking.Confirmed",
+            Target = booking.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingReference = booking.BookingReference,
+                ConfirmedAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        _context.OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = booking.TenantId,
+            EventType = Bookline.Domain.Constants.NotificationEvents.AppointmentConfirmed,
+            Content = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingId = booking.Id,
+                BookingReference = booking.BookingReference,
+                TenantId = booking.TenantId,
+                CustomerId = booking.CustomerId,
+                StaffId = booking.StaffId,
+                ServiceId = booking.ServiceId,
+                StartUtc = booking.StartUtc,
+                EndUtc = booking.EndUtc
+            })
+        });
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

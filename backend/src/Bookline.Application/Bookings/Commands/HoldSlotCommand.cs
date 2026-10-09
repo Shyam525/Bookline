@@ -57,9 +57,15 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
 
         if (holdId == null)
         {
-            throw new ValidationException("This slot is currently held by another user or unavailable.");
+            throw new ValidationException("SLOT_UNAVAILABLE: This slot is currently held by another user or unavailable.");
         }
 
-        return new HoldSlotResultDto(holdId.Value, DateTimeOffset.UtcNow.AddSeconds(300));
+        var expiresAt = DateTimeOffset.UtcNow.AddSeconds(300);
+        return new HoldSlotResultDto(
+            HoldId: holdId.Value,
+            ExpiresAtUtc: expiresAt,
+            Slot: request.StartUtc.ToString("o"),
+            Status: "HELD"
+        );
     }
 }

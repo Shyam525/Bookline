@@ -137,12 +137,17 @@ public class AvailabilityHandlers :
                 var display = $"{startZonedDateTime.ToString("hh:mm tt", null)} - {endZonedDateTime.ToString("hh:mm tt", null)}";
 
                 resultSlots.Add(new TimeSlotDto(
-                    slot.Start.ToString(),
-                    slot.End.ToString(),
-                    display,
-                    true,
-                    staff.Id,
-                    staff.Name
+                    StartIso: slot.Start.ToString(),
+                    EndIso: slot.End.ToString(),
+                    DisplayTime: display,
+                    IsAvailable: true,
+                    StaffId: staff.Id,
+                    StaffName: staff.Name,
+                    Date: startZonedDateTime.Date.ToString("yyyy-MM-dd", null),
+                    LocalTime: startZonedDateTime.TimeOfDay.ToString("HH:mm", null),
+                    Instant: slot.Start.ToString(),
+                    Timezone: tz.Id,
+                    DurationMinutes: (int)svcInfo.Duration.TotalMinutes
                 ));
             }
         }

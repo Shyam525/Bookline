@@ -67,6 +67,37 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
         var endUtc = request.StartUtc.AddMinutes(service.DurationMinutes);
         booking.Reschedule(request.StartUtc, endUtc);
 
+        // Record Audit log & Outbox event within atomic transaction (Section 66)
+        _context.AuditLogs.Add(new AuditLog
+        {
+            TenantId = booking.TenantId,
+            Actor = "Customer",
+            Action = "Booking.Rescheduled",
+            Target = booking.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingReference = booking.BookingReference,
+                NewStartUtc = request.StartUtc,
+                NewEndUtc = endUtc,
+                RescheduledAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        _context.OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = booking.TenantId,
+            EventType = Bookline.Domain.Constants.NotificationEvents.AppointmentRescheduled,
+            Content = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingId = booking.Id,
+                BookingReference = booking.BookingReference,
+                CustomerId = booking.CustomerId,
+                StaffId = booking.StaffId,
+                StartUtc = request.StartUtc,
+                EndUtc = endUtc
+            })
+        });
+
         try
         {
             await _context.SaveChangesAsync(cancellationToken);

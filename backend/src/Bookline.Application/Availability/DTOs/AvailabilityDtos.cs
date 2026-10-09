@@ -6,7 +6,12 @@ public record TimeSlotDto(
     string DisplayTime,
     bool IsAvailable,
     Guid? StaffId,
-    string? StaffName
+    string? StaffName,
+    string Date = "",
+    string LocalTime = "",
+    string Instant = "",
+    string Timezone = "UTC",
+    int DurationMinutes = 0
 );
 
 public record GetAvailabilitySlotsRequest(

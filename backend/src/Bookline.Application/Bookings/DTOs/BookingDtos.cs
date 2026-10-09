@@ -16,5 +16,10 @@ public record BookingDto(
 
 public record HoldSlotResultDto(
     Guid HoldId,
-    DateTimeOffset ExpiresAtUtc
-);
+    DateTimeOffset ExpiresAtUtc,
+    string? Slot = null,
+    string Status = "HELD"
+)
+{
+    public DateTimeOffset ExpiresAt => ExpiresAtUtc;
+}

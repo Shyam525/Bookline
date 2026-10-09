@@ -34,11 +34,22 @@ public record RefundResult(
     string? ErrorMessage
 );
 
+public record PaymentVerificationResult(
+    bool Verified,
+    string Status,
+    string ProviderName,
+    string TransactionReference,
+    decimal Amount,
+    string Currency,
+    string? ErrorMessage
+);
+
 public interface IPaymentProvider
 {
     string ProviderName { get; }
     Task<PaymentResult> ProcessPaymentAsync(ProcessPaymentRequest request, CancellationToken cancellationToken = default);
     Task<RefundResult> ProcessRefundAsync(ProcessRefundRequest request, CancellationToken cancellationToken = default);
+    Task<PaymentVerificationResult> VerifyPaymentAsync(string transactionReference, CancellationToken cancellationToken = default);
 }
 
 public record ProcessPayoutRequest(

@@ -104,4 +104,101 @@ public class MarketplaceDomainTests
         // Assert
         Assert.Equal(BookingStatus.CheckedIn, booking.Status);
     }
+
+    [Fact]
+    public void Refund_Entity_ShouldTrackAllRequiredProperties()
+    {
+        // Section 87: Track payment, refund, amount, currency, status, external reference
+        var paymentId = Guid.NewGuid();
+        var refund = new Refund
+        {
+            Id = Guid.NewGuid(),
+            PaymentId = paymentId,
+            Amount = 150.00m,
+            Currency = "INR",
+            Status = "Succeeded",
+            ExternalReference = "REF-TEST-84920",
+            Reason = "Customer request within cancellation window"
+        };
+
+        Assert.Equal(paymentId, refund.PaymentId);
+        Assert.Equal(150.00m, refund.Amount);
+        Assert.Equal("INR", refund.Currency);
+        Assert.Equal("Succeeded", refund.Status);
+        Assert.Equal("REF-TEST-84920", refund.ExternalReference);
+        Assert.NotNull(refund.Reason);
+        Assert.True(refund.CreatedAtUtc <= DateTime.UtcNow);
+    }
+
+    [Fact]
+    public void NotificationEvents_ShouldDefineAllTenMandatoryEvents()
+    {
+        // Section 90: Explicit event set
+        Assert.Equal("AppointmentCreated", Bookline.Domain.Constants.NotificationEvents.AppointmentCreated);
+        Assert.Equal("AppointmentConfirmed", Bookline.Domain.Constants.NotificationEvents.AppointmentConfirmed);
+        Assert.Equal("AppointmentCancelled", Bookline.Domain.Constants.NotificationEvents.AppointmentCancelled);
+        Assert.Equal("AppointmentRescheduled", Bookline.Domain.Constants.NotificationEvents.AppointmentRescheduled);
+        Assert.Equal("ReminderDue", Bookline.Domain.Constants.NotificationEvents.ReminderDue);
+        Assert.Equal("OrderCreated", Bookline.Domain.Constants.NotificationEvents.OrderCreated);
+        Assert.Equal("PaymentSucceeded", Bookline.Domain.Constants.NotificationEvents.PaymentSucceeded);
+        Assert.Equal("PaymentFailed", Bookline.Domain.Constants.NotificationEvents.PaymentFailed);
+        Assert.Equal("RefundCreated", Bookline.Domain.Constants.NotificationEvents.RefundCreated);
+        Assert.Equal("ReviewCreated", Bookline.Domain.Constants.NotificationEvents.ReviewCreated);
+    }
+
+    [Fact]
+    public void Product_Purchase_ShouldNeverAllowNegativeInventory()
+    {
+        // Section 84: Do not allow negative inventory
+        var product = new Product
+        {
+            Name = "Hair Serum",
+            Price = 25.00m,
+            StockQuantity = 2,
+            ReservedQuantity = 0
+        };
+
+        Assert.True(product.Purchase(2));
+        Assert.Equal(0, product.StockQuantity);
+        Assert.Equal(0, product.AvailableQuantity);
+        Assert.Equal(2, product.SoldQuantity);
+
+        // Attempt to purchase 1 more when available is 0
+        Assert.False(product.Purchase(1));
+        Assert.Equal(0, product.StockQuantity);
+        Assert.Equal(0, product.AvailableQuantity);
+        Assert.Equal(2, product.SoldQuantity);
+    }
+
+    [Fact]
+    public void ProviderTeamRole_ShouldDefineCanonicalSixRolesInCorrectHierarchy()
+    {
+        // Section 95: Owner, Admin, Manager, Receptionist, Staff, Viewer
+        Assert.Equal(0, (int)ProviderTeamRole.Owner);
+        Assert.Equal(1, (int)ProviderTeamRole.Admin);
+        Assert.Equal(2, (int)ProviderTeamRole.Manager);
+        Assert.Equal(3, (int)ProviderTeamRole.Receptionist);
+        Assert.Equal(4, (int)ProviderTeamRole.Staff);
+        Assert.Equal(5, (int)ProviderTeamRole.Viewer);
+    }
+
+    [Fact]
+    public void ProviderVerificationStatus_ShouldDefineCanonicalFourStates()
+    {
+        // Section 97: Unverified, Pending, Verified, Suspended
+        Assert.Equal(VerificationStatus.Unverified, Enum.Parse<VerificationStatus>("Unverified"));
+        Assert.Equal(VerificationStatus.Pending, Enum.Parse<VerificationStatus>("Pending"));
+        Assert.Equal(VerificationStatus.Verified, Enum.Parse<VerificationStatus>("Verified"));
+        Assert.Equal(VerificationStatus.Suspended, Enum.Parse<VerificationStatus>("Suspended"));
+    }
+
+    [Fact]
+    public void ModerationStatus_ShouldDefineCanonicalFourStates()
+    {
+        // Section 98: Pending, Approved, Rejected, Suspended
+        Assert.Equal(ModerationStatus.Pending, Enum.Parse<ModerationStatus>("Pending"));
+        Assert.Equal(ModerationStatus.Approved, Enum.Parse<ModerationStatus>("Approved"));
+        Assert.Equal(ModerationStatus.Rejected, Enum.Parse<ModerationStatus>("Rejected"));
+        Assert.Equal(ModerationStatus.Suspended, Enum.Parse<ModerationStatus>("Suspended"));
+    }
 }

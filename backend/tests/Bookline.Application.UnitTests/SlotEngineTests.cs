@@ -319,4 +319,37 @@ public class SlotEngineTests
             }
         }
     }
+
+    [Fact]
+    public void Compute_Section54_SlotInvalidWhenCompleteRequiredIntervalExceedsWindow()
+    {
+        // Specification Section 54:
+        // Business: 09:00–18:00
+        // Service: 45 minutes
+        // Buffer: 10 minutes
+        // Required: 55 minutes
+        // A 17:30 slot is invalid (and 17:15 is invalid because 17:15 + 55m = 18:10 > 18:00).
+        var day = new LocalDate(2025, 7, 15);
+        var schedule = new StaffSchedule(new[] { new WorkingWindow(new LocalTime(9, 0), new LocalTime(18, 0)) });
+        var service = new ServiceInfo(Duration.FromMinutes(45), Duration.FromMinutes(10));
+        var step = Duration.FromMinutes(15);
+        var now = Instant.FromUtc(2025, 7, 1, 0, 0);
+
+        var slots = _engine.Compute(service, schedule, Array.Empty<Interval>(), Array.Empty<Interval>(), day, _zoneNy, now, step, Duration.Zero);
+
+        // 17:30 slot must NOT exist
+        var slotAt1730 = day.At(new LocalTime(17, 30)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.DoesNotContain(slots, s => s.Start == slotAt1730);
+
+        // 17:15 slot must NOT exist (17:15 + 55 min = 18:10 > 18:00)
+        var slotAt1715 = day.At(new LocalTime(17, 15)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.DoesNotContain(slots, s => s.Start == slotAt1715);
+
+        // 17:00 slot IS valid (17:00 + 45m = 17:45 service end, + 10m buffer = 17:55 <= 18:00)
+        var slotAt1700 = day.At(new LocalTime(17, 0)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.Contains(slots, s => s.Start == slotAt1700);
+        var lastSlot = slots[^1];
+        Assert.Equal(slotAt1700, lastSlot.Start);
+        Assert.Equal(day.At(new LocalTime(17, 45)).InZoneLeniently(_zoneNy).ToInstant(), lastSlot.End);
+    }
 }

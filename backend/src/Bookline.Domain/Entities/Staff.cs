@@ -12,6 +12,8 @@ public class Staff : TenantEntity
     public string? Title { get; set; } = "Staff Member";
     public string? Bio { get; set; }
     public string? AvatarUrl { get; set; }
+    public Guid? LocationId { get; set; }
+    public Location? Location { get; set; }
     public string TimeZoneId { get; set; } = "UTC";
     public bool IsActive { get; set; } = true;
     public bool IsArchived { get; set; } = false;

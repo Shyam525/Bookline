@@ -9,6 +9,7 @@ public class WorkingHours : TenantEntity
     public DayOfWeek DayOfWeek { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
+    public string? Label { get; set; }
 
     public Staff Staff { get; set; } = null!;
 }

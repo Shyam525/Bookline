@@ -15,6 +15,9 @@ public class NotificationLog : TenantEntity
     public NotificationStatus Status { get; set; } = NotificationStatus.Pending;
     public string Subject { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
+    public bool IsRead { get; set; } = false;
+    public string? DeepLinkUrl { get; set; }
+    public DateTime? ReadAtUtc { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTime? SentAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

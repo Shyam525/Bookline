@@ -17,8 +17,10 @@ public class Product : TenantEntity
     public int SoldQuantity { get; set; } = 0;
     public bool IsActive { get; set; } = true;
     public bool IsPurchasableOnline { get; set; } = true;
+    public Enums.ModerationStatus ModerationStatus { get; set; } = Enums.ModerationStatus.Approved;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public int AvailableQuantity => Math.Max(0, StockQuantity - ReservedQuantity);
 

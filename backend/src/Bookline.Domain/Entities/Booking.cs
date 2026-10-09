@@ -19,6 +19,10 @@ public class Booking : TenantEntity
     public string? CustomerNotes { get; set; }
     public decimal TotalPrice { get; set; }
     public decimal DepositPaid { get; set; }
+    public string Currency { get; set; } = "INR";
+    public string? CreatedBy { get; set; }
+    public string? Resource { get; set; }
+    public Guid? ResourceId { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }

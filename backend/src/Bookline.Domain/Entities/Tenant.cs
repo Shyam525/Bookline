@@ -21,9 +21,11 @@ public class Tenant
     public string Description { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
     public string? CoverImageUrl { get; set; }
+    public string? GalleryImagesJson { get; set; } = "[]";
     public string? Phone { get; set; }
     public string? Website { get; set; }
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Verified;
+    public ModerationStatus ModerationStatus { get; set; } = ModerationStatus.Approved;
     public double AverageRating { get; set; } = 4.8;
     public int ReviewCount { get; set; } = 0;
     public DepositType DepositType { get; set; } = DepositType.None;

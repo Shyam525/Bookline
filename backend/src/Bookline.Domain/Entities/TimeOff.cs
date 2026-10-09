@@ -8,6 +8,7 @@ public class TimeOff : TenantEntity
     public Guid StaffId { get; set; }
     public DateTimeOffset StartUtc { get; set; }
     public DateTimeOffset EndUtc { get; set; }
+    public string Type { get; set; } = "Vacation"; // Vacation, Sick, Holiday, Personal, Custom
     public string? Reason { get; set; }
 
     public Staff Staff { get; set; } = null!;

@@ -27,8 +27,20 @@ import {
   Plus,
   Sparkles,
   Navigation,
+  Lock,
+  XCircle,
+  AlertTriangle,
+  Camera,
 } from 'lucide-react';
+import { ProviderImage, ProviderGallery } from '../../components/common/ProviderImage';
 import { favoritesApi } from '../../services/api/favorites';
+import {
+  formatBusinessDate,
+  formatBusinessTime,
+  formatAppointmentRange,
+  formatDuration,
+  ScheduleErrorDefense,
+} from '../../utils/timeFormatters';
 
 export const ProviderStorefrontPage: React.FC = () => {
   const { slug, businessSlug } = useParams<{ slug?: string; businessSlug?: string }>();
@@ -43,7 +55,7 @@ export const ProviderStorefrontPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'services' | 'products' | 'team' | 'reviews' | 'about' | 'locations' | 'hours' | 'booking'
+    'overview' | 'services' | 'products' | 'gallery' | 'team' | 'reviews' | 'about' | 'locations' | 'hours' | 'booking'
   >(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('book') === 'true' || params.get('booking') === 'true' ? 'booking' : 'overview';
@@ -62,10 +74,12 @@ export const ProviderStorefrontPage: React.FC = () => {
   });
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [holdId, setHoldId] = useState<string | null>(null);
-  const [holdTimer, setHoldTimer] = useState<number>(300); // 5 min hold
+  const [holdTimer, setHoldTimer] = useState<number>(300); // 5 min hold (Section 59)
   const [bookingCustomerName, setBookingCustomerName] = useState('');
   const [bookingCustomerEmail, setBookingCustomerEmail] = useState('');
   const [bookingCustomerPhone, setBookingCustomerPhone] = useState('');
+  const [bookingCustomerNotes, setBookingCustomerNotes] = useState('');
+  const [slotError, setSlotError] = useState<string | null>(null);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
 
@@ -78,7 +92,7 @@ export const ProviderStorefrontPage: React.FC = () => {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewSuccess, setReviewSuccess] = useState(false);
 
-  // Available Time Slots (Simulated & Backend slot calculation)
+  // Available Time Slots (Conforms to Section 60 & 61: FREE, SELECTED, HELD, BOOKED, UNAVAILABLE)
   const availableTimeSlots = [
     { time: '09:00 AM', utc: '09:00:00Z', status: 'FREE' },
     { time: '09:45 AM', utc: '09:45:00Z', status: 'FREE' },
@@ -89,6 +103,7 @@ export const ProviderStorefrontPage: React.FC = () => {
     { time: '03:15 PM', utc: '15:15:00Z', status: 'FREE' },
     { time: '04:00 PM', utc: '16:00:00Z', status: 'BOOKED' },
     { time: '05:00 PM', utc: '17:00:00Z', status: 'FREE' },
+    { time: '05:45 PM', utc: '17:45:00Z', status: 'UNAVAILABLE' },
   ];
 
   // Fetch Storefront Data
@@ -302,16 +317,16 @@ END:VCALENDAR`;
   const { provider, services, products, staff, locations } = storefront;
 
   return (
-    <div className="min-h-screen pb-20">
-      {/* Hero Banner / Cover Section */}
+    <div className="min-h-screen pb-28 lg:pb-20">
+      {/* Hero Banner / Cover Section (Section 105: Cover Image & Fallback) */}
       <div className="relative w-full h-72 md:h-96 overflow-hidden bg-[#111520]">
-        <img
-          src={
-            provider.coverImageUrl ||
-            'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1600&q=80'
-          }
+        <ProviderImage
+          src={provider.coverImageUrl}
           alt={provider.name}
-          className="w-full h-full object-cover object-center opacity-60 filter brightness-90"
+          type="cover"
+          category={provider.category}
+          loading="eager"
+          className="w-full h-full object-cover filter brightness-90"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0C13] via-[#0A0C13]/60 to-transparent" />
 
@@ -346,12 +361,15 @@ END:VCALENDAR`;
         <div className="bg-[#111520] border border-[#212638] rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-start sm:items-center gap-5">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-[#181D2C] to-[#212638] border-2 border-[#212638] overflow-hidden flex-shrink-0 flex items-center justify-center font-heading font-bold text-3xl text-[#E8546A] shadow-xl">
-                {provider.logoUrl ? (
-                  <img src={provider.logoUrl} alt={provider.name} className="w-full h-full object-cover" />
-                ) : (
-                  provider.name.substring(0, 2).toUpperCase()
-                )}
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#181D2C] border-2 border-[#212638] overflow-hidden flex-shrink-0 shadow-xl">
+                <ProviderImage
+                  src={provider.logoUrl}
+                  alt={provider.name}
+                  type="logo"
+                  category={provider.category}
+                  aspectRatio="square"
+                  className="w-full h-full"
+                />
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -419,6 +437,7 @@ END:VCALENDAR`;
               { id: 'overview', label: 'Overview', icon: Sparkles },
               { id: 'services', label: `Services (${services.length})`, icon: Scissors },
               { id: 'products', label: `Products (${products.length})`, icon: Package },
+              { id: 'gallery', label: 'Gallery', icon: Camera },
               { id: 'team', label: `Team (${staff.length})`, icon: Users },
               { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare },
               { id: 'about', label: 'About', icon: Info },
@@ -432,7 +451,7 @@ END:VCALENDAR`;
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-[#181D2C] text-white font-bold border border-[#212638]'
                       : 'text-[#7E88A8] hover:text-white hover:bg-[#181D2C]/40'
@@ -515,12 +534,23 @@ END:VCALENDAR`;
                     key={srv.id}
                     className="p-5 rounded-2xl bg-[#111520] border border-[#212638] hover:border-[#E8546A]/50 transition-all flex items-start justify-between gap-4"
                   >
-                    <div className="space-y-1">
-                      <h4 className="font-heading font-bold text-base text-white">{srv.name}</h4>
-                      <p className="text-xs text-[#7E88A8] line-clamp-1">{srv.description}</p>
-                      <div className="flex items-center gap-2 text-[11px] text-[#7E88A8]">
-                        <Clock className="w-3 h-3 text-[#34D399]" />
-                        <span>{srv.durationMinutes} mins</span>
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-16 h-16 rounded-xl bg-[#181D2C] border border-[#212638] overflow-hidden flex-shrink-0">
+                        <ProviderImage
+                          src={srv.imageUrl}
+                          alt={srv.name}
+                          type="service"
+                          category={provider.category}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <h4 className="font-heading font-bold text-base text-white truncate">{srv.name}</h4>
+                        <p className="text-xs text-[#7E88A8] line-clamp-1">{srv.description}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-[#7E88A8]">
+                          <Clock className="w-3 h-3 text-[#34D399]" />
+                          <span>{srv.durationMinutes} mins</span>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 space-y-2">
@@ -539,7 +569,7 @@ END:VCALENDAR`;
               </div>
             </div>
 
-            {/* Featured Products */}
+            {/* Featured Products (Section 105: Product Images & Fallbacks) */}
             {products.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -561,9 +591,11 @@ END:VCALENDAR`;
                       className="p-4 rounded-2xl bg-[#111520] border border-[#212638] space-y-2 hover:border-[#FBBF24]/50 transition-all"
                     >
                       <div className="h-28 rounded-xl bg-[#181D2C] overflow-hidden">
-                        <img
-                          src={p.imageUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=400&q=80'}
+                        <ProviderImage
+                          src={p.imageUrl}
                           alt={p.name}
+                          type="product"
+                          category={provider.category}
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -592,6 +624,27 @@ END:VCALENDAR`;
                 </div>
               </div>
             )}
+
+            {/* Gallery Preview (Section 105: Responsive Gallery Walkthrough) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-heading text-xl font-bold text-white">Venue & Experience Gallery</h3>
+                  <p className="text-xs text-[#7E88A8]">Studio ambiance, treatment rooms, and client results</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('gallery')}
+                  className="text-xs text-[#E8546A] hover:underline font-semibold flex items-center gap-1"
+                >
+                  View full gallery <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <ProviderGallery
+                images={provider.galleryUrls && provider.galleryUrls.length > 0 ? provider.galleryUrls.slice(0, 4) : []}
+                category={provider.category}
+                providerName={provider.name}
+              />
+            </div>
 
             {/* Quick About / Hours Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -656,31 +709,42 @@ END:VCALENDAR`;
                   key={srv.id}
                   className="bg-[#111520] border border-[#212638] hover:border-[#E8546A]/50 rounded-2xl p-5 flex flex-col justify-between gap-4 transition-all group"
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-heading font-bold text-base text-white group-hover:text-[#E8546A] transition-colors">
-                        {srv.name}
-                      </h3>
-                      <div className="text-right">
-                        <span className="font-heading text-lg font-bold text-white">
-                          {srv.currency || '₹'}{srv.price}
-                        </span>
-                      </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-20 h-20 rounded-2xl bg-[#181D2C] border border-[#212638] overflow-hidden flex-shrink-0">
+                      <ProviderImage
+                        src={srv.imageUrl}
+                        alt={srv.name}
+                        type="service"
+                        category={provider.category}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
                     </div>
-                    {srv.description && (
-                      <p className="text-xs text-[#7E88A8] leading-relaxed line-clamp-2">
-                        {srv.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 text-[11px] text-[#7E88A8]">
-                      <span className="flex items-center gap-1 font-mono text-[#34D399]">
-                        <Clock className="w-3 h-3" /> {srv.durationMinutes} mins
-                      </span>
-                      {provider.depositAmount > 0 && (
-                        <span className="text-[#FBBF24]">
-                          &bull; Deposit: {srv.currency || '₹'}{provider.depositAmount}
-                        </span>
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-heading font-bold text-base text-white group-hover:text-[#E8546A] transition-colors truncate">
+                          {srv.name}
+                        </h3>
+                        <div className="text-right flex-shrink-0">
+                          <span className="font-heading text-lg font-bold text-white">
+                            {srv.currency || '₹'}{srv.price}
+                          </span>
+                        </div>
+                      </div>
+                      {srv.description && (
+                        <p className="text-xs text-[#7E88A8] leading-relaxed line-clamp-2">
+                          {srv.description}
+                        </p>
                       )}
+                      <div className="flex items-center gap-3 text-[11px] text-[#7E88A8]">
+                        <span className="flex items-center gap-1 font-mono text-[#34D399]">
+                          <Clock className="w-3 h-3" /> {srv.durationMinutes} mins
+                        </span>
+                        {provider.depositAmount > 0 && (
+                          <span className="text-[#FBBF24]">
+                            &bull; Deposit: {srv.currency || '₹'}{provider.depositAmount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -688,7 +752,7 @@ END:VCALENDAR`;
                     <span className="text-[11px] text-[#7E88A8]">Instant slot hold available</span>
                     <button
                       onClick={() => handleStartBooking(srv)}
-                      className="px-4 py-2 rounded-xl bg-[#181D2C] hover:bg-[#E8546A] text-white text-xs font-semibold transition-all flex items-center gap-1.5"
+                      className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#181D2C] hover:bg-[#E8546A] text-white text-xs font-semibold transition-all flex items-center gap-1.5"
                     >
                       <span>Book Slot</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -722,12 +786,11 @@ END:VCALENDAR`;
                     className="bg-[#111520] border border-[#212638] hover:border-[#FBBF24]/50 rounded-2xl overflow-hidden flex flex-col justify-between transition-all group"
                   >
                     <div className="h-44 bg-[#181D2C] overflow-hidden relative">
-                      <img
-                        src={
-                          prod.imageUrl ||
-                          'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80'
-                        }
+                      <ProviderImage
+                        src={prod.imageUrl}
                         alt={prod.name}
+                        type="product"
+                        category={provider.category}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <div className="absolute top-2.5 right-2.5">
@@ -789,6 +852,23 @@ END:VCALENDAR`;
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: GALLERY (Section 105: Responsive Gallery Walkthrough & Lightbox) */}
+        {activeTab === 'gallery' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div>
+              <h2 className="font-heading text-2xl font-bold text-white">Venue &amp; Service Gallery</h2>
+              <p className="text-xs text-[#7E88A8]">
+                Immersive visual walkthrough of our studio, treatment areas, and client results
+              </p>
+            </div>
+            <ProviderGallery
+              images={provider.galleryUrls && provider.galleryUrls.length > 0 ? provider.galleryUrls : []}
+              category={provider.category}
+              providerName={provider.name}
+            />
           </div>
         )}
 
@@ -1022,6 +1102,8 @@ END:VCALENDAR`;
               </div>
             </div>
           </div>
+        )}
+
         {/* TAB 7: LOCATIONS (Section 38) */}
         {activeTab === 'locations' && (
           <div className="space-y-6 animate-fadeIn">
@@ -1430,52 +1512,75 @@ END:VCALENDAR`;
                     />
                   </div>
 
-                  {/* Slot Legend */}
-                  <div className="flex items-center gap-4 text-[11px] text-[#7E88A8] flex-wrap">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#34D399]" />
-                      <span>Free Slot</span>
+                  {/* Slot Legend (Section 60 & 61) */}
+                  <div className="flex items-center gap-3 text-[11px] text-[#7E88A8] flex-wrap pt-1">
+                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
+                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                      <span>Available</span>
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#E8546A]" />
+                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#E8546A]/15 border border-[#E8546A] text-[#E8546A] font-semibold">
+                      <Clock className="w-3 h-3 text-[#E8546A]" />
                       <span>Selected</span>
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#FBBF24]" />
-                      <span>Held (Expiring)</span>
+                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#FBBF24]/10 border border-dashed border-[#FBBF24]/50 text-[#FBBF24] font-semibold">
+                      <Lock className="w-3 h-3 text-[#FBBF24]" />
+                      <span>Held</span>
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#64748B]" />
+                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#181D2C] border border-[#212638] text-[#7E88A8]">
+                      <Calendar className="w-3 h-3 text-[#7E88A8]" />
                       <span>Booked</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/30 border border-[#212638]/50 text-[#7E88A8]/60 line-through">
+                      <XCircle className="w-3 h-3 text-[#7E88A8]/50" />
+                      <span>Unavailable</span>
                     </span>
                   </div>
 
-                  {/* Available Time Slots Grid */}
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* Available Time Slots Grid (Section 61: text, shape, border, icon, color - not color alone) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {availableTimeSlots.map((slot) => {
                       const isFree = slot.status === 'FREE';
                       const isHeld = slot.status === 'HELD';
                       const isBooked = slot.status === 'BOOKED';
+                      const isUnavailable = slot.status === 'UNAVAILABLE';
                       const isChosen = selectedSlot === slot.time;
 
                       return (
                         <button
                           key={slot.time}
-                          disabled={isBooked}
+                          type="button"
+                          disabled={isBooked || isHeld || isUnavailable}
                           onClick={() => handleHoldSlot(slot.time)}
-                          className={`p-3 rounded-xl text-xs font-semibold border flex flex-col items-center justify-center gap-1 transition-all ${
+                          className={`min-h-[52px] p-3.5 flex flex-col items-center justify-center gap-1 transition-all text-left ${
                             isChosen
-                              ? 'bg-[#E8546A] border-[#E8546A] text-white font-bold'
+                              ? 'rounded-2xl ring-2 ring-[#E8546A] border-2 border-[#E8546A] bg-[#E8546A] text-white shadow-lg shadow-[#E8546A]/25'
                               : isFree
-                              ? 'bg-[#181D2C] border-[#34D399]/40 text-[#34D399] hover:bg-[#34D399]/10 hover:border-[#34D399]'
+                              ? 'rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/20'
                               : isHeld
-                              ? 'bg-[#181D2C] border-[#FBBF24]/50 text-[#FBBF24] hover:bg-[#FBBF24]/10'
-                              : 'bg-[#111520] border-[#212638] text-[#64748B] cursor-not-allowed line-through'
+                              ? 'rounded-xl border-2 border-dashed border-[#FBBF24]/50 bg-[#FBBF24]/10 text-[#FBBF24] cursor-not-allowed opacity-90'
+                              : isBooked
+                              ? 'rounded-lg border border-[#212638] bg-[#181D2C]/40 text-[#7E88A8] cursor-not-allowed opacity-60'
+                              : 'rounded-md border border-[#212638]/50 bg-black/20 text-[#7E88A8]/40 cursor-not-allowed opacity-40 line-through'
                           }`}
                         >
-                          <span>{slot.time}</span>
-                          <span className="text-[9px] uppercase tracking-wider font-mono">
-                            {isChosen ? 'Selected' : isFree ? 'Available' : isHeld ? 'Held' : 'Unavailable'}
+                          <div className="flex items-center gap-1.5 font-bold text-xs">
+                            {isChosen && <Clock className="w-3.5 h-3.5 text-white animate-spin" />}
+                            {isFree && !isChosen && <Sparkles className="w-3.5 h-3.5 text-emerald-400" />}
+                            {isHeld && <Lock className="w-3.5 h-3.5 text-[#FBBF24]" />}
+                            {isBooked && <Calendar className="w-3.5 h-3.5 text-[#7E88A8]" />}
+                            {isUnavailable && <XCircle className="w-3.5 h-3.5 text-[#7E88A8]/50" />}
+                            <span>{slot.time}</span>
+                          </div>
+                          <span className="text-[10px] tracking-tight font-medium opacity-90 text-center">
+                            {isChosen
+                              ? 'Selected · Reservation active'
+                              : isFree
+                              ? 'Available · Tap to select'
+                              : isHeld
+                              ? 'Reserved by another customer'
+                              : isBooked
+                              ? 'Booked'
+                              : 'Not available'}
                           </span>
                         </button>
                       );
@@ -1484,106 +1589,206 @@ END:VCALENDAR`;
                 </div>
               )}
 
-              {/* STEP 4: SLOT HOLD & CLIENT DETAILS (Points 40 & 41) */}
+              {/* STEP 4: SLOT HOLD & CLIENT DETAILS (Sections 59, 61, 62, 68) */}
               {bookingStep === 4 && (
                 <div className="space-y-6">
-                  {/* Live Slot Hold Countdown Banner */}
-                  <div className="p-4 rounded-2xl bg-[#FBBF24]/10 border border-[#FBBF24]/30 flex items-center justify-between">
+                  {/* Live Slot Hold Countdown Banner (Section 59: 5 min hold, visible countdown) */}
+                  <div
+                    className={`p-4 rounded-2xl border flex items-center justify-between ${
+                      holdTimer > 0
+                        ? 'bg-[#FBBF24]/10 border-[#FBBF24]/30'
+                        : 'bg-red-500/10 border-red-500/30'
+                    }`}
+                  >
                     <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-[#FBBF24] animate-spin" />
+                      {holdTimer > 0 ? (
+                        <Clock className="w-5 h-5 text-[#FBBF24] animate-spin" />
+                      ) : (
+                        <AlertTriangle className="w-5 h-5 text-red-400" />
+                      )}
                       <div>
-                        <p className="text-xs font-bold text-white">Slot Held for You</p>
+                        <p className="text-xs font-bold text-white">
+                          {holdTimer > 0 ? 'Slot Held Exclusively for You' : 'Reservation Hold Expired'}
+                        </p>
                         <p className="text-[11px] text-[#7E88A8]">
-                          Held slot expires in{' '}
-                          <span className="font-mono font-bold text-[#FBBF24]">
-                            {Math.floor(holdTimer / 60)}:{(holdTimer % 60).toString().padStart(2, '0')}
-                          </span>
+                          {holdTimer > 0 ? (
+                            <>
+                              Remaining time:{' '}
+                              <span className="font-mono font-bold text-[#FBBF24]">
+                                {Math.floor(holdTimer / 60)}:{(holdTimer % 60).toString().padStart(2, '0')}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-red-400">
+                              Your 5-minute hold has expired. Please select a slot again.
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs font-mono text-[#FBBF24] font-bold">5:00 HOLD</span>
+                    <span
+                      className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${
+                        holdTimer > 0
+                          ? 'border-[#FBBF24]/30 text-[#FBBF24]'
+                          : 'border-red-500/30 text-red-400'
+                      }`}
+                    >
+                      {holdTimer > 0 ? '5:00 HOLD' : 'EXPIRED'}
+                    </span>
                   </div>
 
-                  {/* Booking Summary Card */}
-                  <div className="p-4 rounded-2xl bg-[#181D2C] border border-[#212638] space-y-2 text-xs">
-                    <div className="flex justify-between text-white font-bold">
-                      <span>{selectedService?.name}</span>
-                      <span>
-                        {selectedService?.currency || '₹'}{selectedService?.price}
-                      </span>
-                    </div>
-                    <p className="text-[#7E88A8]">
-                      Date: <strong className="text-white">{selectedDate}</strong> at{' '}
-                      <strong className="text-white">{selectedSlot}</strong>
-                    </p>
-                    <p className="text-[#7E88A8]">
-                      Specialist: <strong className="text-white">{selectedStaff?.name || 'Any Available'}</strong>
-                    </p>
-                    {provider.depositAmount > 0 && (
-                      <p className="text-[#FBBF24] text-[11px] font-semibold pt-1 border-t border-[#212638]">
-                        Notice: A deposit of {provider.currency || '₹'}{provider.depositAmount} will be due at check-in.
-                      </p>
-                    )}
-                  </div>
+                  {/* Booking Summary Card (Section 86: total, deposit due, remaining) */}
+                  {(() => {
+                    const totalPrice = selectedService?.price || 0;
+                    const depositType = provider.depositType || (provider.depositAmount > 0 ? 'Fixed' : 'None');
+                    let depositDue = 0;
+                    if (depositType === 'Percentage' || (typeof depositType === 'string' && depositType.toLowerCase() === 'percentage')) {
+                      depositDue = Math.round(totalPrice * (provider.depositAmount / 100));
+                    } else if (depositType === 'Fixed' || (typeof depositType === 'string' && depositType.toLowerCase() === 'fixed')) {
+                      depositDue = Math.min(totalPrice, provider.depositAmount);
+                    } else {
+                      depositDue = 0;
+                    }
+                    const remainingDue = Math.max(0, totalPrice - depositDue);
 
-                  {/* Customer Information Inputs */}
+                    return (
+                      <div className="p-4 rounded-2xl bg-[#181D2C] border border-[#212638] space-y-2 text-xs">
+                        <div className="flex justify-between text-white font-bold">
+                          <span>{selectedService?.name}</span>
+                          <span className="font-mono text-white">
+                            {selectedService?.currency || '₹'}{totalPrice}
+                          </span>
+                        </div>
+                        <p className="text-[#7E88A8]">
+                          Date: <strong className="text-white">{formatBusinessDate(selectedDate, 'full')}</strong> at{' '}
+                          <strong className="text-white">{formatBusinessTime(selectedSlot || '')}</strong>
+                        </p>
+                        <p className="text-[#7E88A8]">
+                          Specialist: <strong className="text-white">{selectedStaff?.name || 'Any Available Specialist'}</strong>
+                        </p>
+
+                        {/* Section 86: Explicit Deposit Structure Display */}
+                        <div className="border-t border-[#212638] pt-2 mt-2 space-y-1.5 text-[11px]">
+                          <div className="flex justify-between text-[#7E88A8]">
+                            <span>Total Service Fee:</span>
+                            <span className="font-mono text-white font-semibold">{selectedService?.currency || '₹'}{totalPrice.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-[#FBBF24]">
+                            <span>Advance Deposit Due Now:</span>
+                            <span className="font-mono font-bold">{selectedService?.currency || '₹'}{depositDue.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-[#34D399]">
+                            <span>Remaining Balance (Due In Studio):</span>
+                            <span className="font-mono font-bold">{selectedService?.currency || '₹'}{remainingDue.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Customer Information Inputs (Section 68: Name, Phone, Email, Optional notes, Validate) */}
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
-                        Full Name
+                        Full Name <span className="text-[#E8546A]">*</span>
                       </label>
                       <input
                         type="text"
                         value={bookingCustomerName}
                         onChange={(e) => setBookingCustomerName(e.target.value)}
-                        placeholder="John Doe"
+                        placeholder="e.g. Priya Sharma"
                         className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+                        required
                       />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                          Email Address <span className="text-[#E8546A]">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={bookingCustomerEmail}
+                          onChange={(e) => setBookingCustomerEmail(e.target.value)}
+                          placeholder="client@example.com"
+                          className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                          Phone Number <span className="text-[#E8546A]">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={bookingCustomerPhone}
+                          onChange={(e) => setBookingCustomerPhone(e.target.value)}
+                          placeholder="+91 98765 43210"
+                          className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+                          required
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
-                        Email Address
+                        Optional Notes / Requests (Section 68)
                       </label>
-                      <input
-                        type="email"
-                        value={bookingCustomerEmail}
-                        onChange={(e) => setBookingCustomerEmail(e.target.value)}
-                        placeholder="john@example.com"
-                        className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        value={bookingCustomerPhone}
-                        onChange={(e) => setBookingCustomerPhone(e.target.value)}
-                        placeholder="+91 98765 43210"
+                      <textarea
+                        rows={2}
+                        value={bookingCustomerNotes}
+                        onChange={(e) => setBookingCustomerNotes(e.target.value)}
+                        placeholder="Any special requests, styling preferences, or allergies..."
                         className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
                       />
                     </div>
                   </div>
 
-                  <button
-                    disabled={bookingSubmitting || !bookingCustomerName || !bookingCustomerEmail}
-                    onClick={handleConfirmBooking}
-                    className="w-full py-3.5 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {bookingSubmitting ? (
-                      <span>Reserving Slot & Securing...</span>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Confirm Appointment Reservation</span>
-                      </>
-                    )}
-                  </button>
+                  {/* Section 62: BOOKING BUTTON (Disabled when invalid/expired/missing state) */}
+                  {(() => {
+                    const isHoldExpired = holdTimer <= 0;
+                    const hasValidSelection = Boolean(selectedService && selectedSlot && !isHoldExpired);
+                    const hasRequiredState = Boolean(
+                      bookingCustomerName.trim() &&
+                      bookingCustomerEmail.trim() &&
+                      bookingCustomerPhone.trim()
+                    );
+                    const isFormValid = hasValidSelection && hasRequiredState && !bookingSubmitting;
+
+                    return (
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          disabled={!isFormValid}
+                          onClick={handleConfirmBooking}
+                          className="w-full py-3.5 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {bookingSubmitting ? (
+                            <span>Reserving Slot & Securing...</span>
+                          ) : isHoldExpired ? (
+                            <span>Hold Expired · Please Reselect Slot</span>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Confirm Appointment Reservation</span>
+                            </>
+                          )}
+                        </button>
+                        {!isFormValid && (
+                          <p className="text-[11px] text-center text-[#7E88A8]">
+                            {isHoldExpired
+                              ? 'Your slot hold has expired. Back to step 3 to choose a time.'
+                              : !hasRequiredState
+                              ? 'Please fill in required name, email, and phone number.'
+                              : 'Select a valid service and slot to proceed.'}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
-              {/* STEP 5: CONFIRMATION (Points 45 & 126) */}
+              {/* STEP 5: CONFIRMATION (Section 69: Only show after backend commit) */}
               {bookingStep === 5 && confirmedBooking && (
                 <div className="space-y-6 text-center py-4">
                   <div className="w-16 h-16 rounded-3xl bg-[#34D399]/20 text-[#34D399] flex items-center justify-center mx-auto shadow-xl">
@@ -1595,56 +1800,95 @@ END:VCALENDAR`;
                       {confirmedBooking.reference}
                     </span>
                     <h3 className="font-heading text-2xl font-bold text-white mt-2">
-                      Appointment Confirmed!
+                      Booking confirmed
                     </h3>
                     <p className="text-xs text-[#7E88A8]">
                       Your session is booked with {confirmedBooking.providerName}
                     </p>
                   </div>
 
+                  {/* Section 69 Details Display */}
                   <div className="p-5 rounded-2xl bg-[#181D2C] border border-[#212638] text-xs text-left space-y-2">
+                    <div className="flex justify-between border-b border-[#212638] pb-2">
+                      <span className="text-[#7E88A8]">Booking Reference</span>
+                      <span className="font-mono font-bold text-[#34D399]">{confirmedBooking.reference}</span>
+                    </div>
                     <div className="flex justify-between border-b border-[#212638] pb-2">
                       <span className="text-[#7E88A8]">Service</span>
                       <span className="font-bold text-white">{confirmedBooking.serviceName}</span>
                     </div>
                     <div className="flex justify-between border-b border-[#212638] pb-2">
-                      <span className="text-[#7E88A8]">Specialist</span>
-                      <span className="font-bold text-white">{confirmedBooking.staffName}</span>
+                      <span className="text-[#7E88A8]">Date</span>
+                      <span className="font-bold text-white">{formatBusinessDate(confirmedBooking.date, 'full')}</span>
                     </div>
                     <div className="flex justify-between border-b border-[#212638] pb-2">
-                      <span className="text-[#7E88A8]">Date & Time</span>
-                      <span className="font-bold text-white">
-                        {confirmedBooking.date} at {confirmedBooking.time}
-                      </span>
+                      <span className="text-[#7E88A8]">Time</span>
+                      <span className="font-bold text-white font-mono">{formatBusinessTime(confirmedBooking.time)}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-[#212638] pb-2">
+                      <span className="text-[#7E88A8]">Staff Specialist</span>
+                      <span className="font-bold text-white">{confirmedBooking.staffName}</span>
                     </div>
                     <div className="flex justify-between border-b border-[#212638] pb-2">
                       <span className="text-[#7E88A8]">Location</span>
                       <span className="font-bold text-white">{confirmedBooking.location}</span>
                     </div>
-                    <div className="flex justify-between pt-1">
-                      <span className="text-[#7E88A8]">Total Fee</span>
-                      <span className="font-bold text-[#34D399]">
-                        {confirmedBooking.currency}{confirmedBooking.price}
-                      </span>
-                    </div>
+                    {/* Section 86: Total, Deposit Paid, Remaining Due */}
+                    {(() => {
+                      const depositType = provider.depositType || (provider.depositAmount > 0 ? 'Fixed' : 'None');
+                      let depositDue = 0;
+                      if (depositType === 'Percentage' || (typeof depositType === 'string' && depositType.toLowerCase() === 'percentage')) {
+                        depositDue = Math.round(confirmedBooking.price * (provider.depositAmount / 100));
+                      } else if (depositType === 'Fixed' || (typeof depositType === 'string' && depositType.toLowerCase() === 'fixed')) {
+                        depositDue = Math.min(confirmedBooking.price, provider.depositAmount);
+                      } else {
+                        depositDue = 0;
+                      }
+                      const remainingDue = Math.max(0, confirmedBooking.price - depositDue);
+
+                      return (
+                        <div className="pt-2 space-y-1.5 border-t border-[#212638] text-[11px]">
+                          <div className="flex justify-between text-[#7E88A8]">
+                            <span>Total Service Price</span>
+                            <span className="font-mono text-white font-semibold">
+                              {confirmedBooking.currency}{confirmedBooking.price.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[#34D399]">
+                            <span>Deposit Paid / Reserved</span>
+                            <span className="font-mono font-bold">
+                              {confirmedBooking.currency}{depositDue.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[#FBBF24]">
+                            <span>Remaining Balance (Due At Appointment)</span>
+                            <span className="font-mono font-bold">
+                              {confirmedBooking.currency}{remainingDue.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={handleDownloadCalendar}
                       className="flex-1 py-3 rounded-xl bg-[#181D2C] hover:bg-[#212638] text-white border border-[#212638] text-xs font-bold transition-all flex items-center justify-center gap-2"
                     >
                       <Download className="w-4 h-4 text-[#34D399]" />
-                      <span>Add to Calendar (.ics)</span>
+                      <span>Add to calendar</span>
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setIsBookingOpen(false);
                         navigate('/appointments');
                       }}
                       className="flex-1 py-3 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg"
                     >
-                      View in My Bookings
+                      Manage booking
                     </button>
                   </div>
                 </div>
@@ -1772,6 +2016,31 @@ END:VCALENDAR`;
           </div>
         </div>
       )}
+
+      {/* ==================================================================== */}
+      {/* SECTION 106: MOBILE STICKY BOOKING ACTION BAR (Sticky Action & Touch Target) */}
+      {/* ==================================================================== */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-[#111520]/95 backdrop-blur-md border-t border-[#212638] px-4 py-3 shadow-2xl flex items-center justify-between gap-4">
+        <div className="flex flex-col min-w-0">
+          <span className="text-[10px] text-[#7E88A8] uppercase tracking-wider font-bold">Appointments</span>
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="text-sm font-bold text-white font-heading">
+              From {provider.currency || '₹'}{services[0]?.price || '499'}
+            </span>
+            <span className="flex items-center gap-0.5 text-xs text-[#FBBF24] font-semibold">
+              <Star className="w-3 h-3 fill-current" />
+              {provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '5.0'}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={() => handleStartBooking(services[0] || null)}
+          className="min-h-[48px] px-6 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/25 flex items-center justify-center gap-2 flex-shrink-0 active:scale-95"
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Book now</span>
+        </button>
+      </div>
     </div>
   );
 };

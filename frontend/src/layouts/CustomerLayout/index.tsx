@@ -4,6 +4,7 @@ import { useAuth } from '../../app/providers/AuthProvider';
 import { useCart } from '../../app/providers/CartContext';
 import { CartDrawer } from '../../components/commerce/CartDrawer';
 import { NotificationDropdown } from '../../components/navigation/NotificationDropdown';
+import { CommandPalette } from '../../components/navigation/CommandPalette';
 import {
   Compass,
   Heart,
@@ -18,6 +19,7 @@ import {
   Shield,
   Search,
   Bell,
+  Command,
 } from 'lucide-react';
 
 export const CustomerLayout: React.FC = () => {
@@ -30,6 +32,7 @@ export const CustomerLayout: React.FC = () => {
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isDemoSwitcherOpen, setIsDemoSwitcherOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   const cities = ['Ahmedabad', 'Mumbai', 'Bangalore', 'Surat', 'Rajkot'];
 
@@ -141,10 +144,34 @@ export const CustomerLayout: React.FC = () => {
             <ShoppingBag className="w-4 h-4 text-[#FBBF24]" />
             <span>Orders</span>
           </Link>
+          <Link
+            to="/dashboard"
+            className={`px-3.5 py-2 rounded-xl transition-colors flex items-center gap-2 ${
+              location.pathname === '/dashboard'
+                ? 'bg-[#181D2C] text-white font-semibold'
+                : 'text-[#7E88A8] hover:text-white hover:bg-[#181D2C]/50'
+            }`}
+          >
+            <Compass className="w-4 h-4 text-[#34D399]" />
+            <span>Dashboard</span>
+          </Link>
         </nav>
 
-        {/* Right: Cart, Notifications, Demo Quick Switcher, Auth */}
+        {/* Right: Global Search, Cart, Notifications, Demo Quick Switcher, Auth */}
         <div className="flex items-center gap-3">
+          {/* Global Search Button (Section 94 Ctrl + K) */}
+          <button
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-xs font-semibold text-[#7E88A8] hover:text-white transition-colors"
+            title="Global Search (Ctrl + K)"
+          >
+            <Search className="w-3.5 h-3.5 text-[#E8546A]" />
+            <span className="hidden sm:inline">Search...</span>
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono bg-[#111520] border border-[#212638] rounded text-[#7E88A8]">
+              <Command className="w-2.5 h-2.5" /> K
+            </kbd>
+          </button>
+
           {/* Cart Trigger (Point 50) */}
           <button
             onClick={toggleCart}
@@ -246,6 +273,13 @@ export const CustomerLayout: React.FC = () => {
                       <p className="text-[10px] text-[#7E88A8] capitalize">{user?.role}</p>
                     </div>
                     <Link
+                      to="/dashboard"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="px-3 py-2 hover:bg-[#181D2C] text-[#ECEFFE] flex items-center gap-2"
+                    >
+                      <Compass className="w-3.5 h-3.5 text-[#34D399]" /> Client Dashboard
+                    </Link>
+                    <Link
                       to="/profile"
                       onClick={() => setIsUserMenuOpen(false)}
                       className="px-3 py-2 hover:bg-[#181D2C] text-[#ECEFFE] flex items-center gap-2"
@@ -314,6 +348,14 @@ export const CustomerLayout: React.FC = () => {
 
       {/* Global Slide-Over Cart Drawer */}
       <CartDrawer />
+
+      {/* Section 94 Global Search Modal */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpen={() => setIsCommandPaletteOpen(true)}
+        initialScope="customer"
+      />
 
       {/* Luxury Marketplace Footer */}
       <footer className="bg-[#0E121B] border-t border-[#212638] pt-12 pb-8 px-6 lg:px-12 text-[#7E88A8] text-xs">

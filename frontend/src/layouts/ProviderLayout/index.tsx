@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { NotificationDropdown } from '../../components/navigation/NotificationDropdown';
+import { CommandPalette } from '../../components/navigation/CommandPalette';
 import {
   LayoutDashboard,
   Calendar,
@@ -17,6 +18,7 @@ import {
   FileText,
   Store,
   ShieldCheck,
+  ShieldAlert,
   Settings,
   ChevronDown,
   Plus,
@@ -24,6 +26,9 @@ import {
   Building2,
   LogOut,
   Sparkles,
+  Search,
+  User,
+  Command,
 } from 'lucide-react';
 
 export const ProviderLayout: React.FC = () => {
@@ -34,50 +39,32 @@ export const ProviderLayout: React.FC = () => {
   const [isBusinessMenuOpen, setIsBusinessMenuOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('Bodakdev Flagship');
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
   const locationsList = ['Bodakdev Flagship', 'Satellite Executive Branch', 'Mumbai Studio'];
 
-  const navigationGroups = [
-    {
-      group: 'Operations',
-      items: [
-        { name: 'Dashboard', path: '/provider/dashboard', icon: LayoutDashboard },
-        { name: 'Calendar', path: '/provider/calendar', icon: Calendar },
-        { name: 'Bookings', path: '/provider/bookings', icon: Clock },
-        { name: 'Customers CRM', path: '/provider/customers', icon: Users },
-      ],
-    },
-    {
-      group: 'Catalog & Resources',
-      items: [
-        { name: 'Services', path: '/provider/services', icon: Scissors },
-        { name: 'Products & Inventory', path: '/provider/products', icon: Package },
-        { name: 'Staff & Specialists', path: '/provider/staff', icon: UserCheck },
-        { name: 'Locations & Branches', path: '/provider/locations', icon: MapPin },
-      ],
-    },
-    {
-      group: 'Commerce & Finance',
-      items: [
-        { name: 'Retail Orders', path: '/provider/orders', icon: ShoppingBag },
-        { name: 'Payments & Payouts', path: '/provider/payments', icon: CreditCard },
-      ],
-    },
-    {
-      group: 'Intelligence',
-      items: [
-        { name: 'Analytics', path: '/provider/analytics', icon: BarChart3 },
-        { name: 'Reports', path: '/provider/reports', icon: FileText },
-      ],
-    },
-    {
-      group: 'Settings & Branding',
-      items: [
-        { name: 'Storefront Profile', path: '/provider/storefront', icon: Store },
-        { name: 'Team & RBAC', path: '/provider/team', icon: ShieldCheck },
-        { name: 'Settings', path: '/provider/settings', icon: Settings },
-      ],
-    },
+  // Section 44: Sidebar Navigation Exact Order
+  const primaryNavItems = [
+    { name: 'Dashboard', path: '/provider/dashboard', icon: LayoutDashboard },
+    { name: 'Calendar', path: '/provider/calendar', icon: Calendar },
+    { name: 'Bookings', path: '/provider/bookings', icon: Clock },
+    { name: 'Customers', path: '/provider/customers', icon: Users },
+    { name: 'Services', path: '/provider/services', icon: Scissors },
+    { name: 'Products', path: '/provider/products', icon: Package },
+    { name: 'Staff', path: '/provider/staff', icon: UserCheck },
+    { name: 'Orders', path: '/provider/orders', icon: ShoppingBag },
+    { name: 'Payments', path: '/provider/payments', icon: CreditCard },
+    { name: 'Analytics', path: '/provider/analytics', icon: BarChart3 },
+    { name: 'Reports', path: '/provider/reports', icon: FileText },
+  ];
+
+  // Items after the divider
+  const secondaryNavItems = [
+    { name: 'Team', path: '/provider/team', icon: ShieldCheck },
+    { name: 'Settings', path: '/provider/settings', icon: Settings },
+    { name: 'Audit', path: '/provider/audit', icon: ShieldAlert },
   ];
 
   return (
@@ -182,7 +169,20 @@ export const ProviderLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Quick Action, Switch to Customer View, Notifications, User */}
+        {/* Global Search Input & Palette Trigger (Section 44 & 94) */}
+        <div
+          onClick={() => setIsCommandPaletteOpen(true)}
+          className="relative flex-1 max-w-sm mx-4 hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-xs text-[#7E88A8] hover:text-[#ECEFFE] cursor-pointer transition-colors shadow-sm"
+          title="Global Search (Ctrl + K)"
+        >
+          <Search className="w-3.5 h-3.5 text-[#E8546A] shrink-0" />
+          <span className="truncate">Search customers, bookings, staff, products...</span>
+          <kbd className="ml-auto shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono bg-[#111520] border border-[#212638] rounded text-[#7E88A8]">
+            <Command className="w-2.5 h-2.5" /> K
+          </kbd>
+        </div>
+
+        {/* Right: Quick Action, Switch to Customer View, Notifications, User Menu (Section 44) */}
         <div className="flex items-center gap-3">
           <Link
             to="/provider/calendar"
@@ -202,49 +202,124 @@ export const ProviderLayout: React.FC = () => {
 
           <NotificationDropdown />
 
-          <button
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
-            className="p-2.5 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-[#7E88A8] hover:text-red-400 transition-colors"
-            title="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          {/* User Menu Dropdown (Section 44) */}
+          <div className="relative">
+            <button
+              onClick={() => setIsUserMenuOpen((prev) => !prev)}
+              className="flex items-center gap-2 p-1.5 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] transition-colors"
+              title="User profile & options"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#E8546A] to-[#B32D42] text-white flex items-center justify-center font-heading font-bold text-xs shadow-sm">
+                {user?.firstName?.[0] || 'A'}
+              </div>
+              <ChevronDown className="w-3 h-3 text-[#7E88A8] hidden sm:block pr-0.5" />
+            </button>
+
+            {isUserMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setIsUserMenuOpen(false)} />
+                <div className="absolute right-0 mt-2 w-56 bg-[#111520] border border-[#212638] rounded-2xl shadow-2xl z-30 py-2 overflow-hidden animate-fadeIn text-xs">
+                  <div className="px-4 py-2 border-b border-[#212638]">
+                    <p className="font-bold text-white truncate">{user?.fullName || 'Aarav Singhania'}</p>
+                    <p className="text-[10px] text-[#7E88A8] truncate">{user?.email || 'provider@bookline.local'}</p>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded bg-[#E8546A]/15 text-[#E8546A] text-[9px] font-bold uppercase">
+                      {user?.role || 'Provider Owner'}
+                    </span>
+                  </div>
+
+                  <div className="py-1">
+                    <Link
+                      to={`/business/${activeBusiness?.slug || 'aura-wellness'}`}
+                      target="_blank"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="px-4 py-2 flex items-center gap-2.5 text-[#ECEFFE] hover:bg-[#181D2C] transition-colors"
+                    >
+                      <Store className="w-3.5 h-3.5 text-[#34D399]" />
+                      <span>Preview Storefront</span>
+                    </Link>
+                    <Link
+                      to="/provider/settings"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="px-4 py-2 flex items-center gap-2.5 text-[#ECEFFE] hover:bg-[#181D2C] transition-colors"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-[#7E88A8]" />
+                      <span>Account Settings</span>
+                    </Link>
+                    <Link
+                      to="/provider/audit"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="px-4 py-2 flex items-center gap-2.5 text-[#ECEFFE] hover:bg-[#181D2C] transition-colors"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-[#FBBF24]" />
+                      <span>Security &amp; Audit Log</span>
+                    </Link>
+                  </div>
+
+                  <div className="border-t border-[#212638] pt-1">
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        logout();
+                        navigate('/login');
+                      }}
+                      className="w-full px-4 py-2 text-left text-red-400 hover:bg-[#181D2C] transition-colors flex items-center gap-2.5"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main Workspace with Sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar (Section 44) */}
         <aside className="w-64 bg-[#111520] border-r border-[#212638] flex flex-col overflow-y-auto hidden md:flex">
-          <div className="p-4 space-y-6 flex-1">
-            {navigationGroups.map((grp) => (
-              <div key={grp.group} className="space-y-1">
-                <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-[#7E88A8] mb-2">
-                  {grp.group}
-                </p>
-                {grp.items.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.path}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-                        isActive
-                          ? 'bg-[#E8546A] text-white font-semibold shadow-md shadow-[#E8546A]/20'
-                          : 'text-[#ECEFFE] hover:bg-[#181D2C] hover:text-white'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span>{item.name}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
+          <div className="p-4 space-y-1 flex-1">
+            {primaryNavItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#E8546A] text-white font-semibold shadow-md shadow-[#E8546A]/20'
+                      : 'text-[#ECEFFE] hover:bg-[#181D2C] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+
+            {/* Section 44 Horizontal Divider */}
+            <div className="my-3 border-t border-[#212638]" />
+
+            {secondaryNavItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#E8546A] text-white font-semibold shadow-md shadow-[#E8546A]/20'
+                      : 'text-[#ECEFFE] hover:bg-[#181D2C] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
           </div>
 
           {/* Sidebar Footer */}
@@ -261,6 +336,14 @@ export const ProviderLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Global Command Palette (Section 94 Ctrl + K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpen={() => setIsCommandPaletteOpen(true)}
+        initialScope="provider"
+      />
     </div>
   );
 };

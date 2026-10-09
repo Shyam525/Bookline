@@ -18,6 +18,12 @@ import {
   ExternalLink,
   Info,
 } from 'lucide-react';
+import {
+  formatBusinessDate,
+  formatBusinessTime,
+  parseDateSafe,
+  ScheduleErrorDefense,
+} from '../../utils/timeFormatters';
 
 export const CustomerAppointmentsPage: React.FC = () => {
   const { id: routeAppointmentId } = useParams<{ id?: string }>();
@@ -310,7 +316,16 @@ END:VCALENDAR`;
       ) : (
         <div className="space-y-4">
           {filteredAppointments.map((apt) => {
-            const startDate = new Date(apt.startUtc);
+            const parsedStart = parseDateSafe(apt.startUtc);
+            if (!parsedStart) {
+              return (
+                <div key={apt.id} className="bg-[#111520] border border-amber-500/30 rounded-2xl p-6">
+                  <ScheduleErrorDefense onRetry={fetchAppointments} />
+                </div>
+              );
+            }
+
+            const startDate = parsedStart;
             const isCancelled = apt.status === 'Cancelled';
             const isConfirmed = apt.status === 'Confirmed';
             const isCompleted = apt.status === 'Completed';
@@ -324,7 +339,7 @@ END:VCALENDAR`;
                 <div className="flex items-start gap-4">
                   <div className="w-16 h-16 rounded-2xl bg-[#181D2C] border border-[#212638] flex flex-col items-center justify-center text-center flex-shrink-0">
                     <span className="text-[10px] uppercase font-bold text-[#E8546A]">
-                      {startDate.toLocaleString('default', { month: 'short' })}
+                      {startDate.toLocaleString('en-US', { month: 'short' })}
                     </span>
                     <span className="font-heading text-xl font-bold text-white">
                       {startDate.getDate()}
@@ -370,7 +385,7 @@ END:VCALENDAR`;
                       <span className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-[#34D399]" />
                         <span>
-                          {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatBusinessTime(apt.startUtc)}
                         </span>
                       </span>
                       <span className="flex items-center gap-1">
@@ -549,15 +564,21 @@ END:VCALENDAR`;
               </button>
             </div>
 
-            <div className="text-xs text-[#7E88A8] space-y-2">
-              <p>
-                Provider Policy requires at least{' '}
-                <strong className="text-white">
-                  {cancellingAppointment.minimumNoticeHours || 2} hours notice
+            <div className="p-3.5 rounded-xl bg-[#181D2C] border border-[#212638] space-y-2 text-xs">
+              <div className="flex items-center gap-2 text-amber-400 font-semibold text-[11px] uppercase tracking-wider">
+                <Info className="w-3.5 h-3.5" />
+                <span>Cancellation Policy &amp; Conditions</span>
+              </div>
+              <p className="text-[#ECEFFE]">
+                Provider policy enforces a minimum notice window of{' '}
+                <strong className="text-white underline">
+                  {cancellingAppointment.minimumNoticeHours || 2} hours
                 </strong>{' '}
-                prior to the start time.
+                prior to scheduled appointment start.
               </p>
-              <p>Are you sure you wish to cancel {cancellingAppointment.serviceName}?</p>
+              <p className="text-[#7E88A8] text-[11px]">
+                Upon cancellation, an audit record will be logged capturing your cancellation reason, actor identity, and server timestamp.
+              </p>
             </div>
 
             {cancelError && (
@@ -672,18 +693,13 @@ END:VCALENDAR`;
                 <div className="flex items-center gap-2 text-white">
                   <Calendar className="w-4 h-4 text-[#34D399]" />
                   <span className="font-bold">
-                    {new Date(selectedAppointmentDetail.startUtc).toLocaleDateString(undefined, {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
+                    {formatBusinessDate(selectedAppointmentDetail.startUtc, 'full')}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-[#34D399] font-mono">
                   <Clock className="w-3.5 h-3.5" />
                   <span>
-                    {new Date(selectedAppointmentDetail.startUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatBusinessTime(selectedAppointmentDetail.startUtc)}
                   </span>
                 </div>
               </div>

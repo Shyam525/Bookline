@@ -39,6 +39,8 @@ export const AppLayout: React.FC = () => {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
+        onOpen={() => setIsCommandPaletteOpen(true)}
+        initialScope="provider"
       />
     </div>
   );

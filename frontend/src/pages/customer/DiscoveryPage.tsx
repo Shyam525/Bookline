@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, Link, useParams } from 'react-router-dom';
+import { useSearchParams, Link, useParams, useNavigate } from 'react-router-dom';
 import { discoveryApi, ProviderCard, ProviderSearchResponse } from '../../services/api/discovery';
 import { InteractiveMap } from '../../components/maps/InteractiveMap';
 import {
   LocationControlModal,
   LocationSelection,
 } from '../../components/discovery/LocationControlModal';
+import { ProviderImage } from '../../components/common/ProviderImage';
 import {
   Search,
   MapPin,
@@ -24,9 +25,11 @@ import {
   ExternalLink,
   Sliders,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const DiscoveryPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { slug, category: routeCategory } = useParams<{ slug?: string; category?: string }>();
 
@@ -116,8 +119,9 @@ export const DiscoveryPage: React.FC = () => {
   // Map / List Mobile Toggle
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [hoveredProviderId, setHoveredProviderId] = useState<string | null>(null);
 
-  // List card refs for synchronized scrolling (Section 28)
+  // List card refs for synchronized scrolling (Section 28 & 101)
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Sync category if URL param changes
@@ -232,116 +236,114 @@ export const DiscoveryPage: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col bg-[#090B10] text-[#F4F6FA]">
       {/* ================================================================= */}
-      {/* 1. SEARCH HEADER & LOCATION CONTROL (Section 24 & 25)              */}
+      {/* 1. SEARCH HEADER & LOCATION CONTROL (Section 106 Mobile Priority) */}
       {/* ================================================================= */}
       <div className="border-b border-[#273142] bg-[#111620] px-4 lg:px-8 py-3.5 sticky top-16 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-3">
-          {/* Search Input Bar */}
-          <form onSubmit={handleSearchSubmit} className="flex-1 w-full flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-[#8F9AAF] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search salons, dentists, massage, reformer pilates, or keywords..."
-                className="w-full bg-[#151B27] border border-[#273142] rounded-[8px] pl-10 pr-4 py-2 text-xs text-[#F4F6FA] placeholder-[#8F9AAF] focus:border-[#E8546A] outline-none transition-colors"
-              />
-            </div>
+        <div className="max-w-7xl mx-auto flex flex-col gap-3">
+          {/* Priority 1: Search & Priority 2: Location on Mobile */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            {/* Search Input Bar (Priority 1) */}
+            <form onSubmit={handleSearchSubmit} className="flex-1 w-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-[#8F9AAF] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search salons, dentists, massage, reformer pilates, or keywords..."
+                  className="w-full min-h-[48px] bg-[#151B27] border border-[#273142] rounded-xl pl-10 pr-9 py-2.5 text-xs text-[#F4F6FA] placeholder-[#8F9AAF] focus:border-[#E8546A] outline-none transition-colors"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => { setQuery(''); setPage(1); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#8F9AAF] hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
-            {/* Location Selector Button (Section 25 & 26) */}
-            <button
-              type="button"
-              onClick={() => setIsLocationModalOpen(true)}
-              className="px-3.5 py-2 rounded-[8px] bg-[#151B27] hover:bg-[#1A2130] border border-[#273142] hover:border-[#E8546A] text-xs font-semibold text-[#F4F6FA] transition-colors flex items-center gap-1.5 flex-shrink-0 shadow-sm"
-              title="Change search city, neighborhood, or postal code"
-            >
-              <MapPin className="w-3.5 h-3.5 text-[#E8546A]" />
-              <span className="max-w-[120px] truncate">{currentLocation.label}</span>
-              <span className="text-[10px] text-[#8F9AAF]">Change</span>
-            </button>
-
-            <button
-              type="submit"
-              className="px-5 py-2 bg-[#E8546A] hover:bg-[#F06A7D] active:bg-[#C94358] text-white text-xs font-bold rounded-[8px] transition-all shadow-md flex-shrink-0"
-            >
-              Search
-            </button>
-          </form>
-
-          {/* Quick Filters: Category, Filter Drawer, Sort, Mobile Toggle (Section 24 & 35) */}
-          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
-            {/* Category Filter */}
-            <select
-              value={category}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="bg-[#151B27] border border-[#273142] rounded-[8px] px-3 py-2 text-xs text-[#F4F6FA] outline-none cursor-pointer"
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat} className="bg-[#111620]">
-                  {cat === 'All' ? 'All Categories' : cat}
-                </option>
-              ))}
-            </select>
-
-            {/* Filter Drawer Toggle Button (Section 36) */}
-            <button
-              type="button"
-              onClick={() => setIsFiltersOpen((prev) => !prev)}
-              className={`px-3 py-2 rounded-[8px] border text-xs font-semibold flex items-center gap-1.5 transition-colors flex-shrink-0 ${
-                isFiltersOpen || activeFiltersCount > 0
-                  ? 'bg-[#E8546A]/15 border-[#E8546A] text-[#E8546A]'
-                  : 'bg-[#151B27] border-[#273142] text-[#F4F6FA] hover:border-[#8F9AAF]'
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>Filters</span>
-              {activeFiltersCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-[#E8546A] text-white text-[10px] font-bold flex items-center justify-center">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
-
-            {/* Sort Dropdown with All 7 Options (Section 35: Search Sort) */}
-            <div className="flex items-center gap-1.5 bg-[#151B27] border border-[#273142] rounded-[8px] px-2.5 py-1.5 flex-shrink-0">
-              <ArrowUpDown className="w-3.5 h-3.5 text-[#8F9AAF]" />
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="bg-transparent text-xs font-medium text-[#F4F6FA] outline-none cursor-pointer"
-              >
-                <option value="Recommended" className="bg-[#111620]">Recommended</option>
-                <option value="Nearest" className="bg-[#111620]">Nearest</option>
-                <option value="Top rated" className="bg-[#111620]">Top rated</option>
-                <option value="Most reviewed" className="bg-[#111620]">Most reviewed</option>
-                <option value="Earliest available" className="bg-[#111620]">Earliest available</option>
-                <option value="Lowest price" className="bg-[#111620]">Lowest price</option>
-                <option value="Highest price" className="bg-[#111620]">Highest price</option>
-              </select>
-            </div>
-
-            {/* Mobile View Toggle: List vs Map (Section 24) */}
-            <div className="lg:hidden flex bg-[#151B27] border border-[#273142] rounded-[8px] p-0.5 flex-shrink-0">
+              {/* Location Selector Button (Priority 2: Touch-friendly min 44px) */}
               <button
                 type="button"
-                onClick={() => setMobileView('list')}
-                className={`p-1.5 rounded-[6px] text-xs flex items-center gap-1 ${
-                  mobileView === 'list' ? 'bg-[#E8546A] text-white font-bold' : 'text-[#8F9AAF]'
-                }`}
+                onClick={() => setIsLocationModalOpen(true)}
+                className="min-h-[48px] sm:min-h-[40px] px-4 py-2.5 rounded-xl bg-[#151B27] hover:bg-[#1A2130] border border-[#273142] hover:border-[#E8546A] text-xs font-semibold text-[#F4F6FA] transition-colors flex items-center justify-between sm:justify-start gap-2 flex-shrink-0 shadow-sm"
+                title="Change search city, neighborhood, or postal code"
               >
-                <ListIcon className="w-3.5 h-3.5" /> List
+                <div className="flex items-center gap-2 truncate">
+                  <MapPin className="w-4 h-4 text-[#E8546A] flex-shrink-0" />
+                  <span className="truncate font-medium">{currentLocation.label}</span>
+                </div>
+                <span className="text-[11px] text-[#E8546A] font-bold bg-[#E8546A]/10 px-2 py-0.5 rounded-md">Change</span>
               </button>
+
+              <button
+                type="submit"
+                className="min-h-[48px] sm:min-h-[40px] px-6 py-2.5 bg-[#E8546A] hover:bg-[#F06A7D] active:bg-[#C94358] text-white text-xs font-bold rounded-xl transition-all shadow-md flex-shrink-0 flex items-center justify-center gap-1.5"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Search</span>
+              </button>
+            </form>
+
+            {/* Controls: Filter Drawer & Sort (Touch-friendly targets) */}
+            <div className="flex items-center gap-2 justify-between lg:justify-end overflow-x-auto pb-1 lg:pb-0">
               <button
                 type="button"
-                onClick={() => setMobileView('map')}
-                className={`p-1.5 rounded-[6px] text-xs flex items-center gap-1 ${
-                  mobileView === 'map' ? 'bg-[#E8546A] text-white font-bold' : 'text-[#8F9AAF]'
+                onClick={() => setIsFiltersOpen((prev) => !prev)}
+                className={`min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-colors flex-shrink-0 ${
+                  isFiltersOpen || activeFiltersCount > 0
+                    ? 'bg-[#E8546A]/15 border-[#E8546A] text-[#E8546A]'
+                    : 'bg-[#151B27] border-[#273142] text-[#F4F6FA] hover:border-[#8F9AAF]'
                 }`}
               >
-                <MapIcon className="w-3.5 h-3.5" /> Map
+                <SlidersHorizontal className="w-4 h-4" />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-[#E8546A] text-white text-[10px] font-bold flex items-center justify-center">
+                    {activeFiltersCount}
+                  </span>
+                )}
               </button>
+
+              <div className="flex items-center gap-1.5 bg-[#151B27] border border-[#273142] rounded-xl px-3 py-2 min-h-[44px] sm:min-h-[38px] flex-shrink-0">
+                <ArrowUpDown className="w-3.5 h-3.5 text-[#8F9AAF]" />
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="bg-transparent text-xs font-medium text-[#F4F6FA] outline-none cursor-pointer"
+                >
+                  <option value="Recommended" className="bg-[#111620]">Recommended</option>
+                  <option value="Nearest" className="bg-[#111620]">Nearest</option>
+                  <option value="Top rated" className="bg-[#111620]">Top rated</option>
+                  <option value="Most reviewed" className="bg-[#111620]">Most reviewed</option>
+                  <option value="Earliest available" className="bg-[#111620]">Earliest available</option>
+                  <option value="Lowest price" className="bg-[#111620]">Lowest price</option>
+                  <option value="Highest price" className="bg-[#111620]">Highest price</option>
+                </select>
+              </div>
             </div>
+          </div>
+
+          {/* Priority 3: Categories Horizontal Touch Carousel (Section 106) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            {categories.map((cat) => {
+              const isActive = category === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryChange(cat)}
+                  className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
+                    isActive
+                      ? 'bg-[#E8546A] text-white shadow-lg shadow-[#E8546A]/25 border border-[#E8546A]'
+                      : 'bg-[#151B27] text-[#C3CAD6] border border-[#273142] hover:bg-[#1A2130]'
+                  }`}
+                >
+                  <span>{cat === 'All' ? '✨ All Venues' : cat}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -613,28 +615,32 @@ export const DiscoveryPage: React.FC = () => {
                   ? p.servicesSummary.slice(0, 3).join(' · ')
                   : 'Haircut · Facial · Colour';
 
+              const isHovered = p.id === hoveredProviderId;
+
               return (
                 <div
                   key={p.id}
                   ref={(el) => { cardRefs.current[p.id] = el; }}
-                  onClick={() => setSelectedProviderId(p.id)}
-                  className={`p-5 rounded-[16px] bg-[#111620] border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 ${
-                    isSelected
-                      ? 'border-[#E8546A] shadow-xl shadow-[#E8546A]/10 bg-[#151B27]'
-                      : 'border-[#273142] hover:border-[#344054] hover:bg-[#151B27]'
+                  onClick={() => navigate(`/business/${p.slug}`)}
+                  onMouseEnter={() => setHoveredProviderId(p.id)}
+                  onMouseLeave={() => setHoveredProviderId(null)}
+                  className={`p-5 rounded-[16px] border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 ${
+                    isSelected || isHovered
+                      ? 'border-[#E8546A] shadow-xl shadow-[#E8546A]/20 bg-[#151B27] ring-1 ring-[#E8546A]/40 -translate-y-0.5'
+                      : 'border-[#273142] hover:border-[#344054] bg-[#111620] hover:bg-[#151B27]'
                   }`}
                 >
-                  {/* Provider Logo / Cover Image */}
-                  <div className="w-full sm:w-40 h-32 rounded-[12px] bg-[#1A2130] border border-[#273142] overflow-hidden flex-shrink-0 relative">
-                    <img
-                      src={
-                        p.coverImageUrl ||
-                        'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=400&q=80'
-                      }
+                  {/* Provider Logo / Cover Image (Section 105: Resilient ProviderImage) */}
+                  <div className="w-full sm:w-44 h-36 rounded-[14px] bg-[#1A2130] border border-[#273142] overflow-hidden flex-shrink-0 relative">
+                    <ProviderImage
+                      src={p.coverImageUrl}
                       alt={p.name}
+                      type="cover"
+                      category={p.category}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
-                    <div className="absolute top-2 left-2 bg-[#090B10]/85 backdrop-blur-md px-2 py-0.5 rounded-[6px] text-[10px] font-semibold text-[#ECEFFE]">
+                    <div className="absolute top-2 left-2 bg-[#090B10]/85 backdrop-blur-md px-2.5 py-1 rounded-[6px] text-[10px] font-semibold text-[#ECEFFE] border border-[#212638]">
                       {p.category}
                     </div>
                   </div>
@@ -694,18 +700,18 @@ export const DiscoveryPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0">
                         <Link
                           to={`/business/${p.slug}`}
-                          className="px-3.5 py-1.5 rounded-[8px] border border-[#273142] hover:bg-[#1A2130] text-xs font-semibold text-[#F4F6FA] transition-colors"
+                          className="flex-1 sm:flex-initial min-h-[44px] px-4 py-2 rounded-xl border border-[#273142] hover:bg-[#1A2130] text-xs font-semibold text-[#F4F6FA] transition-colors flex items-center justify-center"
                         >
-                          View
+                          View Profile
                         </Link>
                         <Link
                           to={`/business/${p.slug}?book=true`}
-                          className="px-4 py-1.5 rounded-[8px] bg-[#E8546A] hover:bg-[#F06A7D] text-xs font-bold text-white transition-all shadow-md shadow-[#E8546A]/20"
+                          className="flex-1 sm:flex-initial min-h-[44px] px-5 py-2 rounded-xl bg-[#E8546A] hover:bg-[#F06A7D] text-xs font-bold text-white transition-all shadow-md shadow-[#E8546A]/20 flex items-center justify-center gap-1.5"
                         >
-                          Book
+                          Book Now
                         </Link>
                       </div>
                     </div>
@@ -749,8 +755,20 @@ export const DiscoveryPage: React.FC = () => {
           <InteractiveMap
             providers={providers}
             selectedProviderId={selectedProviderId}
+            hoveredProviderId={hoveredProviderId}
             onSelectProvider={handleSelectProvider}
-            onSearchThisArea={fetchProviders}
+            onHoverProvider={setHoveredProviderId}
+            onSearchThisArea={(viewport) => {
+              if (viewport) {
+                setCurrentLocation((prev) => ({
+                  ...prev,
+                  lat: viewport.lat,
+                  lng: viewport.lng,
+                  label: `Area (${viewport.lat.toFixed(2)}, ${viewport.lng.toFixed(2)})`,
+                }));
+              }
+              fetchProviders();
+            }}
             center={mapCenter}
             userLocation={userGpsCoords}
           />
@@ -764,6 +782,27 @@ export const DiscoveryPage: React.FC = () => {
         currentSelection={currentLocation}
         onSelectLocation={handleLocationSelect}
       />
+
+      {/* Section 106: Floating Sticky Map / List Toggle for Mobile */}
+      <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+        <button
+          type="button"
+          onClick={() => setMobileView(mobileView === 'list' ? 'map' : 'list')}
+          className="min-h-[48px] px-6 py-3 rounded-full bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold shadow-2xl shadow-[#E8546A]/50 flex items-center gap-2 border border-white/20 active:scale-95 transition-all"
+        >
+          {mobileView === 'list' ? (
+            <>
+              <MapIcon className="w-4 h-4" />
+              <span>View Map ({providers.length})</span>
+            </>
+          ) : (
+            <>
+              <ListIcon className="w-4 h-4" />
+              <span>View List</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };

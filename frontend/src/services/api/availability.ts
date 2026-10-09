@@ -5,6 +5,11 @@ export interface TimeSlotItem {
   isAvailable: boolean;
   staffId?: string;
   staffName?: string;
+  date?: string;
+  localTime?: string;
+  instant?: string;
+  timezone?: string;
+  durationMinutes?: number;
 }
 
 export interface TimeOffItem {

@@ -49,6 +49,7 @@ export interface ProviderStorefrontData {
     reviewCount: number;
     logoUrl?: string;
     coverImageUrl?: string;
+    galleryUrls?: string[];
     isVerified: boolean;
     depositType: string;
     depositAmount: number;
@@ -79,6 +80,7 @@ export interface ProviderStorefrontData {
     price: number;
     currency: string;
     colorHex?: string;
+    imageUrl?: string;
   }>;
   products: Array<{
     id: string;

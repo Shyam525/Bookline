@@ -108,6 +108,91 @@ export const adminApi = {
     return res.json();
   },
 
+  async getAnalytics(token: string) {
+    const res = await fetch(`${API_BASE}/analytics`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to load platform analytics');
+    return res.json();
+  },
+
+  async getBusinesses(token: string) {
+    const res = await fetch(`${API_BASE}/businesses`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getBookings(token: string) {
+    const res = await fetch(`${API_BASE}/bookings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getOrders(token: string) {
+    const res = await fetch(`${API_BASE}/orders`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getPayments(token: string) {
+    const res = await fetch(`${API_BASE}/payments`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getModeration(token: string) {
+    const res = await fetch(`${API_BASE}/moderation`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async updateModeration(entityType: string, id: string, status: string, token: string) {
+    const res = await fetch(`${API_BASE}/moderation/${entityType}/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error('Failed to update moderation state');
+    return res.json();
+  },
+
+  async getReports(token: string) {
+    const res = await fetch(`${API_BASE}/reports`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  async getAudit(token: string) {
+    const res = await fetch(`${API_BASE}/audit`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getSystem(token: string) {
+    const res = await fetch(`${API_BASE}/system`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { status: 'Degraded' };
+    return res.json();
+  },
+
   async getHealth(token: string) {
     const res = await fetch(`${API_BASE}/health`, {
       headers: { Authorization: `Bearer ${token}` },

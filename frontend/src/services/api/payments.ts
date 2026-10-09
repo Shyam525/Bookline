@@ -120,5 +120,39 @@ export const paymentsApi = {
     });
     if (!res.ok) throw new Error('Failed to record in-store POS payment');
     return res.json();
+  },
+
+  async getPayoutBalance(token: string, tenantId?: string): Promise<{ pendingPayoutBalance: number; availablePayoutBalance: number; paidOutBalance: number; currency: string }> {
+    const query = tenantId ? `?tenantId=${tenantId}` : '';
+    const res = await fetch(`${API_BASE}/payout-balance${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { pendingPayoutBalance: 0, availablePayoutBalance: 0, paidOutBalance: 0, currency: 'INR' };
+    return res.json();
+  },
+
+  async requestPayout(token: string, data: { tenantId?: string; amount: number; currency?: string; method?: string; destinationAccount?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/payouts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.errorMessage || err.Message || 'Failed to request payout');
+    }
+    return res.json();
+  },
+
+  async getPayouts(token: string, tenantId?: string): Promise<any[]> {
+    const query = tenantId ? `?tenantId=${tenantId}` : '';
+    const res = await fetch(`${API_BASE}/payouts${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
   }
 };

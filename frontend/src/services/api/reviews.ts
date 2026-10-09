@@ -20,6 +20,14 @@ export const reviewsApi = {
     return res.json();
   },
 
+  async getMyReviews(token: string): Promise<ReviewItem[]> {
+    const res = await fetch(`${API_BASE}/my`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
   async submitReview(data: {
     tenantId: string;
     rating: number;

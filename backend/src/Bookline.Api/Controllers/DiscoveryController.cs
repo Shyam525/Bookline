@@ -140,6 +140,9 @@ public class DiscoveryController : ControllerBase
                 tenant.ReviewCount,
                 tenant.LogoUrl,
                 tenant.CoverImageUrl,
+                GalleryUrls = !string.IsNullOrWhiteSpace(tenant.GalleryImagesJson)
+                    ? System.Text.Json.JsonSerializer.Deserialize<string[]>(tenant.GalleryImagesJson) ?? Array.Empty<string>()
+                    : Array.Empty<string>(),
                 IsVerified = tenant.VerificationStatus == VerificationStatus.Verified,
                 tenant.DepositType,
                 tenant.DepositAmount,

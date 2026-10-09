@@ -39,9 +39,13 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Cancel(
+        Guid id,
+        [FromBody] CancelBookingRequest? request = null,
+        CancellationToken cancellationToken = default)
     {
-        await _sender.Send(new CancelBookingCommand(id), cancellationToken);
+        var actor = User.Identity?.Name ?? "Customer";
+        await _sender.Send(new CancelBookingCommand(id, request?.Reason, actor), cancellationToken);
         return NoContent();
     }
 
@@ -66,3 +70,4 @@ public class BookingsController : ControllerBase
 }
 
 public record RescheduleBookingRequest(DateTimeOffset StartUtc, Guid HoldId);
+public record CancelBookingRequest(string? Reason = null);

@@ -118,7 +118,7 @@ public class OrdersController : ControllerBase
 
         _dbContext.Orders.Add(order);
 
-        // Process payment and calculate platform commission (Point 52, 55)
+        // Process payment and calculate platform commission (Sections 85, 88)
         var paymentResult = await _paymentProvider.ProcessPaymentAsync(new ProcessPaymentRequest(
             TenantId: tenant.Id,
             CustomerId: customerId,
@@ -126,13 +126,63 @@ public class OrdersController : ControllerBase
             OrderId: order.Id,
             Amount: totalAmount,
             Currency: tenant.Currency,
-            PaymentMethod: "CreditCard",
+            PaymentMethod: request.PaymentMethod ?? "CreditCard",
             Notes: $"Order checkout: {order.OrderNumber}"
         ), cancellationToken);
 
         if (paymentResult.Success)
         {
             order.PaymentId = paymentResult.PaymentId;
+            order.Status = OrderStatus.Paid;
+
+            // Section 90 & 91: Transactional Outbox + Audit
+            _dbContext.AuditLogs.Add(new AuditLog
+            {
+                TenantId = tenant.Id,
+                Actor = customerId.ToString(),
+                Action = "Order.Created",
+                Target = order.Id.ToString(),
+                MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    OrderNumber = order.OrderNumber,
+                    TotalAmount = order.TotalAmount,
+                    PaymentId = paymentResult.PaymentId,
+                    ItemCount = orderItems.Count
+                })
+            });
+
+            _dbContext.OutboxMessages.Add(new OutboxMessage
+            {
+                TenantId = tenant.Id,
+                EventType = Bookline.Domain.Constants.NotificationEvents.OrderCreated,
+                Content = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    OrderId = order.Id,
+                    OrderNumber = order.OrderNumber,
+                    TenantId = tenant.Id,
+                    CustomerId = order.CustomerId,
+                    CustomerName = order.CustomerName,
+                    CustomerEmail = order.CustomerEmail,
+                    TotalAmount = order.TotalAmount,
+                    Currency = order.Currency
+                })
+            });
+        }
+        else
+        {
+            order.Status = OrderStatus.Cancelled;
+            _dbContext.OutboxMessages.Add(new OutboxMessage
+            {
+                TenantId = tenant.Id,
+                EventType = Bookline.Domain.Constants.NotificationEvents.PaymentFailed,
+                Content = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    OrderId = order.Id,
+                    TenantId = tenant.Id,
+                    CustomerId = customerId,
+                    Error = paymentResult.ErrorMessage
+                })
+            });
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -165,9 +215,17 @@ public class OrdersController : ControllerBase
 
     [HttpGet("provider")]
     [Authorize]
-    public async Task<IActionResult> GetProviderOrders(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetProviderOrders([FromQuery] Guid? tenantId, CancellationToken cancellationToken)
     {
-        var orders = await _dbContext.Orders
+        var targetTenantId = tenantId ?? (_tenantContext.IsResolved ? _tenantContext.TenantId : (Guid?)null);
+
+        var query = _dbContext.Orders.IgnoreQueryFilters();
+        if (targetTenantId.HasValue && targetTenantId.Value != Guid.Empty)
+        {
+            query = query.Where(o => o.TenantId == targetTenantId.Value);
+        }
+
+        var orders = await query
             .Include(o => o.Items)
             .OrderByDescending(o => o.CreatedAtUtc)
             .ToListAsync(cancellationToken);
@@ -217,6 +275,7 @@ public record CreateOrderRequest(
     string? CustomerPhone,
     string? ShippingAddress,
     string? Notes,
-    List<OrderItemRequest> Items
+    List<OrderItemRequest> Items,
+    string? PaymentMethod = "CreditCard"
 );
 public record UpdateOrderStatusRequest(string Status);

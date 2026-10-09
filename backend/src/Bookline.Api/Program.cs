@@ -71,6 +71,8 @@ builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IMapProvide
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IProviderSearchService, Bookline.Infrastructure.Search.ProviderSearchService>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPaymentProvider, Bookline.Infrastructure.Payments.PaymentProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPayoutProvider, Bookline.Infrastructure.Payments.PayoutProvider>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.ITeamAuthorizationService, Bookline.Infrastructure.Services.TeamAuthorizationService>();
+builder.Services.AddHostedService<Bookline.Infrastructure.Jobs.OutboxAndReminderWorker>();
 
 // Configure CORS
 builder.Services.AddCors(options =>

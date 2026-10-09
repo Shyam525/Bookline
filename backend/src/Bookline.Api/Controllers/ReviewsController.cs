@@ -32,6 +32,53 @@ public class ReviewsController : ControllerBase
         return Ok(reviews);
     }
 
+    [HttpGet("my")]
+    [Authorize]
+    public async Task<IActionResult> GetMyReviews(CancellationToken cancellationToken)
+    {
+        Guid customerId = Guid.NewGuid();
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedUserId))
+        {
+            customerId = parsedUserId;
+        }
+
+        var reviews = await _dbContext.Reviews.IgnoreQueryFilters()
+            .Where(r => r.CustomerId == customerId)
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var tenantIds = reviews.Select(r => r.TenantId).Distinct().ToList();
+        var tenants = await _dbContext.Tenants.IgnoreQueryFilters()
+            .Where(t => tenantIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, cancellationToken);
+
+        var result = reviews.Select(r =>
+        {
+            tenants.TryGetValue(r.TenantId, out var t);
+            return new
+            {
+                r.Id,
+                r.TenantId,
+                ProviderName = t?.Name ?? "Provider",
+                ProviderSlug = t?.Slug ?? "",
+                r.CustomerId,
+                r.BookingId,
+                r.OrderId,
+                r.CustomerName,
+                r.Rating,
+                r.Title,
+                r.Comment,
+                r.ProviderResponse,
+                r.RespondedAtUtc,
+                ModerationStatus = r.ModerationStatus.ToString(),
+                r.CreatedAtUtc
+            };
+        }).ToList();
+
+        return Ok(result);
+    }
+
     [HttpPost]
     [AllowAnonymous]
     public async Task<IActionResult> SubmitReview([FromBody] SubmitReviewRequest request, CancellationToken cancellationToken)
@@ -88,15 +135,47 @@ public class ReviewsController : ControllerBase
         };
 
         _dbContext.Reviews.Add(review);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Section 90 & 91: Record Audit & Outbox event
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            TenantId = request.TenantId,
+            Actor = customerId.ToString(),
+            Action = "Review.Created",
+            Target = review.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ReviewId = review.Id,
+                Rating = review.Rating,
+                CustomerName = review.CustomerName,
+                Title = review.Title
+            })
+        });
+
+        _dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = request.TenantId,
+            EventType = Bookline.Domain.Constants.NotificationEvents.ReviewCreated,
+            Content = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ReviewId = review.Id,
+                TenantId = request.TenantId,
+                CustomerId = review.CustomerId,
+                CustomerName = review.CustomerName,
+                Rating = review.Rating,
+                Title = review.Title,
+                Comment = review.Comment
+            })
+        });
 
         // Recalculate tenant rating and count
         var allReviews = await _dbContext.Reviews.IgnoreQueryFilters()
             .Where(r => r.TenantId == request.TenantId && r.ModerationStatus == ModerationStatus.Approved)
             .ToListAsync(cancellationToken);
 
-        tenant.ReviewCount = allReviews.Count;
-        tenant.AverageRating = allReviews.Any() ? Math.Round(allReviews.Average(r => r.Rating), 1) : 5.0;
+        tenant.ReviewCount = allReviews.Count + 1;
+        var totalRatingSum = allReviews.Sum(r => r.Rating) + review.Rating;
+        tenant.AverageRating = Math.Round((double)totalRatingSum / (allReviews.Count + 1), 1);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

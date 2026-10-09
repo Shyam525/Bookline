@@ -174,6 +174,38 @@ public class CustomerController : ControllerBase
         }
 
         booking.Reschedule(request.NewStartUtc, request.NewEndUtc);
+
+        // Section 66: Audit and Outbox inside atomic transaction
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            TenantId = booking.TenantId,
+            Actor = User?.Identity?.Name ?? "Customer",
+            Action = "Booking.Rescheduled",
+            Target = booking.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingReference = booking.BookingReference,
+                NewStartUtc = request.NewStartUtc,
+                NewEndUtc = request.NewEndUtc,
+                RescheduledAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        _dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = booking.TenantId,
+            EventType = "BookingRescheduled",
+            Content = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingId = booking.Id,
+                BookingReference = booking.BookingReference,
+                CustomerId = booking.CustomerId,
+                StaffId = booking.StaffId,
+                NewStartUtc = request.NewStartUtc,
+                NewEndUtc = request.NewEndUtc
+            })
+        });
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(booking);
@@ -193,7 +225,7 @@ public class CustomerController : ControllerBase
         var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.Id == booking.TenantId, cancellationToken);
 
-        // Check minimum notice policy
+        // Section 67: Configurable cancellation window policy check
         var minHours = tenant?.MinimumNoticeHours ?? 2;
         var hoursUntilStart = (booking.StartUtc - DateTimeOffset.UtcNow).TotalHours;
 
@@ -202,7 +234,40 @@ public class CustomerController : ControllerBase
             return BadRequest(new { Message = $"Cancellations must be made at least {minHours} hours prior to appointment." });
         }
 
-        booking.Cancel(request.Reason ?? "Cancelled by customer", "Customer");
+        var actor = User?.Identity?.Name ?? "Customer";
+        var reason = request.Reason ?? "Cancelled by customer";
+        booking.Cancel(reason, actor);
+
+        // Section 67: Capture reason, actor, and timestamp in audit and outbox
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            TenantId = booking.TenantId,
+            Actor = actor,
+            Action = "Booking.Cancelled",
+            Target = booking.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingReference = booking.BookingReference,
+                Reason = reason,
+                Actor = actor,
+                CancelledAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        _dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = booking.TenantId,
+            EventType = "BookingCancelled",
+            Content = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                BookingId = booking.Id,
+                BookingReference = booking.BookingReference,
+                Reason = reason,
+                Actor = actor,
+                CancelledAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(booking);
@@ -214,11 +279,37 @@ public class CustomerController : ControllerBase
         var customerId = GetCustomerId();
         if (!customerId.HasValue) return Unauthorized();
 
+        var user = await _dbContext.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == customerId.Value, cancellationToken);
+
+        var query = _dbContext.NotificationLogs.IgnoreQueryFilters()
+            .Where(n => n.CustomerId == customerId.Value || (user != null && n.RecipientEmail == user.Email));
+
+        var dbLogs = await query
+            .OrderByDescending(n => n.CreatedAtUtc)
+            .Take(30)
+            .ToListAsync(cancellationToken);
+
+        if (dbLogs.Any())
+        {
+            var list = dbLogs.Select(n => new
+            {
+                Id = n.Id.ToString(),
+                Title = n.Subject,
+                Message = n.Body,
+                CreatedAtUtc = n.CreatedAtUtc,
+                IsRead = n.IsRead,
+                Link = n.DeepLinkUrl ?? (n.BookingId.HasValue ? "/appointments" : "/dashboard")
+            }).ToList();
+
+            return Ok(list);
+        }
+
         var notifications = new[]
         {
             new
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.NewGuid().ToString(),
                 Title = "Appointment Confirmed",
                 Message = "Your appointment with Glow Hair Lounge has been confirmed.",
                 CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
@@ -227,7 +318,7 @@ public class CustomerController : ControllerBase
             },
             new
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.NewGuid().ToString(),
                 Title = "Order Dispatched",
                 Message = "Your retail order ORD-839210 has been processed.",
                 CreatedAtUtc = DateTime.UtcNow.AddDays(-1),

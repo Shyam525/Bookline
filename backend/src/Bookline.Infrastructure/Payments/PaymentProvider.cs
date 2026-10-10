@@ -54,14 +54,35 @@ public class LocalDemoPaymentProvider : IPaymentProvider
 }
 
 /// <summary>
-/// Stripe payment provider abstraction (Section 85).
+/// Stripe payment provider abstraction (Section 85 & 149).
 /// </summary>
 public class StripePaymentProvider : IPaymentProvider
 {
+    private readonly string? _apiKey;
+
+    public StripePaymentProvider(string? apiKey = null)
+    {
+        _apiKey = apiKey;
+    }
+
     public string ProviderName => "Stripe";
 
     public Task<PaymentResult> ProcessPaymentAsync(ProcessPaymentRequest request, CancellationToken cancellationToken = default)
     {
+        // Section 149: NO FAKE INTEGRATION RULE
+        // If Stripe is not configured: show: Payments not configured. Do not fake successful payment.
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return Task.FromResult(new PaymentResult(
+                Success: false,
+                PaymentId: Guid.Empty,
+                TransactionReference: string.Empty,
+                Status: "Failed",
+                ReceiptUrl: null,
+                ErrorMessage: "Payments not configured."
+            ));
+        }
+
         var pi = $"pi_{Guid.NewGuid().ToString("N")[..16]}";
         return Task.FromResult(new PaymentResult(
             Success: true,
@@ -75,6 +96,16 @@ public class StripePaymentProvider : IPaymentProvider
 
     public Task<RefundResult> ProcessRefundAsync(ProcessRefundRequest request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return Task.FromResult(new RefundResult(
+                Success: false,
+                RefundReference: string.Empty,
+                Status: "Failed",
+                ErrorMessage: "Payments not configured."
+            ));
+        }
+
         var re = $"re_{Guid.NewGuid().ToString("N")[..16]}";
         return Task.FromResult(new RefundResult(
             Success: true,
@@ -86,6 +117,19 @@ public class StripePaymentProvider : IPaymentProvider
 
     public Task<PaymentVerificationResult> VerifyPaymentAsync(string transactionReference, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return Task.FromResult(new PaymentVerificationResult(
+                Verified: false,
+                Status: "Unverified",
+                ProviderName: ProviderName,
+                TransactionReference: transactionReference,
+                Amount: 0m,
+                Currency: "INR",
+                ErrorMessage: "Payments not configured."
+            ));
+        }
+
         // Authoritative gateway verification simulation
         var isStripeRef = transactionReference.StartsWith("pi_") || transactionReference.StartsWith("cs_") || transactionReference.StartsWith("TXN-");
         return Task.FromResult(new PaymentVerificationResult(
@@ -101,14 +145,35 @@ public class StripePaymentProvider : IPaymentProvider
 }
 
 /// <summary>
-/// Razorpay payment provider abstraction (Section 85).
+/// Razorpay payment provider abstraction (Section 85 & 149).
 /// </summary>
 public class RazorpayPaymentProvider : IPaymentProvider
 {
+    private readonly string? _apiKey;
+
+    public RazorpayPaymentProvider(string? apiKey = null)
+    {
+        _apiKey = apiKey;
+    }
+
     public string ProviderName => "Razorpay";
 
     public Task<PaymentResult> ProcessPaymentAsync(ProcessPaymentRequest request, CancellationToken cancellationToken = default)
     {
+        // Section 149: NO FAKE INTEGRATION RULE
+        // If Razorpay is not configured: show: Payments not configured. Do not fake successful payment.
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return Task.FromResult(new PaymentResult(
+                Success: false,
+                PaymentId: Guid.Empty,
+                TransactionReference: string.Empty,
+                Status: "Failed",
+                ReceiptUrl: null,
+                ErrorMessage: "Payments not configured."
+            ));
+        }
+
         var payId = $"pay_{Guid.NewGuid().ToString("N")[..14]}";
         return Task.FromResult(new PaymentResult(
             Success: true,
@@ -122,6 +187,16 @@ public class RazorpayPaymentProvider : IPaymentProvider
 
     public Task<RefundResult> ProcessRefundAsync(ProcessRefundRequest request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return Task.FromResult(new RefundResult(
+                Success: false,
+                RefundReference: string.Empty,
+                Status: "Failed",
+                ErrorMessage: "Payments not configured."
+            ));
+        }
+
         var rfnd = $"rfnd_{Guid.NewGuid().ToString("N")[..14]}";
         return Task.FromResult(new RefundResult(
             Success: true,
@@ -133,6 +208,19 @@ public class RazorpayPaymentProvider : IPaymentProvider
 
     public Task<PaymentVerificationResult> VerifyPaymentAsync(string transactionReference, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return Task.FromResult(new PaymentVerificationResult(
+                Verified: false,
+                Status: "Unverified",
+                ProviderName: ProviderName,
+                TransactionReference: transactionReference,
+                Amount: 0m,
+                Currency: "INR",
+                ErrorMessage: "Payments not configured."
+            ));
+        }
+
         var isRazorpayRef = transactionReference.StartsWith("pay_") || transactionReference.StartsWith("order_") || transactionReference.StartsWith("TXN-");
         return Task.FromResult(new PaymentVerificationResult(
             Verified: isRazorpayRef,
@@ -147,19 +235,23 @@ public class RazorpayPaymentProvider : IPaymentProvider
 }
 
 /// <summary>
-/// Authoritative Marketplace Payment Engine (Sections 85, 87, 88, 89, 90, 91).
+/// Authoritative Marketplace Payment Engine (Sections 85, 87, 88, 89, 90, 91, 149).
 /// Frontend cannot determine successful payment; backend provider verification is authoritative.
 /// </summary>
 public class PaymentProvider : IPaymentProvider
 {
     private readonly BooklineDbContext _dbContext;
     private readonly LocalDemoPaymentProvider _demoProvider = new();
-    private readonly StripePaymentProvider _stripeProvider = new();
-    private readonly RazorpayPaymentProvider _razorpayProvider = new();
+    private readonly StripePaymentProvider _stripeProvider;
+    private readonly RazorpayPaymentProvider _razorpayProvider;
 
-    public PaymentProvider(BooklineDbContext dbContext)
+    public PaymentProvider(BooklineDbContext dbContext, Microsoft.Extensions.Configuration.IConfiguration? configuration = null)
     {
         _dbContext = dbContext;
+        var stripeKey = configuration?["Stripe:SecretKey"];
+        var razorpayKey = configuration?["Razorpay:KeySecret"];
+        _stripeProvider = new StripePaymentProvider(stripeKey);
+        _razorpayProvider = new RazorpayPaymentProvider(razorpayKey);
     }
 
     public string ProviderName => "MarketplacePaymentEngine";

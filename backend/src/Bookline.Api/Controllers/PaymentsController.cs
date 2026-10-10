@@ -2,6 +2,7 @@ using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Payments.DTOs;
 using Bookline.Application.Payments.Handlers;
 using Bookline.Domain.Entities;
+using Bookline.Domain.Enums;
 using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

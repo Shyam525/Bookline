@@ -116,3 +116,67 @@ export const ConfirmDialog: React.FC<{
     </Modal>
   );
 };
+
+/* =========================================================================
+ * TOAST (Section 109 & 110)
+ * ========================================================================= */
+export interface ToastProps {
+  id?: string;
+  variant?: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message?: string;
+  onClose: () => void;
+  durationMs?: number;
+}
+
+export const Toast: React.FC<ToastProps> = ({
+  variant = 'info',
+  title,
+  message,
+  onClose,
+  durationMs = 4000,
+}) => {
+  React.useEffect(() => {
+    if (durationMs <= 0) return;
+    const timer = setTimeout(onClose, durationMs);
+    return () => clearTimeout(timer);
+  }, [durationMs, onClose]);
+
+  const configs = {
+    info: { icon: Info, border: 'border-blue-500/40', text: 'text-blue-400' },
+    success: { icon: CheckCircle2, border: 'border-[#34D399]/40', text: 'text-[#34D399]' },
+    warning: { icon: AlertTriangle, border: 'border-[#FBBF24]/40', text: 'text-[#FBBF24]' },
+    error: { icon: AlertCircle, border: 'border-red-500/40', text: 'text-red-400' },
+  };
+
+  const ConfigIcon = configs[variant].icon;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={clsx(
+        'flex items-start gap-3 p-4 rounded-2xl bg-[#111520] border shadow-2xl max-w-sm w-full animate-fadeIn backdrop-blur-md select-none',
+        configs[variant].border
+      )}
+    >
+      <ConfigIcon className={clsx('w-5 h-5 shrink-0 mt-0.5', configs[variant].text)} />
+      <div className="flex-1 space-y-0.5">
+        <h5 className="text-xs font-bold text-white">{title}</h5>
+        {message && <p className="text-xs text-[#7E88A8]">{message}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="text-[#7E88A8] hover:text-white p-0.5 rounded transition-colors"
+        aria-label="Dismiss notification"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+};
+
+// Re-exports from DataDisplay to ensure complete Feedback contract in Section 109
+export { Skeleton, EmptyState, ErrorState } from '../data-display/DataDisplay';
+

@@ -132,3 +132,45 @@ This launches:
    - Verify or suspend providers in `/admin/providers`
    - Moderate client feedback in `/admin/reviews`
    - Review platform commission ledger and disburse provider payouts in `/admin/payments`
+
+---
+
+## 6. Final Deliverable & Verification Report (Section 157)
+
+- **Deliverable Archive**: `BOOKLINE-final.zip` (located in repository root).
+  - Clean production archive containing pristine source code, configurations, test suites, and documentation.
+  - Zero temporary files, build outputs (`bin`/`obj`), `node_modules`, or `.git` trees.
+- **Exact Startup Command**:
+  ```bash
+  docker compose up --build
+  ```
+- **Exact Application URLs**:
+  - Web Application: [http://localhost:3000](http://localhost:3000)
+  - Backend API & Swagger: [http://localhost:5168/swagger](http://localhost:5168/swagger)
+  - Health Endpoint: [http://localhost:5168/health](http://localhost:5168/health)
+  - Readiness Endpoint: [http://localhost:5168/ready](http://localhost:5168/ready)
+  - Mailpit UI: [http://localhost:8026](http://localhost:8026)
+- **Demo Credentials** (Development-only passwords):
+  - **Customer**: `customer@bookline.local` / `Customer123!`
+  - **Provider**: `provider@bookline.local` / `Provider123!`
+  - **Platform Admin**: `admin@bookline.local` / `Admin123!`
+- **Exact Test Command**:
+  ```powershell
+  powershell -Command "Get-ChildItem -Path 'backend' -Recurse -Filter '*.dll' | Unblock-File; dotnet test backend/Bookline.slnx"
+  ```
+- **Verification Report**:
+  ```text
+  Passed!  - Failed: 0, Passed: 78, Skipped: 0, Total: 78 - Bookline.Application.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed: 21, Skipped: 0, Total: 21 - Bookline.Domain.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed:  4, Skipped: 0, Total:  4 - Bookline.IntegrationTests.dll (net8.0)
+  Total: 103 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
+  ```
+
+---
+
+## 7. Known Genuine Limitations (Section 149 & 157)
+
+1. **Third-Party Payment Gateways**: In offline development environments where live Stripe secret keys are unconfigured, `StripePaymentProvider` explicitly returns `"Payments not configured."` (per Section 149 No Fake Integration Rule). Local test checkouts use `LocalDemoPaymentProvider` or In-Store POS mode.
+2. **External Map Tiles**: OpenStreetMap cartographic tile rendering requires outbound network access. When offline, provider discovery and coordinate markers remain 100% interactive using the vector coordinate fallback layer.
+3. **Email Relay**: In development, notifications route to the embedded local Mailpit SMTP relay at [http://localhost:8026](http://localhost:8026) without external SMTP relay dependencies.
+

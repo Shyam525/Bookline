@@ -12,6 +12,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
@@ -73,6 +74,65 @@ builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPaymentProvid
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPayoutProvider, Bookline.Infrastructure.Payments.PayoutProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.ITeamAuthorizationService, Bookline.Infrastructure.Services.TeamAuthorizationService>();
 builder.Services.AddHostedService<Bookline.Infrastructure.Jobs.OutboxAndReminderWorker>();
+
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IIdempotencyService, Bookline.Infrastructure.Services.IdempotencyService>();
+builder.Services.AddTransient<Bookline.Infrastructure.Jobs.ExpiredHoldsCleanupJob>();
+builder.Services.AddTransient<Bookline.Infrastructure.Jobs.NotificationDeliveryJob>();
+builder.Services.AddTransient<Bookline.Infrastructure.Jobs.InvitationCleanupJob>();
+builder.Services.AddTransient<Bookline.Infrastructure.Jobs.ReportAggregationJob>();
+builder.Services.AddTransient<Bookline.Infrastructure.Jobs.InventoryCleanupJob>();
+
+// Section 117 Rate Limiting Configuration
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        var response = new ApiErrorResponse(
+            "RATE_LIMIT_EXCEEDED",
+            "Rate limit exceeded. Please wait a moment before trying again.",
+            context.HttpContext.TraceIdentifier,
+            429);
+        await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken: token);
+    };
+
+    options.AddFixedWindowLimiter("auth-limit", opt =>
+    {
+        opt.PermitLimit = 15;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    options.AddFixedWindowLimiter("password-reset-limit", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    options.AddFixedWindowLimiter("discovery-limit", opt =>
+    {
+        opt.PermitLimit = 120;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    options.AddFixedWindowLimiter("booking-limit", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    options.AddFixedWindowLimiter("hold-limit", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    options.AddFixedWindowLimiter("payment-limit", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+});
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -174,7 +234,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseSerilogRequestLogging();
+app.UseRateLimiter();
 app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -200,17 +262,8 @@ try
 
             if (db.Database.IsRelational())
             {
-                var dbCreator = db.Database.GetService<IRelationalDatabaseCreator>();
-
-                try
-                {
-                    _ = db.Tenants.IgnoreQueryFilters().Any();
-                }
-                catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P01")
-                {
-                    Log.Information("Database tables missing. Creating PostgreSQL schema from DbContext model...");
-                    dbCreator.CreateTables();
-                }
+                // Section 118: Production database strategy uses migrations
+                db.Database.Migrate();
 
                 db.Database.ExecuteSqlRaw(@"
                     CREATE EXTENSION IF NOT EXISTS btree_gist;

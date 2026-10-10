@@ -37,6 +37,7 @@ public interface IApplicationDbContext
     DbSet<NotificationSetting> NotificationSettings { get; }
     DbSet<Payment> Payments { get; }
     DbSet<Refund> Refunds { get; }
+    DbSet<IdempotencyRecord> IdempotencyRecords { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     int SaveChanges();

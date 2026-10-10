@@ -12,4 +12,8 @@
     <ProjectReference Include="..\Bookline.Application\Bookline.Application.csproj" />
     <ProjectReference Include="..\Bookline.Infrastructure\Bookline.Infrastructure.csproj" />
   </ItemGroup>
+
+  <Target Name="UnblockOutputDlls" AfterTargets="Build">
+    <Exec Command="powershell -Command &quot;Get-ChildItem -Path '$(TargetDir)*.dll' | Unblock-File&quot;" />
+  </Target>
 </Project>

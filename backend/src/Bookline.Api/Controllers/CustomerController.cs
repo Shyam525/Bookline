@@ -81,10 +81,18 @@ public class CustomerController : ControllerBase
         user.LastName = request.LastName;
         user.Phone = request.Phone;
         user.AvatarUrl = request.AvatarUrl;
-        user.UpdatedAtUtc = DateTime.UtcNow;
-
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return Ok(user);
+        return Ok(new
+        {
+            user.Id,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            user.FullName,
+            user.Phone,
+            user.AvatarUrl,
+            user.UpdatedAtUtc
+        });
     }
 
     [HttpGet("appointments")]
@@ -208,7 +216,18 @@ public class CustomerController : ControllerBase
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(booking);
+        return Ok(new
+        {
+            booking.Id,
+            booking.BookingReference,
+            booking.TenantId,
+            booking.StartUtc,
+            booking.EndUtc,
+            Status = booking.Status.ToString(),
+            booking.TotalPrice,
+            booking.DepositPaid,
+            booking.UpdatedAtUtc
+        });
     }
 
     [HttpPost("appointments/{id:guid}/cancel")]
@@ -270,7 +289,16 @@ public class CustomerController : ControllerBase
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(booking);
+        return Ok(new
+        {
+            booking.Id,
+            booking.BookingReference,
+            booking.TenantId,
+            Status = booking.Status.ToString(),
+            booking.CancellationReason,
+            booking.CancelledBy,
+            booking.UpdatedAtUtc
+        });
     }
 
     [HttpGet("notifications")]

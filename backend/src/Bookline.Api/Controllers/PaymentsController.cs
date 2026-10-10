@@ -1,5 +1,3 @@
-namespace Bookline.Api.Controllers;
-
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Payments.DTOs;
 using Bookline.Application.Payments.Handlers;
@@ -7,11 +5,15 @@ using Bookline.Domain.Entities;
 using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+
+namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/payments")]
 [Authorize]
+[EnableRateLimiting("payment-limit")]
 public class PaymentsController : ControllerBase
 {
     private readonly PaymentHandlers _handlers;
@@ -19,19 +21,22 @@ public class PaymentsController : ControllerBase
     private readonly IPayoutProvider _payoutProvider;
     private readonly ITenantContext _tenantContext;
     private readonly BooklineDbContext _dbContext;
+    private readonly IIdempotencyService _idempotencyService;
 
     public PaymentsController(
         PaymentHandlers handlers,
         IPaymentProvider paymentProvider,
         IPayoutProvider payoutProvider,
         ITenantContext tenantContext,
-        BooklineDbContext dbContext)
+        BooklineDbContext dbContext,
+        IIdempotencyService idempotencyService)
     {
         _handlers = handlers;
         _paymentProvider = paymentProvider;
         _payoutProvider = payoutProvider;
         _tenantContext = tenantContext;
         _dbContext = dbContext;
+        _idempotencyService = idempotencyService;
     }
 
     [HttpGet]
@@ -61,7 +66,31 @@ public class PaymentsController : ControllerBase
         [FromBody] CreateCheckoutSessionCommand command,
         CancellationToken cancellationToken = default)
     {
+        var idempKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            var cached = await _idempotencyService.GetExistingAsync(idempKey, "CheckoutSession", cancellationToken);
+            if (cached != null)
+            {
+                var cachedDto = System.Text.Json.JsonSerializer.Deserialize<PaymentDto>(cached.ResponseJson);
+                if (cachedDto != null) return StatusCode(cached.StatusCode, cachedDto);
+            }
+        }
+
         var payment = await _handlers.Handle(command, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            await _idempotencyService.SaveAsync(
+                idempKey,
+                "CheckoutSession",
+                200,
+                System.Text.Json.JsonSerializer.Serialize(payment),
+                payment.TenantId,
+                null,
+                cancellationToken);
+        }
+
         return Ok(payment);
     }
 
@@ -70,7 +99,31 @@ public class PaymentsController : ControllerBase
         [FromBody] ProcessRefundCommand command,
         CancellationToken cancellationToken = default)
     {
+        var idempKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            var cached = await _idempotencyService.GetExistingAsync(idempKey, "Refund", cancellationToken);
+            if (cached != null)
+            {
+                var cachedDto = System.Text.Json.JsonSerializer.Deserialize<PaymentDto>(cached.ResponseJson);
+                if (cachedDto != null) return StatusCode(cached.StatusCode, cachedDto);
+            }
+        }
+
         var refund = await _handlers.Handle(command, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            await _idempotencyService.SaveAsync(
+                idempKey,
+                "Refund",
+                200,
+                System.Text.Json.JsonSerializer.Serialize(refund),
+                refund.TenantId,
+                null,
+                cancellationToken);
+        }
+
         return Ok(refund);
     }
 
@@ -79,7 +132,31 @@ public class PaymentsController : ControllerBase
         [FromBody] RecordInStorePaymentCommand command,
         CancellationToken cancellationToken = default)
     {
+        var idempKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            var cached = await _idempotencyService.GetExistingAsync(idempKey, "POSPayment", cancellationToken);
+            if (cached != null)
+            {
+                var cachedDto = System.Text.Json.JsonSerializer.Deserialize<PaymentDto>(cached.ResponseJson);
+                if (cachedDto != null) return StatusCode(cached.StatusCode, cachedDto);
+            }
+        }
+
         var payment = await _handlers.Handle(command, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            await _idempotencyService.SaveAsync(
+                idempKey,
+                "POSPayment",
+                200,
+                System.Text.Json.JsonSerializer.Serialize(payment),
+                payment.TenantId,
+                null,
+                cancellationToken);
+        }
+
         return Ok(payment);
     }
 
@@ -181,6 +258,18 @@ public class PaymentsController : ControllerBase
         var payouts = await query
             .OrderByDescending(p => p.CreatedAtUtc)
             .Take(50)
+            .Select(p => new
+            {
+                p.Id,
+                p.TenantId,
+                p.Amount,
+                p.Currency,
+                Status = p.Status.ToString(),
+                p.Method,
+                p.DestinationAccount,
+                p.PaidAtUtc,
+                p.CreatedAtUtc
+            })
             .ToListAsync(cancellationToken);
 
         return Ok(payouts);

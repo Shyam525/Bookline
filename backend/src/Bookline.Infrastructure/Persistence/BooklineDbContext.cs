@@ -47,6 +47,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Refund> Refunds => Set<Refund>();
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -198,6 +199,13 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasIndex(r => new { r.TenantId, r.PaymentId });
         });
 
+        modelBuilder.Entity<IdempotencyRecord>(builder =>
+        {
+            builder.HasKey(i => i.Id);
+            builder.HasIndex(i => new { i.Key, i.Operation }).IsUnique();
+            builder.HasIndex(i => i.ExpiresAtUtc);
+        });
+
         // Apply global tenant filter on all TenantEntity types
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -214,7 +222,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
 
     private void SetTenantQueryFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : TenantEntity
     {
-        modelBuilder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == _tenantContext.TenantId);
+        modelBuilder.Entity<TEntity>().HasQueryFilter(e => _tenantContext.IsSystem || e.TenantId == _tenantContext.TenantId);
     }
 
     public override int SaveChanges() => SaveChanges(acceptAllChangesOnSuccess: true);

@@ -25,7 +25,9 @@ public class Phase6Tests
     {
         public Guid TenantId { get; set; }
         public bool IsResolved => true;
+        public bool IsSystem { get; private set; }
         public void SetTenantId(Guid tenantId) => TenantId = tenantId;
+        public void EnableSystemMode() => IsSystem = true;
     }
 
     [Fact]

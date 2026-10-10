@@ -1,15 +1,18 @@
 using Bookline.Application.Common.Interfaces;
+using Bookline.Application.Discovery.Dtos;
 using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
 using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/discovery")]
+[EnableRateLimiting("discovery-limit")]
 public class DiscoveryController : ControllerBase
 {
     private readonly IProviderSearchService _searchService;
@@ -118,45 +121,104 @@ public class DiscoveryController : ControllerBase
             .Take(10)
             .ToListAsync(cancellationToken);
 
-        return Ok(new
-        {
-            Provider = new
-            {
-                tenant.Id,
-                tenant.Name,
-                tenant.Slug,
-                tenant.Category,
-                tenant.BusinessType,
-                tenant.Description,
-                tenant.Address,
-                tenant.City,
-                tenant.State,
-                tenant.PostalCode,
-                tenant.Latitude,
-                tenant.Longitude,
-                tenant.Phone,
-                tenant.Website,
-                tenant.AverageRating,
-                tenant.ReviewCount,
-                tenant.LogoUrl,
-                tenant.CoverImageUrl,
-                GalleryUrls = !string.IsNullOrWhiteSpace(tenant.GalleryImagesJson)
-                    ? System.Text.Json.JsonSerializer.Deserialize<string[]>(tenant.GalleryImagesJson) ?? Array.Empty<string>()
-                    : Array.Empty<string>(),
-                IsVerified = tenant.VerificationStatus == VerificationStatus.Verified,
-                tenant.DepositType,
-                tenant.DepositAmount,
-                tenant.Currency,
-                tenant.HoldDurationMinutes,
-                tenant.MinimumNoticeHours
-            },
-            Locations = locations,
-            Categories = categories,
-            Services = services,
-            Products = products,
-            Staff = staff,
-            Reviews = reviews
-        });
+        var locationDtos = locations.Select(l => new PublicLocationDto(
+            l.Id,
+            l.Name,
+            l.Address,
+            l.City,
+            l.State,
+            l.PostalCode,
+            l.Latitude,
+            l.Longitude,
+            l.Phone,
+            l.IsActive
+        )).ToList();
+
+        var categoryDtos = categories.Select(c => new PublicServiceCategoryDto(
+            c.Id,
+            c.Name,
+            c.Description
+        )).ToList();
+
+        var serviceDtos = services.Select(s => new PublicServiceDto(
+            s.Id,
+            s.CategoryId,
+            s.Name,
+            s.Description,
+            s.DurationMinutes,
+            s.BufferMinutes,
+            s.Price,
+            tenant.Currency ?? "USD",
+            s.IsOnlineBookingEnabled
+        )).ToList();
+
+        var productDtos = products.Select(p => new PublicProductDto(
+            p.Id,
+            p.Name,
+            p.Description,
+            p.Price,
+            tenant.Currency ?? "USD",
+            p.StockQuantity,
+            p.Sku,
+            p.ImageUrl,
+            p.StockQuantity > 0
+        )).ToList();
+
+        var staffDtos = staff.Select(st => new PublicStaffDto(
+            st.Id,
+            st.Name,
+            st.Title,
+            st.Bio,
+            st.AvatarUrl
+        )).ToList();
+
+        var reviewDtos = reviews.Select(r => new PublicReviewDto(
+            r.Id,
+            r.CustomerName,
+            r.Rating,
+            r.Comment,
+            r.CreatedAtUtc
+        )).ToList();
+
+        var providerDto = new PublicProviderProfileDto(
+            tenant.Id,
+            tenant.Name,
+            tenant.Slug,
+            tenant.Category,
+            tenant.BusinessType,
+            tenant.Description,
+            tenant.Address,
+            tenant.City,
+            tenant.State,
+            tenant.PostalCode,
+            tenant.Latitude,
+            tenant.Longitude,
+            tenant.Phone,
+            tenant.Website,
+            tenant.AverageRating,
+            tenant.ReviewCount,
+            tenant.LogoUrl,
+            tenant.CoverImageUrl,
+            !string.IsNullOrWhiteSpace(tenant.GalleryImagesJson)
+                ? System.Text.Json.JsonSerializer.Deserialize<string[]>(tenant.GalleryImagesJson) ?? Array.Empty<string>()
+                : Array.Empty<string>(),
+            tenant.VerificationStatus == VerificationStatus.Verified,
+            tenant.DepositType.ToString(),
+            tenant.DepositAmount,
+            tenant.Currency ?? "USD",
+            tenant.HoldDurationMinutes,
+            tenant.MinimumNoticeHours
+        );
+
+        return Ok(new PublicStorefrontResponse(
+            providerDto,
+            locationDtos,
+            categoryDtos,
+            serviceDtos,
+            productDtos,
+            staffDtos,
+            reviewDtos
+        ));
     }
 
     [HttpGet("categories")]

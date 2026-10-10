@@ -5,10 +5,13 @@ namespace Bookline.Application.Common.Models;
 public class TenantContext : ITenantContext
 {
     private Guid _tenantId = Guid.Empty;
+    private bool _isSystem = false;
 
     public Guid TenantId => _tenantId;
 
     public bool IsResolved => _tenantId != Guid.Empty;
+
+    public bool IsSystem => _isSystem;
 
     public void SetTenantId(Guid tenantId)
     {
@@ -18,5 +21,10 @@ public class TenantContext : ITenantContext
         }
 
         _tenantId = tenantId;
+    }
+
+    public void EnableSystemMode()
+    {
+        _isSystem = true;
     }
 }

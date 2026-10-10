@@ -30,6 +30,7 @@ public class TenantSaveChangesInterceptor : SaveChangesInterceptor
     private void UpdateTenantEntities(DbContext? context)
     {
         if (context == null) return;
+        if (_tenantContext.IsSystem) return;
 
         foreach (var entry in context.ChangeTracker.Entries<TenantEntity>())
         {

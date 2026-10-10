@@ -16,21 +16,35 @@ public class OrdersController : ControllerBase
     private readonly BooklineDbContext _dbContext;
     private readonly ITenantContext _tenantContext;
     private readonly IPaymentProvider _paymentProvider;
+    private readonly IIdempotencyService _idempotencyService;
 
     public OrdersController(
         BooklineDbContext dbContext,
         ITenantContext tenantContext,
-        IPaymentProvider paymentProvider)
+        IPaymentProvider paymentProvider,
+        IIdempotencyService idempotencyService)
     {
         _dbContext = dbContext;
         _tenantContext = tenantContext;
         _paymentProvider = paymentProvider;
+        _idempotencyService = idempotencyService;
     }
 
     [HttpPost]
     [AllowAnonymous]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
+        var idempKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            var cached = await _idempotencyService.GetExistingAsync(idempKey, "CreateOrder", cancellationToken);
+            if (cached != null)
+            {
+                var cachedObj = System.Text.Json.JsonSerializer.Deserialize<object>(cached.ResponseJson);
+                return StatusCode(cached.StatusCode, cachedObj);
+            }
+        }
+
         if (request.Items == null || !request.Items.Any())
         {
             return BadRequest(new { Message = "Order must have at least one product." });
@@ -187,11 +201,46 @@ public class OrdersController : ControllerBase
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(new
+        var responsePayload = new
         {
-            Order = order,
+            Order = new
+            {
+                order.Id,
+                order.OrderNumber,
+                order.TenantId,
+                order.CustomerId,
+                Status = order.Status.ToString(),
+                order.Subtotal,
+                order.Tax,
+                order.TotalAmount,
+                order.PaymentId,
+                Items = orderItems.Select(i => new
+                {
+                    i.Id,
+                    i.ProductId,
+                    i.ProductName,
+                    i.UnitPrice,
+                    i.Quantity,
+                    i.TotalPrice
+                }).ToList(),
+                order.CreatedAtUtc
+            },
             Payment = paymentResult
-        });
+        };
+
+        if (!string.IsNullOrWhiteSpace(idempKey))
+        {
+            await _idempotencyService.SaveAsync(
+                idempKey,
+                "CreateOrder",
+                200,
+                System.Text.Json.JsonSerializer.Serialize(responsePayload),
+                tenant.Id,
+                null,
+                cancellationToken);
+        }
+
+        return Ok(responsePayload);
     }
 
     [HttpGet("my")]
@@ -208,6 +257,28 @@ public class OrdersController : ControllerBase
             .Where(o => o.CustomerId == customerId)
             .Include(o => o.Items)
             .OrderByDescending(o => o.CreatedAtUtc)
+            .Select(o => new
+            {
+                o.Id,
+                o.OrderNumber,
+                o.TenantId,
+                o.CustomerId,
+                Status = o.Status.ToString(),
+                o.Subtotal,
+                o.Tax,
+                o.TotalAmount,
+                o.PaymentId,
+                Items = o.Items.Select(i => new
+                {
+                    i.Id,
+                    i.ProductId,
+                    i.ProductName,
+                    i.UnitPrice,
+                    i.Quantity,
+                    i.TotalPrice
+                }).ToList(),
+                o.CreatedAtUtc
+            })
             .ToListAsync(cancellationToken);
 
         return Ok(orders);
@@ -228,6 +299,28 @@ public class OrdersController : ControllerBase
         var orders = await query
             .Include(o => o.Items)
             .OrderByDescending(o => o.CreatedAtUtc)
+            .Select(o => new
+            {
+                o.Id,
+                o.OrderNumber,
+                o.TenantId,
+                o.CustomerId,
+                Status = o.Status.ToString(),
+                o.Subtotal,
+                o.Tax,
+                o.TotalAmount,
+                o.PaymentId,
+                Items = o.Items.Select(i => new
+                {
+                    i.Id,
+                    i.ProductId,
+                    i.ProductName,
+                    i.UnitPrice,
+                    i.Quantity,
+                    i.TotalPrice
+                }).ToList(),
+                o.CreatedAtUtc
+            })
             .ToListAsync(cancellationToken);
 
         return Ok(orders);
@@ -242,7 +335,29 @@ public class OrdersController : ControllerBase
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
         if (order == null) return NotFound(new { Message = "Order not found." });
-        return Ok(order);
+
+        return Ok(new
+        {
+            order.Id,
+            order.OrderNumber,
+            order.TenantId,
+            order.CustomerId,
+            Status = order.Status.ToString(),
+            order.Subtotal,
+            order.Tax,
+            order.TotalAmount,
+            order.PaymentId,
+            Items = order.Items.Select(i => new
+            {
+                i.Id,
+                i.ProductId,
+                i.ProductName,
+                i.UnitPrice,
+                i.Quantity,
+                i.TotalPrice
+            }).ToList(),
+            order.CreatedAtUtc
+        });
     }
 
     [HttpPut("{id:guid}/status")]
@@ -260,7 +375,15 @@ public class OrdersController : ControllerBase
             order.UpdatedAtUtc = DateTime.UtcNow;
             if (newStatus == OrderStatus.Completed) order.CompletedAtUtc = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);
-            return Ok(order);
+
+            return Ok(new
+            {
+                order.Id,
+                order.OrderNumber,
+                order.TenantId,
+                Status = order.Status.ToString(),
+                order.UpdatedAtUtc
+            });
         }
 
         return BadRequest(new { Message = "Invalid order status." });

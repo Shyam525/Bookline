@@ -20,6 +20,8 @@ public class OutboxAndReminderWorker : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OutboxAndReminderWorker> _logger;
     private DateTime _lastReminderRunUtc = DateTime.MinValue;
+    private DateTime _lastCleanupRunUtc = DateTime.MinValue;
+    private DateTime _lastReportRunUtc = DateTime.MinValue;
 
     public OutboxAndReminderWorker(IServiceProvider serviceProvider, ILogger<OutboxAndReminderWorker> logger)
     {
@@ -29,29 +31,69 @@ public class OutboxAndReminderWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Outbox and Reminder Background Worker started.");
+        _logger.LogInformation("Outbox and 7-Domain Background Worker Suite started (Section 122).");
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 using var scope = _serviceProvider.CreateScope();
+                var tenantContext = scope.ServiceProvider.GetService<ITenantContext>();
+                tenantContext?.EnableSystemMode();
                 var dbContext = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
                 var emailSender = scope.ServiceProvider.GetService<IEmailSender>();
 
-                // 1. Process Outbox events (Section 91)
+                // 1. Outbox events (Section 91 & 122)
                 await ProcessOutboxBatchAsync(dbContext, emailSender, stoppingToken);
 
-                // 2. Process Timezone-Aware 24h and 2h Reminders (Section 92, every 60s)
+                // 2. Expired holds cleanup (Section 58 & 122)
+                var holdsLogger = scope.ServiceProvider.GetService<ILogger<ExpiredHoldsCleanupJob>>()
+                    ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ExpiredHoldsCleanupJob>();
+                var holdsJob = new ExpiredHoldsCleanupJob(dbContext, holdsLogger);
+                await holdsJob.ExecuteAsync(stoppingToken);
+
+                // 3. Timezone-Aware 24h & 2h Reminders (Section 92 & 122, every 60s)
                 if (DateTime.UtcNow - _lastReminderRunUtc >= TimeSpan.FromSeconds(60))
                 {
                     await ProcessRemindersAsync(dbContext, stoppingToken);
                     _lastReminderRunUtc = DateTime.UtcNow;
                 }
+
+                // 4. Notifications delivery (Section 93 & 122)
+                var notifLogger = scope.ServiceProvider.GetService<ILogger<NotificationDeliveryJob>>()
+                    ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<NotificationDeliveryJob>();
+                var notifJob = new NotificationDeliveryJob(dbContext, notifLogger, emailSender);
+                await notifJob.ExecuteAsync(stoppingToken);
+
+                // 5 & 7. Invitations & Inventory cleanup (Section 119 & 122, every 5 mins)
+                if (DateTime.UtcNow - _lastCleanupRunUtc >= TimeSpan.FromMinutes(5))
+                {
+                    var invLogger = scope.ServiceProvider.GetService<ILogger<InvitationCleanupJob>>()
+                        ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<InvitationCleanupJob>();
+                    var invJob = new InvitationCleanupJob(dbContext, invLogger);
+                    await invJob.ExecuteAsync(stoppingToken);
+
+                    var inventoryLogger = scope.ServiceProvider.GetService<ILogger<InventoryCleanupJob>>()
+                        ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<InventoryCleanupJob>();
+                    var inventoryJob = new InventoryCleanupJob(dbContext, inventoryLogger);
+                    await inventoryJob.ExecuteAsync(stoppingToken);
+
+                    _lastCleanupRunUtc = DateTime.UtcNow;
+                }
+
+                // 6. Report aggregation jobs (Section 122, every 1 hour)
+                if (DateTime.UtcNow - _lastReportRunUtc >= TimeSpan.FromHours(1))
+                {
+                    var reportLogger = scope.ServiceProvider.GetService<ILogger<ReportAggregationJob>>()
+                        ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ReportAggregationJob>();
+                    var reportJob = new ReportAggregationJob(dbContext, reportLogger);
+                    await reportJob.ExecuteAsync(stoppingToken);
+                    _lastReportRunUtc = DateTime.UtcNow;
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred in Outbox and Reminder Background Worker cycle.");
+                _logger.LogError(ex, "Error occurred in Section 122 Background Worker cycle.");
             }
 
             await Task.Delay(5000, stoppingToken);

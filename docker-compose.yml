@@ -36,7 +36,7 @@ services:
       - "1026:1025"
       - "8026:8025"
 
-  api:
+  bookline-api:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -53,15 +53,15 @@ services:
       redis:
         condition: service_healthy
 
-  frontend:
+  bookline-web:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: bookline-frontend
+    container_name: bookline-web
     ports:
       - "3000:80"
     depends_on:
-      - api
+      - bookline-api
 
 volumes:
   postgres_data:

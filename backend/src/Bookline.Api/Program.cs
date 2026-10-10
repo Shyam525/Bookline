@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 using System.Text.Json.Serialization;
 using NodaTime;
 using NodaTime.Text;
@@ -53,7 +54,32 @@ builder.Services.AddScoped<TenantSaveChangesInterceptor>();
 builder.Services.AddTransient<IPasswordHasher, PasswordHasher>();
 builder.Services.AddTransient<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISlotEngine, Bookline.Application.Common.Services.SlotEngine>();
-builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISlotHoldService, Bookline.Infrastructure.Services.SlotHoldService>();
+
+// Section 123: Redis Integration for holds, coordination, cache, and rate limiting
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"] 
+    ?? builder.Configuration.GetConnectionString("Redis") 
+    ?? "localhost:6379";
+
+IConnectionMultiplexer? redisMultiplexer = null;
+try
+{
+    var redisOptions = ConfigurationOptions.Parse(redisConnectionString);
+    redisOptions.AbortOnConnectFail = false;
+    redisOptions.ConnectTimeout = 1000;
+    redisMultiplexer = ConnectionMultiplexer.Connect(redisOptions);
+}
+catch (Exception)
+{
+    Log.Warning("Redis unavailable at {Endpoint}. Falling back to in-memory hold/coordination engine.", redisConnectionString);
+}
+
+if (redisMultiplexer != null)
+{
+    builder.Services.AddSingleton<IConnectionMultiplexer>(redisMultiplexer);
+}
+
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISlotHoldService>(sp =>
+    new Bookline.Infrastructure.Services.SlotHoldService(sp.GetService<IConnectionMultiplexer>()));
 
 // Phase 5 Services & DataProtection
 builder.Services.AddDataProtection();
@@ -233,6 +259,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseSerilogRequestLogging();

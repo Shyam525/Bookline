@@ -56,32 +56,36 @@
 
 ---
 
-## 3. Seed Accounts & Credentials
+## 3. Seed Accounts & Credentials (Section 126)
 
-The system is pre-seeded deterministically with realistic demo data:
+The system is pre-seeded deterministically with realistic demo data across all 8 categories (Beauty, Healthcare, Fitness, Wellness, Photography, Education, Consulting, Home Services) and 5 cities (Ahmedabad, Rajkot, Surat, Mumbai, Bangalore):
 
 | Role | Email | Password | Scope & Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Customer** | `customer@bookline.local` | `Password123!` | Consumer discovery, bookings, cart checkout, profile |
-| **Provider** | `provider@bookline.local` | `Password123!` | Business owner (*Aura Wellness* & *Glow Lounge*), calendar, orders |
-| **Platform Admin** | `admin@bookline.local` | `Password123!` | Marketplace governance, KYC verification, commissions, payouts |
+| **Customer** | `customer@bookline.local` | `Customer123!` | Consumer discovery, bookings, cart checkout, profile |
+| **Provider** | `provider@bookline.local` | `Provider123!` | Multi-business owner (*Aura Wellness* & *Glow Lounge*), calendar, orders |
+| **Platform Admin** | `admin@bookline.local` | `Admin123!` | Marketplace governance, KYC verification, commissions, payouts |
 
-*Note: The UI includes a quick Role Switcher in the top navigation bar for instant switching during evaluation.*
+*Note: All demo accounts use development-only passwords.*
 
 ---
 
-## 4. Quick Start & Execution
+## 4. Quick Start & Execution (Sections 127 & 128)
 
 ### Option A: Docker Compose (One-Command Startup)
 ```bash
 docker compose up --build
 ```
 This launches:
-- **bookline-web**: Frontend running on `http://localhost:5173`
-- **bookline-api**: Backend REST API running on `http://localhost:5000`
+- **bookline-web**: Frontend running on [http://localhost:3000](http://localhost:3000)
+- **bookline-api**: Backend REST API running on [http://localhost:5168](http://localhost:5168)
+  - Swagger UI: [http://localhost:5168/swagger](http://localhost:5168/swagger)
+  - Liveness: [http://localhost:5168/health](http://localhost:5168/health)
+  - Readiness: [http://localhost:5168/ready](http://localhost:5168/ready)
+  - Observability Telemetry: [http://localhost:5168/api/v1/observability/status](http://localhost:5168/api/v1/observability/status)
 - **postgres**: PostgreSQL 16 + PostGIS extension on `localhost:5432`
-- **redis**: Redis coordinator on `localhost:6379`
-- **mailpit**: Local SMTP relay on `http://localhost:8025`
+- **redis**: Redis coordinator for holds and cache on `localhost:6379`
+- **mailpit**: Local SMTP relay & Webmail UI on [http://localhost:8026](http://localhost:8026)
 
 ### Option B: Local Development
 1. **Run Backend**:

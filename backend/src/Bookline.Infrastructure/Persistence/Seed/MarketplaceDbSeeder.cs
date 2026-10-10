@@ -52,13 +52,34 @@ public static class MarketplaceDbSeeder
                 db.Users.Add(customerUser);
             }
 
-            // 2. Seed Multi-Vendor Providers
+            var rohitEmail = "rohit.patel@bookline.local";
+            var rohitUser = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email.ToLower() == rohitEmail);
+            if (rohitUser == null)
+            {
+                rohitUser = new AppUser
+                {
+                    Id = Guid.Parse("20000000-0000-0000-0000-000000000002"),
+                    TenantId = Guid.Empty,
+                    Email = rohitEmail,
+                    PasswordHash = passwordHasher.HashPassword("Customer123!"),
+                    FirstName = "Rohit",
+                    LastName = "Patel",
+                    Phone = "+91 98240 55667",
+                    Role = "Customer",
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+                db.Users.Add(rohitUser);
+            }
+
+            // 2. Seed Multi-Vendor Providers across all 8 Categories (Section 125)
             var auraId = Guid.Parse("30000000-0000-0000-0000-000000000001");
             var glowId = Guid.Parse("30000000-0000-0000-0000-000000000002");
             var apexId = Guid.Parse("30000000-0000-0000-0000-000000000003");
             var zenithId = Guid.Parse("30000000-0000-0000-0000-000000000004");
             var luminaId = Guid.Parse("30000000-0000-0000-0000-000000000005");
             var vanguardId = Guid.Parse("30000000-0000-0000-0000-000000000006");
+            var cambridgeId = Guid.Parse("30000000-0000-0000-0000-000000000007");
+            var urbanFixId = Guid.Parse("30000000-0000-0000-0000-000000000008");
 
             var auraTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == auraId);
             if (auraTenant == null)
@@ -68,7 +89,7 @@ public static class MarketplaceDbSeeder
                     Id = auraId,
                     Name = "Aura Wellness & Spa",
                     Slug = "aura-wellness",
-                    Category = "Beauty & Wellness",
+                    Category = "Wellness",
                     BusinessType = "Wellness & Aesthetic Spa",
                     Description = "Luxury holistic sanctuary offering restorative skin rituals, aromatherapy treatments, and serene therapeutic spaces.",
                     Address = "102 Sindhu Bhavan Marg, Bodakdev",
@@ -103,7 +124,7 @@ public static class MarketplaceDbSeeder
                     Id = glowId,
                     Name = "Glow Hair & Beauty Lounge",
                     Slug = "glow-lounge",
-                    Category = "Beauty & Wellness",
+                    Category = "Beauty",
                     BusinessType = "Editorial Hair Studio",
                     Description = "High-fashion hair artistry, balayage, and clinical keratin hair care by international master stylists.",
                     Address = "14 Perry Cross Road, Bandra West",
@@ -138,7 +159,7 @@ public static class MarketplaceDbSeeder
                     Id = apexId,
                     Name = "Apex Dental & Aesthetics",
                     Slug = "apex-dental",
-                    Category = "Healthcare & Clinics",
+                    Category = "Healthcare",
                     BusinessType = "Cosmetic Dental Clinic",
                     Description = "Painless laser dentistry, clear aligners, and precision porcelain veneers in a clinical luxury suite.",
                     Address = "401 Iscon Elegance, Prahlad Nagar",
@@ -172,7 +193,7 @@ public static class MarketplaceDbSeeder
                     Id = zenithId,
                     Name = "Zenith Fitness & Reformer Pilates",
                     Slug = "zenith-fitness",
-                    Category = "Fitness & Training",
+                    Category = "Fitness",
                     BusinessType = "Reformer Pilates Sanctuary",
                     Description = "Dynamic reformer pilates sessions, private athletic conditioning, and athletic recovery.",
                     Address = "88 100 Feet Road, Indiranagar",
@@ -205,7 +226,7 @@ public static class MarketplaceDbSeeder
                     Id = luminaId,
                     Name = "Lumina Portraiture Studio",
                     Slug = "lumina-studio",
-                    Category = "Photography & Media",
+                    Category = "Photography",
                     BusinessType = "Commercial Photography Studio",
                     Description = "High-end corporate headshots, editorial campaigns, and bespoke family heirloom portraiture.",
                     Address = "22 Dumas Road, Piplod",
@@ -239,7 +260,7 @@ public static class MarketplaceDbSeeder
                     Id = vanguardId,
                     Name = "Vanguard Legal & Business Advisory",
                     Slug = "vanguard-advisory",
-                    Category = "Professional Services",
+                    Category = "Consulting",
                     BusinessType = "Corporate Legal Consultancy",
                     Description = "Strategic corporate law, IP management, and cross-border commercial contracts counsel.",
                     Address = "502 Imperial Heights, Yagnik Road",
@@ -262,6 +283,72 @@ public static class MarketplaceDbSeeder
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
                 };
                 db.Tenants.Add(vanguardTenant);
+            }
+
+            var cambridgeTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == cambridgeId);
+            if (cambridgeTenant == null)
+            {
+                cambridgeTenant = new Tenant
+                {
+                    Id = cambridgeId,
+                    Name = "Cambridge Academic Coaching & Tutoring",
+                    Slug = "cambridge-academy",
+                    Category = "Education",
+                    BusinessType = "Academic Tutoring & Prep",
+                    Description = "Expert collegiate entrance coaching, test prep, and personalized STEM tutoring by Ivy-league mentors.",
+                    Address = "44 Residency Road, Richmond Town",
+                    City = "Bangalore",
+                    State = "Karnataka",
+                    Country = "India",
+                    PostalCode = "560025",
+                    Latitude = 12.9667,
+                    Longitude = 77.6000,
+                    Phone = "+91 80 4910 2211",
+                    AverageRating = 4.92,
+                    ReviewCount = 55,
+                    VerificationStatus = VerificationStatus.Verified,
+                    Currency = "USD",
+                    DepositType = DepositType.None,
+                    CommissionRatePercentage = 10.00m,
+                    AvailablePayoutBalance = 950.00m,
+                    IsPublished = true,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
+                };
+                db.Tenants.Add(cambridgeTenant);
+            }
+
+            var urbanFixTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == urbanFixId);
+            if (urbanFixTenant == null)
+            {
+                urbanFixTenant = new Tenant
+                {
+                    Id = urbanFixId,
+                    Name = "UrbanFix Pro Home Services",
+                    Slug = "urbanfix-home",
+                    Category = "Home Services",
+                    BusinessType = "Residential Repair & Installation",
+                    Description = "Vetted electricians, smart home automation setup, HVAC tune-ups, and plumbing diagnostics.",
+                    Address = "88 Navrangpura Cross Road, CG Road",
+                    City = "Ahmedabad",
+                    State = "Gujarat",
+                    Country = "India",
+                    PostalCode = "380009",
+                    Latitude = 23.0365,
+                    Longitude = 72.5611,
+                    Phone = "+91 79 4010 3344",
+                    AverageRating = 4.78,
+                    ReviewCount = 72,
+                    VerificationStatus = VerificationStatus.Verified,
+                    Currency = "USD",
+                    DepositType = DepositType.None,
+                    CommissionRatePercentage = 10.00m,
+                    AvailablePayoutBalance = 1100.00m,
+                    IsPublished = true,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
+                };
+                db.Tenants.Add(urbanFixTenant);
             }
 
             await db.SaveChangesAsync();
@@ -550,7 +637,7 @@ public static class MarketplaceDbSeeder
                 {
                     var s1Id = Guid.Parse("60000000-0000-0000-0000-000000000001");
 
-                    // 1 upcoming booking
+                    // 1 upcoming confirmed booking
                     var upcoming = new Booking
                     {
                         Id = Guid.NewGuid(),
@@ -588,6 +675,42 @@ public static class MarketplaceDbSeeder
                     past.Complete();
                     db.Bookings.Add(past);
 
+                    // 1 pending booking (Section 125: mixed states)
+                    var pendingBooking = new Booking
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = auraId,
+                        StaffId = auraStaff1Id,
+                        ServiceId = s1Id,
+                        CustomerId = customerUser.Id,
+                        LocationId = auraLoc1Id,
+                        BookingReference = "BL-991201",
+                        StartUtc = DateTimeOffset.UtcNow.AddDays(5).Date.AddHours(11),
+                        EndUtc = DateTimeOffset.UtcNow.AddDays(5).Date.AddHours(12),
+                        TotalPrice = 75.00m,
+                        DepositPaid = 0m,
+                        CustomerNotes = "Pending provider confirmation."
+                    };
+                    db.Bookings.Add(pendingBooking);
+
+                    // 1 cancelled booking (Section 125: mixed states)
+                    var cancelledBooking = new Booking
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = auraId,
+                        StaffId = auraStaff1Id,
+                        ServiceId = s1Id,
+                        CustomerId = customerUser.Id,
+                        LocationId = auraLoc1Id,
+                        BookingReference = "BL-310492",
+                        StartUtc = DateTimeOffset.UtcNow.AddDays(-2).Date.AddHours(16),
+                        EndUtc = DateTimeOffset.UtcNow.AddDays(-2).Date.AddHours(17),
+                        TotalPrice = 75.00m,
+                        DepositPaid = 25.00m
+                    };
+                    cancelledBooking.Cancel("Client requested cancellation due to travel conflict", "Jane Customer");
+                    db.Bookings.Add(cancelledBooking);
+
                     // Favorite provider
                     db.Favorites.Add(new Favorite
                     {
@@ -597,16 +720,16 @@ public static class MarketplaceDbSeeder
                         CreatedAtUtc = DateTime.UtcNow
                     });
 
-                    // Customer review
+                    // Customer review (Clearly marked as demo seeded record: Section 125)
                     db.Reviews.Add(new Review
                     {
                         Id = Guid.NewGuid(),
                         TenantId = auraId,
                         CustomerId = customerUser.Id,
                         BookingId = past.Id,
-                        CustomerName = "Jane Customer",
+                        CustomerName = "Jane Customer [Demo Seeded]",
                         Rating = 5,
-                        Title = "Exceptional sanctuary & therapist",
+                        Title = "[Demo Seeded] Exceptional sanctuary & therapist",
                         Comment = "Dr. Priya was attentive and the bespoke oil blend smelled divine. The ambient lighting and calm atmosphere is unmatched in Ahmedabad.",
                         ProviderResponse = "Thank you so much Jane! It was our pleasure to host you at our Bodakdev flagship.",
                         ModerationStatus = ModerationStatus.Approved,
@@ -614,8 +737,9 @@ public static class MarketplaceDbSeeder
                         RespondedAtUtc = DateTime.UtcNow.AddDays(-3)
                     });
 
-                    // Completed retail order
-                    var order = new Order
+                    // Retail orders in mixed states (Section 125)
+                    // 1. Processing order
+                    var orderProcessing = new Order
                     {
                         Id = Guid.NewGuid(),
                         TenantId = auraId,
@@ -633,7 +757,48 @@ public static class MarketplaceDbSeeder
                         PaidAtUtc = DateTime.UtcNow.AddDays(-1),
                         CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
                     };
-                    db.Orders.Add(order);
+                    db.Orders.Add(orderProcessing);
+
+                    // 2. Delivered order
+                    var orderDelivered = new Order
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = auraId,
+                        CustomerId = customerUser.Id,
+                        OrderNumber = "ORD-771234",
+                        CustomerName = "Jane Customer",
+                        CustomerEmail = customerEmail,
+                        CustomerPhone = "+91 98765 43210",
+                        ShippingAddress = "12 Gulmohar Park, Satellite, Ahmedabad 380015",
+                        Subtotal = 34.00m,
+                        Tax = 1.70m,
+                        TotalAmount = 35.70m,
+                        Currency = "USD",
+                        Status = OrderStatus.Completed,
+                        PaidAtUtc = DateTime.UtcNow.AddDays(-10),
+                        CreatedAtUtc = DateTime.UtcNow.AddDays(-10)
+                    };
+                    db.Orders.Add(orderDelivered);
+
+                    // 3. Cancelled order
+                    var orderCancelled = new Order
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = auraId,
+                        CustomerId = customerUser.Id,
+                        OrderNumber = "ORD-112233",
+                        CustomerName = "Jane Customer",
+                        CustomerEmail = customerEmail,
+                        CustomerPhone = "+91 98765 43210",
+                        ShippingAddress = "12 Gulmohar Park, Satellite, Ahmedabad 380015",
+                        Subtotal = 28.00m,
+                        Tax = 1.40m,
+                        TotalAmount = 29.40m,
+                        Currency = "USD",
+                        Status = OrderStatus.Cancelled,
+                        CreatedAtUtc = DateTime.UtcNow.AddDays(-15)
+                    };
+                    db.Orders.Add(orderCancelled);
 
                     await db.SaveChangesAsync();
                 }

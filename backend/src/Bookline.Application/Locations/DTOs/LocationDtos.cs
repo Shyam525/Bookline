@@ -5,6 +5,11 @@ public record LocationDto(
     Guid TenantId,
     string Name,
     string Address,
+    string City,
+    string State,
+    string PostalCode,
+    double Latitude,
+    double Longitude,
     string Phone,
     string Timezone,
     string Currency,
@@ -18,7 +23,12 @@ public record CreateLocationRequest(
     string Address,
     string Phone,
     string Timezone,
-    string Currency
+    string Currency,
+    string City = "Ahmedabad",
+    string State = "Gujarat",
+    string PostalCode = "",
+    double? Latitude = null,
+    double? Longitude = null
 );
 
 public record UpdateLocationRequest(
@@ -27,5 +37,10 @@ public record UpdateLocationRequest(
     string Phone,
     string Timezone,
     string Currency,
-    bool IsActive
+    bool IsActive,
+    string City = "Ahmedabad",
+    string State = "Gujarat",
+    string PostalCode = "",
+    double? Latitude = null,
+    double? Longitude = null
 );

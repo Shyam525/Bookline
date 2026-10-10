@@ -55,6 +55,11 @@ public class LocationHandlers :
             TenantId = _tenantContext.TenantId,
             Name = req.Name,
             Address = req.Address,
+            City = !string.IsNullOrWhiteSpace(req.City) ? req.City : "Ahmedabad",
+            State = !string.IsNullOrWhiteSpace(req.State) ? req.State : "Gujarat",
+            PostalCode = req.PostalCode ?? string.Empty,
+            Latitude = req.Latitude ?? 23.0225,
+            Longitude = req.Longitude ?? 72.5714,
             Phone = req.Phone,
             Timezone = req.Timezone,
             Currency = req.Currency,
@@ -78,6 +83,11 @@ public class LocationHandlers :
 
         location.Name = req.Name;
         location.Address = req.Address;
+        if (!string.IsNullOrWhiteSpace(req.City)) location.City = req.City;
+        if (!string.IsNullOrWhiteSpace(req.State)) location.State = req.State;
+        if (req.PostalCode != null) location.PostalCode = req.PostalCode;
+        if (req.Latitude.HasValue) location.Latitude = req.Latitude.Value;
+        if (req.Longitude.HasValue) location.Longitude = req.Longitude.Value;
         location.Phone = req.Phone;
         location.Timezone = req.Timezone;
         location.Currency = req.Currency;
@@ -108,6 +118,11 @@ public class LocationHandlers :
             l.TenantId,
             l.Name,
             l.Address,
+            l.City,
+            l.State,
+            l.PostalCode,
+            l.Latitude,
+            l.Longitude,
             l.Phone,
             l.Timezone,
             l.Currency,

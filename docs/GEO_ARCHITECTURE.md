@@ -1,22 +1,26 @@
-# GEOLOCATION & POSTGIS SPATIAL ARCHITECTURE
+# Geo & Spatial Architecture
 
-## 1. Geolocation Philosophy & Privacy
-- **Transient Location**: Browser geolocation coordinates (`lat`/`lng`) are used transiently during discovery and map navigation. Bookline **never** permanently stores raw transient client coordinates.
-- **Permission Lifecycle**:
-  - `LOCATION_UNKNOWN`: Initial state prior to user gesture.
-  - `LOCATION_REQUESTING`: Browser permission dialog prompted.
-  - `LOCATION_GRANTED`: Exact lat/lng used for reverse geocoding and radius sorting.
-  - `LOCATION_DENIED` / `LOCATION_UNAVAILABLE`: Graceful fallback to city search, area autocomplete, or postal code.
+## 1. Overview
+The Geo subsystem provides spatial discovery, Haversine distance calculations, PostGIS bounding box filtering, and intent-aware neighborhood search.
 
-## 2. PostGIS Integration
-- **Column**: Spatial geography/geometry on `Locations` and `Tenants`.
-- **Indices**: Spatial GIST indices ensure sub-millisecond bounding box and radius queries.
-- **Query Types**:
-  - Radius searches (`ST_DWithin`)
-  - Bounding box viewport queries for "Search this area" on the map.
-  - Nearest neighbor calculations (`ST_Distance`).
-- **Offline / Local Fallback**: Deterministic Haversine distance calculations and city centroid geocoding for environments where PostGIS extensions are disabled or external map APIs are unconfigured.
+## 2. Nine Geo Specification Capabilities (Section 131)
+Bookline's geo engine is thoroughly verified across all 9 scenarios (`GeoSearchSpecificationTests.cs`):
 
-## 3. Interactive Vector Map
-- **Abstraction**: `IMapProvider` decoupling vendor SDKs (Mapbox / Google Maps / OpenStreetMap).
-- **Graceful Map Degradation**: In the event of tile network failure or missing API keys, discovery remains 100% operational with distance calculations, city filters, and booking flows unimpaired.
+1. **Current Location Granted**:
+   - Browser GPS coordinates (`Latitude`, `Longitude`) calculate accurate `DistanceKm` for all venues.
+2. **Current Location Denied**:
+   - If user denies permission, discovery operates gracefully without error. `DistanceKm` is null, defaulting to city or recommended ranking.
+3. **Manual City**:
+   - User selection of manual cities (*Ahmedabad, Rajkot, Surat, Mumbai, Bangalore*) filters results strictly to that metropolitan area.
+4. **Manual Area / Neighborhood**:
+   - Queries targeting specific neighborhoods (*Bodakdev, Satellite, Bandra, Indiranagar*) resolve via `ISearchIntentService` and address matching.
+5. **Radius Filtering**:
+   - Distance thresholding (`RadiusKm = 5.0`) excludes venues outside the user's travel tolerance.
+6. **Bounding Box Viewport Query**:
+   - Spatial bounds (`SwLat`, `SwLng`, `NeLat`, `NeLng`) scope venues strictly to the interactive map viewport.
+7. **Nearest Sorting**:
+   - Sorts providers by `DistanceKm` ascending (closest venue first).
+8. **Map Movement**:
+   - Panning or zooming the map updates bounding box coordinates and recalculates candidate venues dynamically.
+9. **Search This Area**:
+   - Syncs map center coordinates and viewport bounds to refresh results centered on the user's focus area.

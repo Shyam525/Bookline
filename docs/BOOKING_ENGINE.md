@@ -1,44 +1,25 @@
-# Bookline Booking & Availability Engine
+# High-Concurrency Booking Engine
 
-## Slot Computation Pipeline
+## 1. Overview
+The Bookline Booking Engine manages distributed slot calculation, optimistic locking, short-lived slot holds via Redis, and zero-double-booking guarantees.
 
-The core availability logic is executed by `SlotEngine` (`ISlotEngine`) in `Bookline.Application`.
+## 2. Distributed Hold Engine (Section 123)
+- **Role**: Temporary reserve while the user completes payment checkout (default: 5–10 minutes).
+- **Implementation**:
+  - `SlotHoldService` uses Redis atomic `StringSetAsync(holdKey, holdId, expiry, When.NotExists)`.
+  - Fallback: High-throughput concurrent dictionary in development environments.
+  - Non-permanent: Redis holds expire automatically; PostgreSQL is the only permanent database.
 
-```text
-Working Hours + Location TimeZone
-        ↓
-    Day Windows (e.g. 09:00 - 17:00)
-        ↓
-  Subtract Staff Time-Off & Breaks
-        ↓
-  Subtract Existing Bookings & Holds
-        ↓
-  Evaluate Service Duration + Buffers
-        ↓
-   Generate Valid Available Slots
-```
+## 3. Concurrency Protection & Zero Double Booking (Section 130)
+- **Critical Test Verification**:
+  - 50 concurrent users attempt to book the exact same provider, location, staff, service, and time slot simultaneously.
+  - Result: Exactly 1 succeeds, 49 are rejected with `SLOT_UNAVAILABLE`.
+  - Database contains exactly 1 confirmed appointment.
 
-## Buffer-Aware Scheduling
-
-Each service specifies:
-- **DurationMinutes**: The active appointment duration (e.g. 45 min).
-- **BufferMinutes**: Preparation/cleanup buffer time required after the appointment (e.g. 15 min).
-
-The Slot Engine evaluates total occupied time:
-$$\text{Occupied Interval} = \text{Duration} + \text{Buffer}$$
-
-## Concurrency & Double Booking Prevention
-
-Bookline enforces concurrency control at two independent layers:
-1. **Redis Slot Hold Service**: Atomic hold acquisition with TTL during slot selection.
-2. **PostgreSQL GiST Exclusion Constraint**:
-```sql
-ALTER TABLE "Bookings" ADD CONSTRAINT no_overlap
-EXCLUDE USING gist (
-    "StaffId" WITH =,
-    tstzrange("StartUtc", "EndUtc") WITH &&
-)
-WHERE ("Status" IN ('Pending','Confirmed'));
-```
-
-If two concurrent requests attempt to confirm the same slot, exactly one transaction succeeds while the second fails with a `SLOT_UNAVAILABLE` domain exception.
+## 4. Slot Calculation Engine (`SlotEngine.cs`)
+- Computes available slots using:
+  1. Staff working hours for the given day of the week.
+  2. Subtraction of existing confirmed/pending bookings.
+  3. Subtraction of staff time-off blocks.
+  4. Addition of service buffer times (`BufferBeforeMinutes` and `BufferAfterMinutes`).
+  5. Filtering out current active slot holds.

@@ -274,7 +274,104 @@ public class PaymentsController : ControllerBase
 
         return Ok(payouts);
     }
+
+    /// <summary>
+    /// Processes incoming payment gateway webhooks (Section 132: Idempotent Webhook Processing).
+    /// Replaying the same webhook does not create duplicate payment or order transitions.
+    /// </summary>
+    [HttpPost("webhook")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ProcessWebhook(
+        [FromBody] PaymentWebhookRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var eventKey = request.EventId ?? request.TransactionReference;
+        if (string.IsNullOrWhiteSpace(eventKey))
+        {
+            return BadRequest(new { Message = "Webhook EventId or TransactionReference required." });
+        }
+
+        // Check if event was already processed (Section 132 Replay protection)
+        var cached = await _idempotencyService.GetExistingAsync(eventKey, "PaymentWebhook", cancellationToken);
+        if (cached != null)
+        {
+            return Ok(new
+            {
+                Status = "DuplicateAcknowledged",
+                EventId = eventKey,
+                Replayed = true,
+                Message = "Webhook was previously processed. Duplicate state creation skipped."
+            });
+        }
+
+        // Process webhook event
+        if (request.BookingId.HasValue)
+        {
+            var booking = await _dbContext.Bookings.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(b => b.Id == request.BookingId.Value, cancellationToken);
+            if (booking != null && booking.Status != BookingStatus.Confirmed)
+            {
+                booking.Confirm();
+            }
+        }
+
+        if (request.OrderId.HasValue)
+        {
+            var order = await _dbContext.Orders.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, cancellationToken);
+            if (order != null && order.Status == OrderStatus.Pending)
+            {
+                order.Status = OrderStatus.Processing;
+                order.PaidAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        // Record payment if not already recorded
+        var existingPayment = await _dbContext.Payments.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.StripePaymentIntentId == request.TransactionReference, cancellationToken);
+
+        if (existingPayment == null)
+        {
+            var payment = new Payment
+            {
+                TenantId = request.TenantId ?? Guid.Empty,
+                BookingId = request.BookingId,
+                Amount = request.Amount,
+                Currency = request.Currency ?? "USD",
+                PaymentType = PaymentType.Deposit,
+                Status = PaymentStatus.Completed,
+                PaymentMethod = PaymentMethod.Stripe,
+                StripePaymentIntentId = request.TransactionReference,
+                CompletedAtUtc = DateTime.UtcNow,
+                Notes = $"Webhook processed: {request.EventType}"
+            };
+            _dbContext.Payments.Add(payment);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var responseObj = new
+        {
+            Status = "Processed",
+            EventId = eventKey,
+            TransactionReference = request.TransactionReference,
+            Success = true
+        };
+
+        await _idempotencyService.SaveAsync(
+            eventKey,
+            "PaymentWebhook",
+            200,
+            System.Text.Json.JsonSerializer.Serialize(responseObj),
+            request.TenantId,
+            null,
+            cancellationToken);
+
+        return Ok(responseObj);
+    }
 }
 
 public record VerifyPaymentRequest(string TransactionReference);
 public record RequestPayoutRequest(Guid? TenantId, decimal Amount, string? Currency, string? Method, string? DestinationAccount);
+public record PaymentWebhookRequest(string? EventId, string? EventType, string TransactionReference, Guid? TenantId, Guid? BookingId, Guid? OrderId, decimal Amount, string? Currency);
+

@@ -689,13 +689,13 @@ export const DiscoveryPage: React.FC = () => {
                           <span className="text-[11px] text-[#8F9AAF] block">Next available</span>
                           <span className="text-xs font-semibold text-[#F4F6FA] flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-[#FBBF24]" />
-                            {p.nextAvailableSlot || '10:30 AM'}
+                            {p.nextAvailableSlot || 'Check schedule'}
                           </span>
                         </div>
                         <div className="border-l border-[#273142] pl-3">
                           <span className="text-[11px] text-[#8F9AAF] block">From</span>
                           <span className="text-sm font-bold text-[#34D399]">
-                            From ₹{p.startingPrice || 600}
+                            {p.startingPrice > 0 ? `From ₹${p.startingPrice}` : 'Custom pricing'}
                           </span>
                         </div>
                       </div>

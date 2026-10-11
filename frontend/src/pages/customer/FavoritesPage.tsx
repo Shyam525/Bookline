@@ -144,7 +144,7 @@ export const FavoritesPage: React.FC = () => {
                     </span>
                     <span className="flex items-center gap-1 text-[#34D399]">
                       <Clock className="w-3.5 h-3.5" />
-                      <span>{provider.nextAvailableSlot || 'Today 10:30 AM'}</span>
+                      <span>{provider.nextAvailableSlot || 'Check availability'}</span>
                     </span>
                   </div>
 

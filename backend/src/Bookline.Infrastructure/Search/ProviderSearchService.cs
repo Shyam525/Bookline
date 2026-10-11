@@ -19,27 +19,7 @@ public class ProviderSearchService : IProviderSearchService
 
     public async Task<ProviderSearchResponse> SearchProvidersAsync(ProviderSearchQuery query, CancellationToken cancellationToken = default)
     {
-        var tenantsQuery = _dbContext.Tenants.IgnoreQueryFilters()
-            .Where(t => t.IsActive && t.IsPublished);
-
-        var tenants = await tenantsQuery.ToListAsync(cancellationToken);
-        var services = await _dbContext.Services.IgnoreQueryFilters()
-            .Where(s => s.IsActive && !s.IsArchived)
-            .ToListAsync(cancellationToken);
-        var products = await _dbContext.Products.IgnoreQueryFilters()
-            .Where(p => p.IsActive)
-            .ToListAsync(cancellationToken);
-
-        // Group services and products by TenantId
-        var servicesByTenant = services
-            .GroupBy(s => s.TenantId)
-            .ToDictionary(g => g.Key, g => g.ToList());
-
-        var productsByTenant = products
-            .GroupBy(p => p.TenantId)
-            .ToDictionary(g => g.Key, g => g.ToList());
-
-        // Parse search intent (Section 33)
+        // Parse search intent (Section 33 & Domain 7)
         SearchIntentResult? intent = null;
         if (!string.IsNullOrWhiteSpace(query.Query))
         {
@@ -54,6 +34,81 @@ public class ProviderSearchService : IProviderSearchService
         var effectiveCategory = !string.IsNullOrWhiteSpace(query.Category) && !query.Category.Equals("All", StringComparison.OrdinalIgnoreCase)
             ? query.Category
             : intent?.ExtractedCategory;
+
+        // Apply Database-Level Filtering (Rule 4: Never load every provider into memory)
+        var tenantsQuery = _dbContext.Tenants.IgnoreQueryFilters()
+            .Where(t => t.IsActive && t.IsPublished);
+
+        // 1. Database-Level Viewport Bounding Box Filtering (Rule 3 & 4)
+        if (query.SwLat.HasValue && query.SwLng.HasValue && query.NeLat.HasValue && query.NeLng.HasValue)
+        {
+            tenantsQuery = tenantsQuery.Where(t =>
+                t.Latitude >= query.SwLat.Value && t.Latitude <= query.NeLat.Value &&
+                t.Longitude >= query.SwLng.Value && t.Longitude <= query.NeLng.Value);
+        }
+
+        // 2. Database-Level Geographic Radius Bounding Envelope (Rule 4)
+        if (query.Latitude.HasValue && query.Longitude.HasValue && query.RadiusKm.HasValue)
+        {
+            double deltaLat = query.RadiusKm.Value / 111.0;
+            double cosLat = Math.Max(0.1, Math.Cos(query.Latitude.Value * Math.PI / 180.0));
+            double deltaLng = query.RadiusKm.Value / (111.0 * cosLat);
+
+            double minLat = query.Latitude.Value - deltaLat;
+            double maxLat = query.Latitude.Value + deltaLat;
+            double minLng = query.Longitude.Value - deltaLng;
+            double maxLng = query.Longitude.Value + deltaLng;
+
+            tenantsQuery = tenantsQuery.Where(t =>
+                t.Latitude >= minLat && t.Latitude <= maxLat &&
+                t.Longitude >= minLng && t.Longitude <= maxLng);
+        }
+
+        // 3. Database-Level Rating Filter
+        if (query.MinRating.HasValue && query.MinRating.Value > 0)
+        {
+            tenantsQuery = tenantsQuery.Where(t => t.AverageRating >= query.MinRating.Value);
+        }
+
+        // 4. Database-Level City Filter
+        if (!string.IsNullOrWhiteSpace(effectiveCity) && !effectiveCity.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            var cityTerm = effectiveCity.Trim();
+            tenantsQuery = tenantsQuery.Where(t =>
+                t.City == cityTerm ||
+                t.City.Contains(cityTerm) ||
+                t.Address.Contains(cityTerm));
+        }
+
+        // 5. Database-Level Category Filter
+        if (!string.IsNullOrWhiteSpace(effectiveCategory) && !effectiveCategory.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            var catTerm = effectiveCategory.Split('&')[0].Trim();
+            tenantsQuery = tenantsQuery.Where(t =>
+                t.Category.Contains(catTerm) ||
+                t.BusinessType.Contains(catTerm));
+        }
+
+        // Execute filtered database query
+        var tenants = await tenantsQuery.ToListAsync(cancellationToken);
+        var tenantIds = tenants.Select(t => t.Id).ToList();
+
+        // Load only services and products for matching tenant candidates
+        var services = await _dbContext.Services.IgnoreQueryFilters()
+            .Where(s => tenantIds.Contains(s.TenantId) && s.IsActive && !s.IsArchived)
+            .ToListAsync(cancellationToken);
+        var products = await _dbContext.Products.IgnoreQueryFilters()
+            .Where(p => tenantIds.Contains(p.TenantId) && p.IsActive)
+            .ToListAsync(cancellationToken);
+
+        // Group services and products by TenantId
+        var servicesByTenant = services
+            .GroupBy(s => s.TenantId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var productsByTenant = products
+            .GroupBy(p => p.TenantId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         var candidateResults = new List<ProviderCardDto>();
 
@@ -254,7 +309,7 @@ public class ProviderSearchService : IProviderSearchService
                 Longitude: tenant.Longitude,
                 StartingPrice: startingPrice,
                 Currency: tenant.Currency,
-                NextAvailableSlot: "10:30 AM",
+                NextAvailableSlot: null, // Computed on-demand via IAvailabilityEngine / public availability; never fabricated
                 IsVerified: tenant.VerificationStatus == VerificationStatus.Verified,
                 LogoUrl: tenant.LogoUrl,
                 CoverImageUrl: tenant.CoverImageUrl,
@@ -275,9 +330,15 @@ public class ProviderSearchService : IProviderSearchService
         IEnumerable<ProviderCardDto> sorted = effectiveSort.ToLowerInvariant() switch
         {
             "nearest" => candidateResults.OrderBy(c => c.DistanceKm ?? 99999).ThenByDescending(c => c.Rating),
-            "top rated" => candidateResults.OrderByDescending(c => c.Rating).ThenByDescending(c => c.ReviewCount),
+            // Bayesian damped rating: (Rating * ReviewCount + 4.0 * 5) / (ReviewCount + 5) to prevent 1-review 5.0 from beating 120-review 4.9 (Rule 8)
+            "top rated" => candidateResults
+                .OrderByDescending(c => ((c.Rating * c.ReviewCount) + (4.0 * 5)) / (c.ReviewCount + 5))
+                .ThenByDescending(c => c.ReviewCount),
             "most reviewed" => candidateResults.OrderByDescending(c => c.ReviewCount).ThenByDescending(c => c.Rating),
-            "earliest available" or "earliest availability" or "earliest" => candidateResults.OrderBy(c => c.NextAvailableSlot ?? "99:99").ThenByDescending(c => c.Rating),
+            "earliest available" or "earliest availability" or "earliest" => candidateResults
+                .OrderBy(c => c.NextAvailableSlot != null ? 0 : 1)
+                .ThenBy(c => c.NextAvailableSlot ?? "99:99")
+                .ThenByDescending(c => c.Rating),
             "lowest price" => candidateResults.OrderBy(c => c.StartingPrice).ThenByDescending(c => c.Rating),
             "highest price" => candidateResults.OrderByDescending(c => c.StartingPrice).ThenByDescending(c => c.Rating),
             _ => candidateResults.OrderByDescending(c => c.RankingScore).ThenByDescending(c => c.Rating) // Recommended Multi-Signal

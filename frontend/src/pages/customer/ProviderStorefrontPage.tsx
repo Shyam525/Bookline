@@ -126,12 +126,28 @@ export const ProviderStorefrontPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [effectiveSlug]);
 
+  // Phase 15 SEO: Set document title and meta description
+  useEffect(() => {
+    if (storefront?.provider) {
+      document.title = `${storefront.provider.name} | Bookline`;
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute(
+          'content',
+          storefront.provider.description ||
+            `Book appointments online with ${storefront.provider.name} in ${storefront.provider.city} on Bookline.`
+        );
+      }
+    }
+  }, [storefront]);
+
   // Open booking modal if on /book/:businessSlug
   useEffect(() => {
     if (location.pathname.startsWith('/book/')) {
       setIsBookingOpen(true);
     }
   }, [location.pathname]);
+
 
   // Sync user details to booking form
   useEffect(() => {
@@ -300,9 +316,9 @@ END:VCALENDAR`;
         <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 mx-auto flex items-center justify-center">
           <AlertCircle className="w-8 h-8" />
         </div>
-        <h2 className="font-heading text-2xl font-bold text-white">Storefront Not Found</h2>
+        <h2 className="font-heading text-2xl font-bold text-white">Business Unavailable</h2>
         <p className="text-sm text-[#7E88A8]">
-          The provider storefront for "{slug}" could not be located in our active marketplace directory.
+          This provider is currently unpublished, suspended, or does not exist.
         </p>
         <Link
           to="/discover"
@@ -315,6 +331,7 @@ END:VCALENDAR`;
   }
 
   const { provider, services, products, staff, locations } = storefront;
+  const passedDistanceKm = (location.state as any)?.distanceKm ?? provider.distanceKm;
 
   return (
     <div className="min-h-screen pb-28 lg:pb-20">
@@ -386,19 +403,28 @@ END:VCALENDAR`;
                   {provider.name}
                 </h1>
                 <div className="flex items-center gap-4 text-xs text-[#7E88A8] flex-wrap">
-                  <span className="flex items-center gap-1 text-[#FBBF24] font-semibold">
-                    <Star className="w-3.5 h-3.5 fill-current" />
-                    <span>{provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '5.0'}</span>
-                    <span className="text-[#7E88A8] font-normal">({provider.reviewCount} reviews)</span>
-                  </span>
+                  {provider.reviewCount > 0 && provider.averageRating > 0 ? (
+                    <span className="flex items-center gap-1 text-[#FBBF24] font-semibold">
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <span>{provider.averageRating.toFixed(1)}</span>
+                      <span className="text-[#7E88A8] font-normal">({provider.reviewCount} reviews)</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[#7E88A8]">
+                      <Star className="w-3.5 h-3.5" />
+                      <span>New on Bookline</span>
+                    </span>
+                  )}
                   <span className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-[#E8546A]" />
                     <span>{provider.address}, {provider.city}</span>
                   </span>
-                  <span className="flex items-center gap-1 text-[#34D399] font-medium">
-                    <Navigation className="w-3.5 h-3.5" />
-                    <span>1.2 km away</span>
-                  </span>
+                  {passedDistanceKm != null && (
+                    <span className="flex items-center gap-1 text-[#34D399] font-medium">
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>{passedDistanceKm < 1 ? `${Math.round(passedDistanceKm * 1000)} m away` : `${passedDistanceKm.toFixed(1)} km away`}</span>
+                    </span>
+                  )}
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-[#34D399]" />
                     <span>Open Today &bull; 09:00 AM - 08:00 PM</span>
@@ -431,37 +457,39 @@ END:VCALENDAR`;
             </div>
           </div>
 
-          {/* Navigation Tabs (Section 38: Overview, Services, Products, Team, Reviews, About, Locations, Opening hours, Booking) */}
+          {/* Navigation Tabs (Only render sections for which the business has valid public data) */}
           <div className="border-t border-[#212638] pt-4 flex items-center gap-2 overflow-x-auto text-xs font-medium no-scrollbar">
             {[
-              { id: 'overview', label: 'Overview', icon: Sparkles },
-              { id: 'services', label: `Services (${services.length})`, icon: Scissors },
-              { id: 'products', label: `Products (${products.length})`, icon: Package },
-              { id: 'gallery', label: 'Gallery', icon: Camera },
-              { id: 'team', label: `Team (${staff.length})`, icon: Users },
-              { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare },
-              { id: 'about', label: 'About', icon: Info },
-              { id: 'locations', label: `Locations (${locations.length || 1})`, icon: MapPin },
-              { id: 'hours', label: 'Opening hours', icon: Clock },
-              { id: 'booking', label: 'Booking', icon: Calendar },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
-                    isActive
-                      ? 'bg-[#181D2C] text-white font-bold border border-[#212638]'
-                      : 'text-[#7E88A8] hover:text-white hover:bg-[#181D2C]/40'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#E8546A]' : ''}`} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+              { id: 'overview', label: 'Overview', icon: Sparkles, show: true },
+              { id: 'services', label: `Services (${services.length})`, icon: Scissors, show: services && services.length > 0 },
+              { id: 'products', label: `Products (${products.length})`, icon: Package, show: products && products.length > 0 },
+              { id: 'gallery', label: 'Gallery', icon: Camera, show: !!(provider.galleryUrls && provider.galleryUrls.length > 0) },
+              { id: 'team', label: `Team (${staff.length})`, icon: Users, show: staff && staff.length > 0 },
+              { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare, show: true },
+              { id: 'about', label: 'About', icon: Info, show: true },
+              { id: 'locations', label: `Locations (${locations.length || 1})`, icon: MapPin, show: true },
+              { id: 'hours', label: 'Opening hours', icon: Clock, show: true },
+              { id: 'booking', label: 'Booking', icon: Calendar, show: services && services.length > 0 },
+            ]
+              .filter((tab) => tab.show)
+              .map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-[#181D2C] text-white font-bold border border-[#212638]'
+                        : 'text-[#7E88A8] hover:text-white hover:bg-[#181D2C]/40'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#E8546A]' : ''}`} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
           </div>
         </div>
       </div>
@@ -496,9 +524,11 @@ END:VCALENDAR`;
                   <Star className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white">Top Rated</h4>
+                  <h4 className="text-xs font-bold text-white">{provider.reviewCount > 0 ? 'Top Rated' : 'Newly Listed'}</h4>
                   <p className="text-[11px] text-[#7E88A8]">
-                    {provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '5.0'} ★ ({provider.reviewCount} reviews)
+                    {provider.reviewCount > 0 && provider.averageRating > 0
+                      ? `${provider.averageRating.toFixed(1)} ★ (${provider.reviewCount} reviews)`
+                      : 'Be the first to review'}
                   </p>
                 </div>
               </div>
@@ -932,14 +962,18 @@ END:VCALENDAR`;
             <div className="bg-[#111520] border border-[#212638] rounded-3xl p-6 sm:p-8 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
               <div className="text-center md:border-r border-[#212638] md:pr-8">
                 <span className="font-heading text-5xl font-black text-white">
-                  {provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '5.0'}
+                  {provider.reviewCount > 0 && provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '—'}
                 </span>
                 <div className="flex items-center justify-center gap-1 text-[#FBBF24] my-2">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-current" />
                   ))}
                 </div>
-                <p className="text-xs text-[#7E88A8]">Based on {provider.reviewCount} customer reviews</p>
+                <p className="text-xs text-[#7E88A8]">
+                  {provider.reviewCount > 0
+                    ? `Based on ${provider.reviewCount} customer reviews`
+                    : 'No customer reviews yet'}
+                </p>
               </div>
 
               <div className="md:col-span-2 space-y-2">
@@ -1120,9 +1154,12 @@ END:VCALENDAR`;
                     <span className="px-2.5 py-0.5 rounded-full bg-[#E8546A]/15 text-[#E8546A] text-[10px] font-bold uppercase tracking-wider">
                       Flagship Studio
                     </span>
-                    <span className="text-[11px] text-[#34D399] font-semibold flex items-center gap-1">
-                      <Navigation className="w-3.5 h-3.5" /> 1.2 km away
-                    </span>
+                    {passedDistanceKm != null && (
+                      <span className="text-[11px] text-[#34D399] font-semibold flex items-center gap-1">
+                        <Navigation className="w-3.5 h-3.5" />
+                        {passedDistanceKm < 1 ? `${Math.round(passedDistanceKm * 1000)} m away` : `${passedDistanceKm.toFixed(1)} km away`}
+                      </span>
+                    )}
                   </div>
                   <h3 className="font-heading font-bold text-lg text-white">{provider.name} &bull; {provider.city}</h3>
                   <div className="text-xs text-[#7E88A8] space-y-1">
@@ -2025,11 +2062,11 @@ END:VCALENDAR`;
           <span className="text-[10px] text-[#7E88A8] uppercase tracking-wider font-bold">Appointments</span>
           <div className="flex items-center gap-1.5 truncate">
             <span className="text-sm font-bold text-white font-heading">
-              From {provider.currency || '₹'}{services[0]?.price || '499'}
+              {services.length > 0 ? `From ${services[0].currency || provider.currency || '₹'}${services[0].price}` : 'Book Consultation'}
             </span>
             <span className="flex items-center gap-0.5 text-xs text-[#FBBF24] font-semibold">
-              <Star className="w-3 h-3 fill-current" />
-              {provider.averageRating > 0 ? provider.averageRating.toFixed(1) : '5.0'}
+              <Star className="w-3.5 h-3.5 fill-current" />
+              {provider.reviewCount > 0 && provider.averageRating > 0 ? provider.averageRating.toFixed(1) : 'New'}
             </span>
           </div>
         </div>

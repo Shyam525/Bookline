@@ -104,6 +104,7 @@ builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IProviderRa
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ILocationDiscoveryService, Bookline.Infrastructure.Geo.LocationDiscoveryService>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IProviderDiscoveryService, Bookline.Infrastructure.Search.ProviderDiscoveryService>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IProviderSearchService, Bookline.Infrastructure.Search.ProviderSearchService>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPublicStorefrontService, Bookline.Infrastructure.Services.PublicStorefrontService>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPaymentProvider, Bookline.Infrastructure.Payments.PaymentProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPayoutProvider, Bookline.Infrastructure.Payments.PayoutProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.ITeamAuthorizationService, Bookline.Infrastructure.Services.TeamAuthorizationService>();

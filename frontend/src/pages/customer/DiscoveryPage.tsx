@@ -89,6 +89,10 @@ export const DiscoveryPage: React.FC = () => {
     };
   });
   const [userGpsCoords, setUserGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [searchBounds, setSearchBounds] = useState<{ swLat: number; swLng: number; neLat: number; neLng: number } | null>(null);
+
+  // Request sequence id to prevent race conditions (Phase 13: Stale responses cannot overwrite newer viewport state)
+  const currentRequestIdRef = useRef(0);
 
   // Map / List Mobile Toggle
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
@@ -152,6 +156,7 @@ export const DiscoveryPage: React.FC = () => {
     (verifiedOnly ? 1 : 0);
 
   const fetchProviders = async () => {
+    const requestId = ++currentRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -170,7 +175,11 @@ export const DiscoveryPage: React.FC = () => {
         city: currentLocation.city !== 'All' ? currentLocation.city : undefined,
         lat,
         lng,
-        radius: radius || undefined,
+        radius: searchBounds ? undefined : radius || undefined,
+        swLat: searchBounds?.swLat,
+        swLng: searchBounds?.swLng,
+        neLat: searchBounds?.neLat,
+        neLng: searchBounds?.neLng,
         minRating: minRating > 0 ? minRating : undefined,
         maxPrice: maxPriceVal,
         availability: availability !== 'all' ? availability : undefined,
@@ -178,6 +187,9 @@ export const DiscoveryPage: React.FC = () => {
         page,
         pageSize: 10,
       });
+
+      // Discard stale response if a newer request was dispatched
+      if (requestId !== currentRequestIdRef.current) return;
 
       let items = res.items;
       if (verifiedOnly) {
@@ -191,9 +203,13 @@ export const DiscoveryPage: React.FC = () => {
         setSelectedProviderId(items[0].id);
       }
     } catch (err: any) {
-      setError(err.message || 'We could not load discovery results.');
+      if (requestId === currentRequestIdRef.current) {
+        setError(err.message || 'We could not load discovery results.');
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === currentRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -206,6 +222,7 @@ export const DiscoveryPage: React.FC = () => {
     currentLocation.city,
     currentLocation.lat,
     currentLocation.lng,
+    searchBounds,
     radius,
     minRating,
     priceRange,
@@ -224,6 +241,11 @@ export const DiscoveryPage: React.FC = () => {
 
   const handleLocationSelect = (loc: LocationSelection) => {
     setCurrentLocation(loc);
+    if (loc.viewportBounds) {
+      setSearchBounds(loc.viewportBounds);
+    } else {
+      setSearchBounds(null);
+    }
     if (loc.isCurrentLocation) {
       setUserGpsCoords({ lat: loc.lat, lng: loc.lng });
     } else {
@@ -231,6 +253,7 @@ export const DiscoveryPage: React.FC = () => {
     }
     setPage(1);
   };
+
 
   // Synchronized Selection: clicking map marker scrolls card into view
   const handleSelectProvider = (provider: any) => {
@@ -560,11 +583,16 @@ export const DiscoveryPage: React.FC = () => {
             mobileView === 'map' ? 'hidden lg:flex' : 'flex'
           }`}
         >
-          {/* Result Count Headline */}
+          {/* Result Count Headline (Phase 14 Distance Reference Truthfulness) */}
           <div className="flex items-center justify-between text-xs text-[#626B7A] dark:text-[#A2AEC1]">
             <span>
               Showing <strong className="text-[#181A1F] dark:text-[#F4F6FA]">{providers.length}</strong> of{' '}
-              <strong className="text-[#181A1F] dark:text-[#F4F6FA]">{totalCount}</strong> verified venues in {currentLocation.city}
+              <strong className="text-[#181A1F] dark:text-[#F4F6FA]">{totalCount}</strong> verified venues{' '}
+              {userGpsCoords
+                ? 'near your location'
+                : searchBounds
+                ? 'in selected map area'
+                : `in ${currentLocation.label}`}
             </span>
             {sort === 'Recommended' && (
               <span className="flex items-center gap-1 text-[#B93650] dark:text-[#E8546A] font-semibold text-[11px]">
@@ -688,17 +716,22 @@ export const DiscoveryPage: React.FC = () => {
             hoveredProviderId={hoveredProviderId}
             onSelectProvider={handleSelectProvider}
             onHoverProvider={setHoveredProviderId}
-            onSearchThisArea={(viewport) => {
-              if (viewport) {
-                setCurrentLocation((prev) => ({
-                  ...prev,
-                  lat: viewport.lat,
-                  lng: viewport.lng,
-                  label: `Area (${viewport.lat.toFixed(2)}, ${viewport.lng.toFixed(2)})`,
-                }));
-              }
-              fetchProviders();
+            onSearchThisArea={(bounds) => {
+              setSearchBounds({
+                swLat: bounds.swLat,
+                swLng: bounds.swLng,
+                neLat: bounds.neLat,
+                neLng: bounds.neLng,
+              });
+              setCurrentLocation((prev) => ({
+                ...prev,
+                lat: bounds.center.lat,
+                lng: bounds.center.lng,
+                label: `Map Viewport Area`,
+              }));
+              setPage(1);
             }}
+
             center={mapCenter}
             userLocation={userGpsCoords}
           />

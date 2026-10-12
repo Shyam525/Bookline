@@ -56,6 +56,7 @@ export interface ProviderStorefrontData {
     currency: string;
     holdDurationMinutes: number;
     minimumNoticeHours: number;
+    distanceKm?: number;
   };
   locations: Array<{
     id: string;
@@ -137,6 +138,12 @@ export const discoveryApi = {
     lat?: number;
     lng?: number;
     radius?: number;
+    radiusMeters?: number;
+    bounds?: string;
+    swLat?: number;
+    swLng?: number;
+    neLat?: number;
+    neLng?: number;
     minRating?: number;
     maxPrice?: number;
     availability?: string;
@@ -152,6 +159,12 @@ export const discoveryApi = {
     if (params.lat != null) searchParams.set('lat', params.lat.toString());
     if (params.lng != null) searchParams.set('lng', params.lng.toString());
     if (params.radius != null) searchParams.set('radius', params.radius.toString());
+    if (params.radiusMeters != null) searchParams.set('radiusMeters', params.radiusMeters.toString());
+    if (params.bounds) searchParams.set('bounds', params.bounds);
+    if (params.swLat != null) searchParams.set('swLat', params.swLat.toString());
+    if (params.swLng != null) searchParams.set('swLng', params.swLng.toString());
+    if (params.neLat != null) searchParams.set('neLat', params.neLat.toString());
+    if (params.neLng != null) searchParams.set('neLng', params.neLng.toString());
     if (params.minRating != null) searchParams.set('minRating', params.minRating.toString());
     if (params.maxPrice != null) searchParams.set('maxPrice', params.maxPrice.toString());
     if (params.availability && params.availability !== 'all') searchParams.set('availability', params.availability);
@@ -165,7 +178,11 @@ export const discoveryApi = {
   },
 
   async getProviderStorefront(slug: string): Promise<ProviderStorefrontData> {
-    const res = await fetch(`${API_BASE}/providers/${slug}`);
+    // Try public businesses endpoint first (Phase 15), fallback to discovery providers endpoint
+    let res = await fetch(`/api/public/businesses/${slug}`);
+    if (!res.ok) {
+      res = await fetch(`${API_BASE}/providers/${slug}`);
+    }
     if (!res.ok) throw new Error('Provider storefront not found');
     return res.json();
   },

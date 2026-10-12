@@ -91,6 +91,13 @@ public record PublicReviewDto(
     DateTimeOffset CreatedAtUtc
 );
 
+public record PublicBusinessHoursDto(
+    string DayOfWeek,
+    string OpenTime,
+    string CloseTime,
+    bool IsClosed
+);
+
 public record PublicStorefrontResponse(
     PublicProviderProfileDto Provider,
     IReadOnlyList<PublicLocationDto> Locations,
@@ -98,5 +105,7 @@ public record PublicStorefrontResponse(
     IReadOnlyList<PublicServiceDto> Services,
     IReadOnlyList<PublicProductDto> Products,
     IReadOnlyList<PublicStaffDto> Staff,
-    IReadOnlyList<PublicReviewDto> Reviews
+    IReadOnlyList<PublicReviewDto> Reviews,
+    IReadOnlyList<PublicBusinessHoursDto>? Hours = null
 );
+

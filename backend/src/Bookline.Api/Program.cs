@@ -95,6 +95,14 @@ builder.Services.AddScoped<Bookline.Application.Analytics.Handlers.AnalyticsHand
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISearchIntentService, Bookline.Infrastructure.Search.SearchIntentService>();
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IGeocodingProvider, Bookline.Infrastructure.Geo.GeocodingProvider>();
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IMapProvider, Bookline.Infrastructure.Maps.MapProvider>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IRelevanceScoreComponent, Bookline.Infrastructure.Search.Ranking.RelevanceScoreComponent>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IGeographicScoreComponent, Bookline.Infrastructure.Search.Ranking.GeographicScoreComponent>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IQualityScoreComponent, Bookline.Infrastructure.Search.Ranking.QualityScoreComponent>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ITrustScoreComponent, Bookline.Infrastructure.Search.Ranking.TrustScoreComponent>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IAvailabilityScoreComponent, Bookline.Infrastructure.Search.Ranking.AvailabilityScoreComponent>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IProviderRankingService, Bookline.Infrastructure.Search.Ranking.ProviderRankingService>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ILocationDiscoveryService, Bookline.Infrastructure.Geo.LocationDiscoveryService>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IProviderDiscoveryService, Bookline.Infrastructure.Search.ProviderDiscoveryService>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IProviderSearchService, Bookline.Infrastructure.Search.ProviderSearchService>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPaymentProvider, Bookline.Infrastructure.Payments.PaymentProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPayoutProvider, Bookline.Infrastructure.Payments.PayoutProvider>();

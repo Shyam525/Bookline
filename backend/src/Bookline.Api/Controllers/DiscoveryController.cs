@@ -16,15 +16,21 @@ namespace Bookline.Api.Controllers;
 public class DiscoveryController : ControllerBase
 {
     private readonly IProviderSearchService _searchService;
+    private readonly IProviderDiscoveryService _discoveryEngine;
+    private readonly ILocationDiscoveryService _locationDiscoveryService;
     private readonly IGeocodingProvider _geocodingProvider;
     private readonly BooklineDbContext _dbContext;
 
     public DiscoveryController(
         IProviderSearchService searchService,
+        IProviderDiscoveryService discoveryEngine,
+        ILocationDiscoveryService locationDiscoveryService,
         IGeocodingProvider geocodingProvider,
         BooklineDbContext dbContext)
     {
         _searchService = searchService;
+        _discoveryEngine = discoveryEngine;
+        _locationDiscoveryService = locationDiscoveryService;
         _geocodingProvider = geocodingProvider;
         _dbContext = dbContext;
     }
@@ -73,6 +79,112 @@ public class DiscoveryController : ControllerBase
 
         var response = await _searchService.SearchProvidersAsync(searchQuery, cancellationToken);
         return Ok(response);
+    }
+
+    [HttpGet("search")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Discover(
+        [FromQuery] string? q,
+        [FromQuery] string? category,
+        [FromQuery] string? service,
+        [FromQuery] string? placeId,
+        [FromQuery] string? city,
+        [FromQuery] string? area,
+        [FromQuery] string? postcode,
+        [FromQuery] double? lat,
+        [FromQuery] double? lng,
+        [FromQuery] double? radius,
+        [FromQuery] double? swLat,
+        [FromQuery] double? swLng,
+        [FromQuery] double? neLat,
+        [FromQuery] double? neLng,
+        [FromQuery] double? minRating,
+        [FromQuery] decimal? maxPrice,
+        [FromQuery] string? sort,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 12,
+        [FromQuery] bool includeMarkers = false,
+        CancellationToken cancellationToken = default)
+    {
+        ViewportBounds? viewport = null;
+        if (swLat.HasValue && swLng.HasValue && neLat.HasValue && neLng.HasValue)
+        {
+            viewport = new ViewportBounds(swLat.Value, swLng.Value, neLat.Value, neLng.Value);
+        }
+
+        PlaceSuggestionDto? selectedPlace = null;
+        if (!string.IsNullOrWhiteSpace(placeId))
+        {
+            selectedPlace = await _locationDiscoveryService.GetPlaceByIdAsync(placeId, cancellationToken);
+        }
+
+        double? radiusMeters = radius;
+        if (radiusMeters.HasValue && radiusMeters.Value > 0 && radiusMeters.Value <= 500.0)
+        {
+            radiusMeters *= 1000.0; // Automatically convert km to meters
+        }
+
+        var discoverySortMode = ParseSortMode(sort);
+
+        var query = new DiscoveryQuery(
+            QueryText: q,
+            CategorySlug: category,
+            ServiceSlug: service,
+            SelectedPlace: selectedPlace,
+            Latitude: lat,
+            Longitude: lng,
+            RadiusMeters: radiusMeters,
+            ViewportBounds: viewport,
+            MinimumRating: minRating,
+            MaximumPrice: maxPrice,
+            AvailabilityDate: null,
+            SortMode: discoverySortMode,
+            Page: page,
+            PageSize: pageSize,
+            IncludeMarkers: includeMarkers
+        );
+
+        var response = await _discoveryEngine.DiscoverProvidersAsync(query, cancellationToken);
+        return Ok(response);
+    }
+
+    [HttpGet("places")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SearchPlaces([FromQuery] string? q, CancellationToken cancellationToken = default)
+    {
+        var places = await _locationDiscoveryService.SearchPlacesAsync(q ?? string.Empty, cancellationToken);
+        return Ok(places);
+    }
+
+    [HttpPost("places/resolve")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResolveLocation([FromBody] LocationResolutionRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await _locationDiscoveryService.ResolveLocationAsync(request, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("places/cities")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetFeaturedDiscoveryCities(CancellationToken cancellationToken = default)
+    {
+        var cities = await _locationDiscoveryService.GetFeaturedCitiesAsync(cancellationToken);
+        return Ok(cities);
+    }
+
+    private static DiscoverySortMode ParseSortMode(string? sort)
+    {
+        if (string.IsNullOrWhiteSpace(sort)) return DiscoverySortMode.Recommended;
+        return sort.Trim().ToLowerInvariant() switch
+        {
+            "nearest" => DiscoverySortMode.Nearest,
+            "top rated" or "toprated" or "top_rated" => DiscoverySortMode.TopRated,
+            "most reviewed" or "mostreviewed" or "most_reviewed" => DiscoverySortMode.MostReviewed,
+            "earliest available" or "earliest" or "earliestavailable" or "earliest_available" => DiscoverySortMode.EarliestAvailable,
+            "lowest price" or "lowestprice" or "lowest_price" => DiscoverySortMode.LowestPrice,
+            "highest price" or "highestprice" or "highest_price" => DiscoverySortMode.HighestPrice,
+            _ => DiscoverySortMode.Recommended
+        };
     }
 
     [HttpGet("providers/{slug}")]

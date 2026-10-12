@@ -12,6 +12,7 @@ namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/discovery")]
+[Route("api/discovery")]
 [EnableRateLimiting("discovery-limit")]
 public class DiscoveryController : ControllerBase
 {
@@ -37,6 +38,8 @@ public class DiscoveryController : ControllerBase
 
     [HttpGet("providers")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Bookline.Application.Common.Models.ApiErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SearchProviders(
         [FromQuery] string? q,
         [FromQuery] string? category,
@@ -45,6 +48,8 @@ public class DiscoveryController : ControllerBase
         [FromQuery] double? lat,
         [FromQuery] double? lng,
         [FromQuery] double? radius,
+        [FromQuery] double? radiusMeters,
+        [FromQuery] string? bounds,
         [FromQuery] double? swLat,
         [FromQuery] double? swLng,
         [FromQuery] double? neLat,
@@ -52,11 +57,86 @@ public class DiscoveryController : ControllerBase
         [FromQuery] double? minRating,
         [FromQuery] decimal? maxPrice,
         [FromQuery] string? availability,
+        [FromQuery] string? availabilityDate,
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 12,
         CancellationToken cancellationToken = default)
     {
+        // 1. Validate geographic coordinate ranges
+        if (lat.HasValue && (lat.Value < -90.0 || lat.Value > 90.0))
+        {
+            return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                "INVALID_SEARCH_LOCATION",
+                "Latitude must be between -90.0 and +90.0 degrees.",
+                HttpContext.TraceIdentifier,
+                400
+            ));
+        }
+
+        if (lng.HasValue && (lng.Value < -180.0 || lng.Value > 180.0))
+        {
+            return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                "INVALID_SEARCH_LOCATION",
+                "Longitude must be between -180.0 and +180.0 degrees.",
+                HttpContext.TraceIdentifier,
+                400
+            ));
+        }
+
+        // 2. Parse bounds string if provided (format: "swLat,swLng,neLat,neLng")
+        if (!string.IsNullOrWhiteSpace(bounds))
+        {
+            var parts = bounds.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 4 &&
+                double.TryParse(parts[0], out var parsedSwLat) &&
+                double.TryParse(parts[1], out var parsedSwLng) &&
+                double.TryParse(parts[2], out var parsedNeLat) &&
+                double.TryParse(parts[3], out var parsedNeLng))
+            {
+                swLat = parsedSwLat;
+                swLng = parsedSwLng;
+                neLat = parsedNeLat;
+                neLng = parsedNeLng;
+            }
+            else
+            {
+                return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                    "INVALID_BOUNDING_BOX",
+                    "Bounds must be formatted as 'swLat,swLng,neLat,neLng'.",
+                    HttpContext.TraceIdentifier,
+                    400
+                ));
+            }
+        }
+
+        // 3. Validate bounding box coordinates
+        if (swLat.HasValue && neLat.HasValue && swLat.Value > neLat.Value)
+        {
+            return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                "INVALID_BOUNDING_BOX",
+                "Southwest latitude cannot exceed northeast latitude.",
+                HttpContext.TraceIdentifier,
+                400
+            ));
+        }
+
+        // 4. Validate radius
+        double? effectiveRadiusKm = radius;
+        if (radiusMeters.HasValue)
+        {
+            if (radiusMeters.Value <= 0)
+            {
+                return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                    "INVALID_RADIUS",
+                    "Radius must be a positive number.",
+                    HttpContext.TraceIdentifier,
+                    400
+                ));
+            }
+            effectiveRadiusKm = radiusMeters.Value / 1000.0;
+        }
+
         var searchQuery = new ProviderSearchQuery(
             Query: q,
             Category: category,
@@ -64,17 +144,17 @@ public class DiscoveryController : ControllerBase
             City: city,
             Latitude: lat,
             Longitude: lng,
-            RadiusKm: radius,
+            RadiusKm: effectiveRadiusKm,
             SwLat: swLat,
             SwLng: swLng,
             NeLat: neLat,
             NeLng: neLng,
             MinRating: minRating,
             MaxPrice: maxPrice,
-            Availability: availability,
+            Availability: availability ?? availabilityDate,
             Sort: sort,
-            Page: page,
-            PageSize: pageSize
+            Page: Math.Max(1, page),
+            PageSize: Math.Clamp(pageSize, 1, 50)
         );
 
         var response = await _searchService.SearchProvidersAsync(searchQuery, cancellationToken);

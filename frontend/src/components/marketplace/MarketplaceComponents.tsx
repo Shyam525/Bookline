@@ -19,151 +19,17 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 /* =========================================================================
- * 1. PROVIDER CARD & PREVIEW (Section 37, 105, 109, 110)
+ * 1. PROVIDER CARD & PREVIEW (Section 37, 105, 109, 110 & Phase 11)
  * ========================================================================= */
-export interface ProviderCardData {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  rating: number;
-  reviewCount: number;
-  city: string;
-  address?: string;
-  distanceKm?: number | null;
-  startingPrice: number;
-  currency?: string;
-  nextAvailableSlot?: string | null;
-  isVerified?: boolean;
-  coverImageUrl?: string | null;
-  servicesSummary?: string[];
-}
+import {
+  ProviderCard,
+  ProviderCardSkeleton,
+  type ProviderCardData,
+  type ProviderCardProps,
+} from './ProviderCard';
+export { ProviderCard, ProviderCardSkeleton };
+export type { ProviderCardData, ProviderCardProps };
 
-export interface ProviderCardProps {
-  provider: ProviderCardData;
-  isSelected?: boolean;
-  isHovered?: boolean;
-  onSelect?: () => void;
-  onHover?: (hovered: boolean) => void;
-  className?: string;
-}
-
-export const ProviderCard: React.FC<ProviderCardProps> = ({
-  provider,
-  isSelected = false,
-  isHovered = false,
-  onSelect,
-  onHover,
-  className = '',
-}) => {
-  const p = provider;
-  const locationArea = p.address?.split(',')[0] || p.city;
-  const formattedDistance = p.distanceKm != null ? `${p.distanceKm} km` : '1.2 km';
-  const servicesString =
-    p.servicesSummary && p.servicesSummary.length > 0
-      ? p.servicesSummary.slice(0, 3).join(' · ')
-      : 'Specialist Services Available';
-
-  return (
-    <div
-      onClick={onSelect}
-      onMouseEnter={() => onHover?.(true)}
-      onMouseLeave={() => onHover?.(false)}
-      className={twMerge(
-        clsx(
-          'p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row gap-5 select-none group',
-          isSelected || isHovered
-            ? 'border-[#E8546A] shadow-xl shadow-[#E8546A]/20 bg-[#151B27] ring-1 ring-[#E8546A]/40 -translate-y-0.5'
-            : 'border-[#273142] hover:border-[#344054] bg-[#111620] hover:bg-[#151B27]',
-          className
-        )
-      )}
-    >
-      {/* Cover Image / Category */}
-      <div className="w-full sm:w-44 h-36 rounded-xl bg-[#1A2130] border border-[#273142] overflow-hidden shrink-0 relative">
-        <ProviderImage
-          src={p.coverImageUrl}
-          alt={p.name}
-          type="cover"
-          category={p.category}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
-        <div className="absolute top-2 left-2 bg-[#090B10]/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-semibold text-[#ECEFFE] border border-[#212638]">
-          {p.category}
-        </div>
-      </div>
-
-      {/* Details */}
-      <div className="flex-1 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <div className="flex items-center gap-1.5 truncate">
-              <h3 className="font-heading text-lg font-bold text-[#F4F6FA] truncate group-hover:text-[#E8546A] transition-colors">
-                {p.name}
-              </h3>
-              {p.isVerified && (
-                <span title="Verified Business" className="inline-flex items-center">
-                  <CheckCircle className="w-4 h-4 text-[#34D399] shrink-0" />
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 text-xs text-[#ECEFFE] font-medium mb-1">
-            <span className="text-[#FBBF24] font-bold">{p.rating.toFixed(1)} ★</span>
-            <span className="text-[#8F9AAF]">&middot;</span>
-            <span className="text-[#8F9AAF]">{p.reviewCount} reviews</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs text-[#8F9AAF] mb-2">
-            <span className="text-[#34D399] font-medium">{formattedDistance}</span>
-            <span>&middot;</span>
-            <span className="truncate">{locationArea}</span>
-          </div>
-
-          <div className="text-xs text-[#C3CAD6] font-medium mb-2.5 truncate">
-            {servicesString}
-          </div>
-        </div>
-
-        {/* Footer info & CTA */}
-        <div className="pt-3 border-t border-[#273142] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <div>
-              <span className="text-[11px] text-[#8F9AAF] block">Next available</span>
-              <span className="text-xs font-semibold text-[#F4F6FA] flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-[#FBBF24]" />
-                {p.nextAvailableSlot || 'Check schedule'}
-              </span>
-            </div>
-            <div className="border-l border-[#273142] pl-3">
-              <span className="text-[11px] text-[#8F9AAF] block">From</span>
-              <span className="text-sm font-bold text-[#34D399]">
-                From {p.currency || '₹'}{p.startingPrice}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0">
-            <Link
-              to={`/business/${p.slug}`}
-              className="flex-1 sm:flex-initial min-h-[40px] px-4 py-2 rounded-xl border border-[#273142] hover:bg-[#1A2130] text-xs font-semibold text-[#F4F6FA] transition-colors flex items-center justify-center"
-            >
-              Profile
-            </Link>
-            <Link
-              to={`/business/${p.slug}?book=true`}
-              className="flex-1 sm:flex-initial min-h-[40px] px-5 py-2 rounded-xl bg-[#E8546A] hover:bg-[#F06A7D] text-xs font-bold text-white transition-all shadow-md shadow-[#E8546A]/20 flex items-center justify-center gap-1.5"
-            >
-              Book Now
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export const ProviderGrid: React.FC<{ children: React.ReactNode; className?: string }> = ({
   children,
@@ -440,7 +306,7 @@ export const SortSelector: React.FC<SortSelectorProps> = ({
  * 5. MAP VIEW PRIMITIVES (MapMarker, MapCluster, ProviderPreview)
  * ========================================================================= */
 export interface MapMarkerProps {
-  price: number;
+  price?: number | null;
   currency?: string;
   isVerified?: boolean;
   isSelected?: boolean;
@@ -475,7 +341,7 @@ export const MapMarker: React.FC<MapMarkerProps> = ({
             : 'bg-[#151B27] hover:bg-[#1A2130] text-[#F4F6FA] border border-[#273142]'
         )}
       >
-        <span>{currency}{price}</span>
+        <span>{price != null && price > 0 ? `${currency}${price}` : '★'}</span>
         {isVerified && <CheckCircle className="w-3 h-3 text-[#34D399]" />}
       </div>
       <div
@@ -520,7 +386,7 @@ export const ProviderPreview: React.FC<{
         </div>
         <div className="flex items-center gap-1 bg-[#1A2130] px-1.5 py-0.5 rounded text-[11px] font-bold text-[#FBBF24]">
           <Star className="w-3 h-3 fill-current" />
-          <span>{provider.rating.toFixed(1)}</span>
+          <span>{provider.rating != null && provider.rating > 0 ? provider.rating.toFixed(1) : 'New'}</span>
         </div>
       </div>
 

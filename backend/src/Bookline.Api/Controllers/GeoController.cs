@@ -1,5 +1,6 @@
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
+using Bookline.Application.Discovery.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -80,6 +81,23 @@ public class GeoController : ControllerBase
         }
 
         var city = await _geocodingProvider.ReverseGeocodeAsync(lat.Value, lng.Value, cancellationToken);
-        return Ok(new { City = city ?? "Ahmedabad", Latitude = lat.Value, Longitude = lng.Value });
+        var places = await _locationDiscoveryService.SearchPlacesAsync(city ?? "Ahmedabad", cancellationToken);
+        var placeMatch = places.FirstOrDefault(p => p.Type == LocationType.City)
+            ?? new Bookline.Application.Discovery.Dtos.PlaceSuggestionDto(
+                PlaceId: $"rev-{lat.Value:F4}-{lng.Value:F4}",
+                DisplayName: $"{city ?? "Ahmedabad"}, India",
+                City: city ?? "Ahmedabad",
+                Area: null,
+                PostalCode: null,
+                State: "Gujarat",
+                Country: "India",
+                Latitude: lat.Value,
+                Longitude: lng.Value,
+                Type: Bookline.Application.Discovery.Dtos.LocationType.City,
+                ViewportBounds: null,
+                SuggestedRadiusMeters: 15000.0
+            );
+
+        return Ok(placeMatch);
     }
 }

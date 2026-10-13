@@ -302,6 +302,45 @@ export const ProviderStorefrontPage: React.FC = () => {
         location: selectedLocation ? `${selectedLocation.name}, ${selectedLocation.address}` : storefront?.provider.address,
       };
 
+      // Persist to local customer state so Appointments and Notifications pages reflect it
+      try {
+        const appointmentItem = {
+          id: booking.id,
+          bookingReference: bookingRecord.reference,
+          tenantId: storefront?.provider.id || '',
+          providerName: storefront?.provider.name || 'Provider',
+          providerSlug: storefront?.provider.slug || '',
+          locationName: selectedLocation ? selectedLocation.name : (storefront?.provider.address || ''),
+          serviceName: selectedService.name,
+          staffName: staffMember.name,
+          startUtc: selectedSlotUtc,
+          endUtc: new Date(new Date(selectedSlotUtc).getTime() + (selectedService.durationMinutes || 60) * 60000).toISOString(),
+          status: 'Confirmed',
+          totalPrice: selectedService.price,
+          depositPaid: 0,
+          currency: selectedService.currency || '₹',
+          createdAtUtc: new Date().toISOString(),
+          minimumNoticeHours: 4,
+        };
+        const prevApts = JSON.parse(localStorage.getItem('bookline_customer_appointments') || '[]');
+        localStorage.setItem('bookline_customer_appointments', JSON.stringify([appointmentItem, ...prevApts]));
+
+        const notifItem = {
+          id: `notif-${Date.now()}`,
+          title: 'Appointment Confirmed & Guaranteed',
+          message: `Your ${selectedService.name} session with ${staffMember.name} at ${storefront?.provider.name} is confirmed for ${selectedDate}, ${selectedSlot}.`,
+          timestamp: 'Just now',
+          read: false,
+          type: 'booking',
+          link: '/appointments',
+          referenceId: bookingRecord.reference,
+        };
+        const prevNotifs = JSON.parse(localStorage.getItem('bookline_customer_notifications') || '[]');
+        localStorage.setItem('bookline_customer_notifications', JSON.stringify([notifItem, ...prevNotifs]));
+      } catch (storageErr) {
+        // localStorage non-blocking fallback
+      }
+
       setConfirmedBooking(bookingRecord);
       setBookingStep(5);
     } catch (err: any) {

@@ -28,7 +28,7 @@ interface NotificationItem {
 export const CustomerNotificationsPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'unread' | 'booking' | 'order' | 'reminder'>('all');
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
+  const defaultNotifications: NotificationItem[] = [
     {
       id: 'notif-1',
       title: 'Appointment Confirmed & Guaranteed',
@@ -36,7 +36,7 @@ export const CustomerNotificationsPage: React.FC = () => {
       timestamp: '1 hour ago',
       read: false,
       type: 'booking',
-      link: '/appointments/apt-seed-1',
+      link: '/appointments',
       referenceId: 'BL-849201',
     },
     {
@@ -46,7 +46,7 @@ export const CustomerNotificationsPage: React.FC = () => {
       timestamp: '5 hours ago',
       read: false,
       type: 'order',
-      link: '/orders/ord-seed-1',
+      link: '/orders',
       referenceId: 'ORD-948210',
     },
     {
@@ -56,7 +56,7 @@ export const CustomerNotificationsPage: React.FC = () => {
       timestamp: '1 day ago',
       read: true,
       type: 'reminder',
-      link: '/appointments/apt-seed-2',
+      link: '/appointments',
       referenceId: 'BL-938102',
     },
     {
@@ -78,20 +78,44 @@ export const CustomerNotificationsPage: React.FC = () => {
       type: 'system',
       link: '/discover',
     },
-  ]);
+  ];
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('bookline_customer_notifications');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const storedIds = new Set(parsed.map((p: any) => p.id));
+        const unseeded = defaultNotifications.filter((d) => !storedIds.has(d.id));
+        return [...parsed, ...unseeded];
+      }
+    } catch {
+      // ignore
+    }
+    return defaultNotifications;
+  });
+
+  const persistNotifications = (updated: NotificationItem[]) => {
+    setNotifications(updated);
+    try {
+      localStorage.setItem('bookline_customer_notifications', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
 
   const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+    persistNotifications(notifications.map((item) => ({ ...item, read: true })));
   };
 
   const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, read: true } : item))
+    persistNotifications(
+      notifications.map((item) => (item.id === id ? { ...item, read: true } : item))
     );
   };
 
   const clearAllNotifications = () => {
-    setNotifications([]);
+    persistNotifications([]);
   };
 
   const filteredNotifications = notifications.filter((item) => {

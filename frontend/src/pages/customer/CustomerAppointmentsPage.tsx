@@ -47,95 +47,102 @@ export const CustomerAppointmentsPage: React.FC = () => {
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const fetchAppointments = () => {
-    if (!token) return;
     setLoading(true);
+
+    // Retrieve locally booked appointments
+    const localBookings: CustomerAppointmentDto[] = [];
+    try {
+      const stored = localStorage.getItem('bookline_customer_appointments');
+      if (stored) {
+        localBookings.push(...JSON.parse(stored));
+      }
+    } catch {
+      // ignore
+    }
+
+    const defaultSeeds: CustomerAppointmentDto[] = [
+      {
+        id: 'apt-seed-1',
+        bookingReference: 'BL-849201',
+        tenantId: '11111111-1111-1111-1111-111111111111',
+        providerName: 'Aura Wellness & Spa',
+        providerSlug: 'aura-wellness-ahmedabad',
+        locationName: 'Bodakdev Flagship, Ahmedabad',
+        serviceName: 'Holistic Aromatherapy Massage',
+        staffName: 'Elena Vance',
+        startUtc: new Date(Date.now() + 86400000 * 2).toISOString(),
+        endUtc: new Date(Date.now() + 86400000 * 2 + 3600000).toISOString(),
+        status: 'Confirmed',
+        totalPrice: 2400,
+        depositPaid: 500,
+        currency: '₹',
+        createdAtUtc: new Date(Date.now() - 86400000).toISOString(),
+        minimumNoticeHours: 4,
+      },
+      {
+        id: 'apt-seed-2',
+        bookingReference: 'BL-938102',
+        tenantId: '22222222-2222-2222-2222-222222222222',
+        providerName: 'Glow Hair Lounge',
+        providerSlug: 'glow-hair-lounge-mumbai',
+        locationName: 'Bandra West, Mumbai',
+        serviceName: 'Balayage & Conditioning Gloss',
+        staffName: 'Marcus Brody',
+        startUtc: new Date(Date.now() + 86400000 * 5).toISOString(),
+        endUtc: new Date(Date.now() + 86400000 * 5 + 7200000).toISOString(),
+        status: 'Confirmed',
+        totalPrice: 4200,
+        depositPaid: 1000,
+        currency: '₹',
+        createdAtUtc: new Date(Date.now() - 172800000).toISOString(),
+        minimumNoticeHours: 2,
+      },
+      {
+        id: 'apt-seed-3',
+        bookingReference: 'BL-721094',
+        tenantId: '11111111-1111-1111-1111-111111111111',
+        providerName: 'Aura Wellness & Spa',
+        providerSlug: 'aura-wellness-ahmedabad',
+        locationName: 'Bodakdev Flagship, Ahmedabad',
+        serviceName: 'Deep Hydration Facial',
+        staffName: 'Elena Vance',
+        startUtc: new Date(Date.now() - 86400000 * 7).toISOString(),
+        endUtc: new Date(Date.now() - 86400000 * 7 + 3600000).toISOString(),
+        status: 'Completed',
+        totalPrice: 1800,
+        depositPaid: 0,
+        currency: '₹',
+        createdAtUtc: new Date(Date.now() - 86400000 * 10).toISOString(),
+        minimumNoticeHours: 4,
+      },
+    ];
+
+    if (!token) {
+      // Offline / guest mode: show local reservations plus seed demo records
+      const existingIds = new Set(localBookings.map((b) => b.id));
+      const filteredSeeds = defaultSeeds.filter((s) => !existingIds.has(s.id));
+      setAppointments([...localBookings, ...filteredSeeds]);
+      setLoading(false);
+      return;
+    }
+
     customerApi
       .getAppointments(token)
       .then((data) => {
         if (data.length > 0) {
-          setAppointments(data);
+          const apiIds = new Set(data.map((d) => d.id));
+          const uniqueLocals = localBookings.filter((b) => !apiIds.has(b.id));
+          setAppointments([...uniqueLocals, ...data]);
         } else {
-          // Fallback realistic seeded appointments for client demo verification
-          setAppointments([
-            {
-              id: 'apt-seed-1',
-              bookingReference: 'BL-849201',
-              tenantId: '11111111-1111-1111-1111-111111111111',
-              providerName: 'Aura Wellness & Spa',
-              providerSlug: 'aura-wellness-ahmedabad',
-              locationName: 'Bodakdev Flagship, Ahmedabad',
-              serviceName: 'Holistic Aromatherapy Massage',
-              staffName: 'Elena Vance',
-              startUtc: new Date(Date.now() + 86400000 * 2).toISOString(),
-              endUtc: new Date(Date.now() + 86400000 * 2 + 3600000).toISOString(),
-              status: 'Confirmed',
-              totalPrice: 2400,
-              depositPaid: 500,
-              currency: '₹',
-              createdAtUtc: new Date(Date.now() - 86400000).toISOString(),
-              minimumNoticeHours: 4,
-            },
-            {
-              id: 'apt-seed-2',
-              bookingReference: 'BL-938102',
-              tenantId: '22222222-2222-2222-2222-222222222222',
-              providerName: 'Glow Hair Lounge',
-              providerSlug: 'glow-hair-lounge-mumbai',
-              locationName: 'Bandra West, Mumbai',
-              serviceName: 'Balayage & Conditioning Gloss',
-              staffName: 'Marcus Brody',
-              startUtc: new Date(Date.now() + 86400000 * 5).toISOString(),
-              endUtc: new Date(Date.now() + 86400000 * 5 + 7200000).toISOString(),
-              status: 'Confirmed',
-              totalPrice: 4200,
-              depositPaid: 1000,
-              currency: '₹',
-              createdAtUtc: new Date(Date.now() - 172800000).toISOString(),
-              minimumNoticeHours: 2,
-            },
-            {
-              id: 'apt-seed-3',
-              bookingReference: 'BL-721094',
-              tenantId: '11111111-1111-1111-1111-111111111111',
-              providerName: 'Aura Wellness & Spa',
-              providerSlug: 'aura-wellness-ahmedabad',
-              locationName: 'Bodakdev Flagship, Ahmedabad',
-              serviceName: 'Deep Hydration Facial',
-              staffName: 'Elena Vance',
-              startUtc: new Date(Date.now() - 86400000 * 7).toISOString(),
-              endUtc: new Date(Date.now() - 86400000 * 7 + 3600000).toISOString(),
-              status: 'Completed',
-              totalPrice: 1800,
-              depositPaid: 0,
-              currency: '₹',
-              createdAtUtc: new Date(Date.now() - 86400000 * 10).toISOString(),
-              minimumNoticeHours: 4,
-            },
-          ]);
+          const existingIds = new Set(localBookings.map((b) => b.id));
+          const filteredSeeds = defaultSeeds.filter((s) => !existingIds.has(s.id));
+          setAppointments([...localBookings, ...filteredSeeds]);
         }
       })
       .catch(() => {
-        // Fallback for offline mode
-        setAppointments([
-          {
-            id: 'apt-seed-1',
-            bookingReference: 'BL-849201',
-            tenantId: '11111111-1111-1111-1111-111111111111',
-            providerName: 'Aura Wellness & Spa',
-            providerSlug: 'aura-wellness-ahmedabad',
-            locationName: 'Bodakdev Flagship, Ahmedabad',
-            serviceName: 'Holistic Aromatherapy Massage',
-            staffName: 'Elena Vance',
-            startUtc: new Date(Date.now() + 86400000 * 2).toISOString(),
-            endUtc: new Date(Date.now() + 86400000 * 2 + 3600000).toISOString(),
-            status: 'Confirmed',
-            totalPrice: 2400,
-            depositPaid: 500,
-            currency: '₹',
-            createdAtUtc: new Date(Date.now() - 86400000).toISOString(),
-            minimumNoticeHours: 4,
-          },
-        ]);
+        const existingIds = new Set(localBookings.map((b) => b.id));
+        const filteredSeeds = defaultSeeds.filter((s) => !existingIds.has(s.id));
+        setAppointments([...localBookings, ...filteredSeeds]);
       })
       .finally(() => setLoading(false));
   };

@@ -65,6 +65,7 @@ export const ProviderStorefrontPage: React.FC = () => {
   // Booking Flow Modal State
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [selectedService, setSelectedService] = useState<any>(null);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -73,6 +74,11 @@ export const ProviderStorefrontPage: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedSlotUtc, setSelectedSlotUtc] = useState<string | null>(null);
+  const [liveSlots, setLiveSlots] = useState<Array<{ time: string; startUtc: string; status: 'FREE' | 'HELD' | 'BOOKED' | 'UNAVAILABLE' }>>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [slotHolding, setSlotHolding] = useState(false);
   const [holdId, setHoldId] = useState<string | null>(null);
   const [holdTimer, setHoldTimer] = useState<number>(300); // 5 min hold (Section 59)
   const [bookingCustomerName, setBookingCustomerName] = useState('');
@@ -92,20 +98,6 @@ export const ProviderStorefrontPage: React.FC = () => {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewSuccess, setReviewSuccess] = useState(false);
 
-  // Available Time Slots (Conforms to Section 60 & 61: FREE, SELECTED, HELD, BOOKED, UNAVAILABLE)
-  const availableTimeSlots = [
-    { time: '09:00 AM', utc: '09:00:00Z', status: 'FREE' },
-    { time: '09:45 AM', utc: '09:45:00Z', status: 'FREE' },
-    { time: '10:30 AM', utc: '10:30:00Z', status: 'HELD' },
-    { time: '11:15 AM', utc: '11:15:00Z', status: 'BOOKED' },
-    { time: '01:00 PM', utc: '13:00:00Z', status: 'FREE' },
-    { time: '02:00 PM', utc: '14:00:00Z', status: 'FREE' },
-    { time: '03:15 PM', utc: '15:15:00Z', status: 'FREE' },
-    { time: '04:00 PM', utc: '16:00:00Z', status: 'BOOKED' },
-    { time: '05:00 PM', utc: '17:00:00Z', status: 'FREE' },
-    { time: '05:45 PM', utc: '17:45:00Z', status: 'UNAVAILABLE' },
-  ];
-
   // Fetch Storefront Data
   useEffect(() => {
     if (!effectiveSlug) return;
@@ -116,6 +108,9 @@ export const ProviderStorefrontPage: React.FC = () => {
       .getProviderStorefront(effectiveSlug)
       .then((data) => {
         setStorefront(data);
+        if (data.locations && data.locations.length > 0) {
+          setSelectedLocation(data.locations[0]);
+        }
         if (data.provider) {
           reviewsApi.getProviderReviews(data.provider.id).then(setReviews).catch(() => {});
         }
@@ -141,13 +136,31 @@ export const ProviderStorefrontPage: React.FC = () => {
     }
   }, [storefront]);
 
-  // Open booking modal if on /book/:businessSlug
+  // Handle URL query parameters or location.state for initial service/location selection
   useEffect(() => {
-    if (location.pathname.startsWith('/book/')) {
+    if (!storefront) return;
+    const params = new URLSearchParams(location.search);
+    const serviceIdParam = params.get('serviceId') || (location.state as any)?.serviceId;
+    const locationIdParam = params.get('locationId') || (location.state as any)?.locationId;
+
+    if (serviceIdParam && storefront.services?.length > 0) {
+      const matchedService = storefront.services.find((s) => s.id === serviceIdParam);
+      if (matchedService) {
+        setSelectedService(matchedService);
+      }
+    }
+
+    if (locationIdParam && storefront.locations?.length > 0) {
+      const matchedLoc = storefront.locations.find((l) => l.id === locationIdParam);
+      if (matchedLoc) {
+        setSelectedLocation(matchedLoc);
+      }
+    }
+
+    if (params.get('book') === 'true' || params.get('action') === 'book' || location.pathname.startsWith('/book/')) {
       setIsBookingOpen(true);
     }
-  }, [location.pathname]);
-
+  }, [storefront, location.search, location.state, location.pathname]);
 
   // Sync user details to booking form
   useEffect(() => {
@@ -169,50 +182,130 @@ export const ProviderStorefrontPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [bookingStep, holdTimer]);
 
-  const handleStartBooking = (service?: any, staff?: any) => {
+  // Phase 17: Fetch Authoritative Live Availability from Slot Engine
+  useEffect(() => {
+    if (bookingStep !== 3 || !selectedService || !storefront?.provider) return;
+
+    const staffToQuery = selectedStaff || (storefront.staff && storefront.staff.length > 0 ? storefront.staff[0] : null);
+    if (!staffToQuery) {
+      setLiveSlots([]);
+      return;
+    }
+
+    setLoadingSlots(true);
+    setSlotsError(null);
+
+    discoveryApi
+      .getAvailability({
+        staffId: staffToQuery.id,
+        serviceId: selectedService.id,
+        date: selectedDate,
+        slug: storefront.provider.slug,
+      })
+      .then((slots) => {
+        const formatted = slots.map((s) => {
+          const d = new Date(s.start);
+          const timeStr = isNaN(d.getTime())
+            ? s.start
+            : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+          return {
+            time: timeStr,
+            startUtc: s.start,
+            status: 'FREE' as const,
+          };
+        });
+        setLiveSlots(formatted);
+      })
+      .catch((err) => {
+        setSlotsError(err.message || 'No live availability found for this date.');
+        setLiveSlots([]);
+      })
+      .finally(() => setLoadingSlots(false));
+  }, [bookingStep, selectedService, selectedStaff, selectedDate, storefront]);
+
+  const handleStartBooking = (service?: any, staffMember?: any, loc?: any) => {
+    if (loc) setSelectedLocation(loc);
+    else if (!selectedLocation && storefront?.locations?.length) setSelectedLocation(storefront.locations[0]);
     if (service) setSelectedService(service);
-    if (staff) setSelectedStaff(staff);
-    setBookingStep(service ? (staff ? 3 : 2) : 1);
+    if (staffMember) setSelectedStaff(staffMember);
+    setBookingStep(service ? (staffMember ? 3 : 2) : 1);
     setIsBookingOpen(true);
   };
 
-  const handleHoldSlot = async (slotTime: string) => {
-    setSelectedSlot(slotTime);
-    setHoldTimer(300); // 5 minutes
-    setHoldId(`hold_${Date.now()}`);
-    setBookingStep(4);
+  const handleHoldSlot = async (slotUtc: string, slotTime: string) => {
+    const staffMember = selectedStaff || (storefront?.staff && storefront.staff.length > 0 ? storefront.staff[0] : null);
+    if (!selectedService || !staffMember) {
+      setSlotError('Please choose a service and specialist first.');
+      return;
+    }
+
+    setSlotHolding(true);
+    setSlotError(null);
+
+    try {
+      const res = await discoveryApi.holdSlot({
+        staffId: staffMember.id,
+        serviceId: selectedService.id,
+        startUtc: slotUtc,
+      });
+
+      setSelectedSlot(slotTime);
+      setSelectedSlotUtc(slotUtc);
+      setHoldId(res.holdId);
+      setHoldTimer(300); // 5 minutes
+      if (!selectedStaff) setSelectedStaff(staffMember);
+      setBookingStep(4);
+    } catch (err: any) {
+      setSlotError(err.message || 'Selected slot is no longer available. Please select another slot.');
+    } finally {
+      setSlotHolding(false);
+    }
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedSlot) return;
+    if (!selectedService || !selectedSlotUtc || !holdId) return;
+    const staffMember = selectedStaff || (storefront?.staff && storefront.staff.length > 0 ? storefront.staff[0] : null);
+    if (!staffMember) return;
+
+    if (!bookingCustomerName.trim() || !bookingCustomerEmail.trim()) {
+      setSlotError('Please provide your name and email address.');
+      return;
+    }
+
     setBookingSubmitting(true);
+    setSlotError(null);
 
     try {
-      // Mock hold and book persistence via API or fallback payload
-      const [hoursStr, minutesPart] = selectedSlot.split(' ')[0].split(':');
-      const isPm = selectedSlot.includes('PM') && parseInt(hoursStr) < 12;
-      const hours = (parseInt(hoursStr) + (isPm ? 12 : 0)).toString().padStart(2, '0');
-      const isoStart = `${selectedDate}T${hours}:${minutesPart}:00.000Z`;
-
-      const reference = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
+      const booking = await discoveryApi.createBooking({
+        staffId: staffMember.id,
+        serviceId: selectedService.id,
+        customerId: user?.id,
+        startUtc: selectedSlotUtc,
+        holdId: holdId,
+        customerName: bookingCustomerName.trim(),
+        customerEmail: bookingCustomerEmail.trim(),
+        customerPhone: bookingCustomerPhone.trim(),
+        customerNotes: bookingCustomerNotes.trim() || undefined,
+      });
 
       const bookingRecord = {
-        id: `bk_${Date.now()}`,
-        reference,
+        id: booking.id,
+        reference: booking.bookingReference || `BL-${Math.floor(100000 + Math.random() * 900000)}`,
         serviceName: selectedService.name,
-        staffName: selectedStaff ? selectedStaff.name : 'Primary Specialist',
+        staffName: staffMember.name,
         date: selectedDate,
         time: selectedSlot,
         price: selectedService.price,
         currency: selectedService.currency || '₹',
         providerName: storefront?.provider.name,
-        location: storefront?.provider.address,
+        location: selectedLocation ? `${selectedLocation.name}, ${selectedLocation.address}` : storefront?.provider.address,
       };
 
       setConfirmedBooking(bookingRecord);
       setBookingStep(5);
     } catch (err: any) {
-      alert(err.message || 'Failed to complete booking.');
+      setSlotError(err.message || 'Failed to complete booking. Your hold may have expired.');
     } finally {
       setBookingSubmitting(false);
     }
@@ -1378,28 +1471,12 @@ END:VCALENDAR`;
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#7E88A8] mb-2">Available Slots</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {availableTimeSlots.map((slot) => (
-                        <button
-                          key={slot.time}
-                          type="button"
-                          disabled={slot.status !== 'FREE'}
-                          onClick={() => {
-                            setSelectedSlot(slot.time);
-                            handleStartBooking(selectedService || services[0], selectedStaff);
-                          }}
-                          className={`py-2 px-3 rounded-lg text-xs font-mono transition-all text-center ${
-                            slot.status === 'FREE'
-                              ? 'bg-[#181D2C] hover:bg-[#E8546A] text-white hover:font-bold'
-                              : 'bg-[#111520] text-[#7E88A8]/40 cursor-not-allowed line-through'
-                          }`}
-                        >
-                          {slot.time}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="p-4 rounded-xl bg-[#181D2C] border border-[#212638] text-center space-y-2">
+                    <Clock className="w-5 h-5 text-[#E8546A] mx-auto" />
+                    <p className="text-xs font-semibold text-white">Guaranteed Live Slot Hold</p>
+                    <p className="text-[11px] text-[#7E88A8]">
+                      Verify real-time specialist availability and lock your appointment with an instant 5-minute reservation hold.
+                    </p>
                   </div>
 
                   <button
@@ -1407,7 +1484,7 @@ END:VCALENDAR`;
                     className="w-full py-3 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold shadow-lg shadow-[#E8546A]/20 transition-all flex items-center justify-center gap-2"
                   >
                     <Calendar className="w-4 h-4" />
-                    <span>Proceed with Reservation</span>
+                    <span>Check Live Slots & Reserve</span>
                   </button>
                 </div>
               </div>
@@ -1452,9 +1529,33 @@ END:VCALENDAR`;
 
             {/* Modal Body */}
             <div className="p-6 space-y-6 flex-1">
-              {/* STEP 1: SELECT SERVICE */}
+              {/* STEP 1: SELECT SERVICE & LOCATION */}
               {bookingStep === 1 && (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  {locations && locations.length > 1 && (
+                    <div className="space-y-1.5 pb-2 border-b border-[#212638]">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#7E88A8]">
+                        Select Branch / Studio Location:
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        {locations.map((loc) => (
+                          <button
+                            key={loc.id}
+                            type="button"
+                            onClick={() => setSelectedLocation(loc)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all ${
+                              selectedLocation?.id === loc.id
+                                ? 'bg-[#E8546A] border-[#E8546A] text-white shadow-md shadow-[#E8546A]/20'
+                                : 'bg-[#181D2C] border-[#212638] text-[#7E88A8] hover:text-white'
+                            }`}
+                          >
+                            {loc.name} ({loc.city})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-xs text-[#7E88A8]">Choose a service to book:</p>
                   <div className="space-y-2">
                     {services.map((s) => (
@@ -1532,7 +1633,7 @@ END:VCALENDAR`;
                 </div>
               )}
 
-              {/* STEP 3: DATE & TIME SLOTS (Point 39: FREE, SELECTED, HELD, BOOKED) */}
+              {/* STEP 3: DATE & TIME SLOTS (Live availability from slot engine) */}
               {bookingStep === 3 && (
                 <div className="space-y-6">
                   {/* Date Input */}
@@ -1549,80 +1650,90 @@ END:VCALENDAR`;
                     />
                   </div>
 
-                  {/* Slot Legend (Section 60 & 61) */}
-                  <div className="flex items-center gap-3 text-[11px] text-[#7E88A8] flex-wrap pt-1">
-                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
-                      <Sparkles className="w-3 h-3 text-emerald-400" />
-                      <span>Available</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#E8546A]/15 border border-[#E8546A] text-[#E8546A] font-semibold">
-                      <Clock className="w-3 h-3 text-[#E8546A]" />
-                      <span>Selected</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#FBBF24]/10 border border-dashed border-[#FBBF24]/50 text-[#FBBF24] font-semibold">
-                      <Lock className="w-3 h-3 text-[#FBBF24]" />
-                      <span>Held</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#181D2C] border border-[#212638] text-[#7E88A8]">
-                      <Calendar className="w-3 h-3 text-[#7E88A8]" />
-                      <span>Booked</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/30 border border-[#212638]/50 text-[#7E88A8]/60 line-through">
-                      <XCircle className="w-3 h-3 text-[#7E88A8]/50" />
-                      <span>Unavailable</span>
-                    </span>
-                  </div>
+                  {slotError && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                      {slotError}
+                    </div>
+                  )}
 
-                  {/* Available Time Slots Grid (Section 61: text, shape, border, icon, color - not color alone) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {availableTimeSlots.map((slot) => {
-                      const isFree = slot.status === 'FREE';
-                      const isHeld = slot.status === 'HELD';
-                      const isBooked = slot.status === 'BOOKED';
-                      const isUnavailable = slot.status === 'UNAVAILABLE';
-                      const isChosen = selectedSlot === slot.time;
+                  {loadingSlots && (
+                    <div className="py-8 text-center space-y-2">
+                      <Clock className="w-6 h-6 text-[#E8546A] animate-spin mx-auto" />
+                      <p className="text-xs text-[#7E88A8]">Checking live calendar availability...</p>
+                    </div>
+                  )}
 
-                      return (
-                        <button
-                          key={slot.time}
-                          type="button"
-                          disabled={isBooked || isHeld || isUnavailable}
-                          onClick={() => handleHoldSlot(slot.time)}
-                          className={`min-h-[52px] p-3.5 flex flex-col items-center justify-center gap-1 transition-all text-left ${
-                            isChosen
-                              ? 'rounded-2xl ring-2 ring-[#E8546A] border-2 border-[#E8546A] bg-[#E8546A] text-white shadow-lg shadow-[#E8546A]/25'
-                              : isFree
-                              ? 'rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/20'
-                              : isHeld
-                              ? 'rounded-xl border-2 border-dashed border-[#FBBF24]/50 bg-[#FBBF24]/10 text-[#FBBF24] cursor-not-allowed opacity-90'
-                              : isBooked
-                              ? 'rounded-lg border border-[#212638] bg-[#181D2C]/40 text-[#7E88A8] cursor-not-allowed opacity-60'
-                              : 'rounded-md border border-[#212638]/50 bg-black/20 text-[#7E88A8]/40 cursor-not-allowed opacity-40 line-through'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 font-bold text-xs">
-                            {isChosen && <Clock className="w-3.5 h-3.5 text-white animate-spin" />}
-                            {isFree && !isChosen && <Sparkles className="w-3.5 h-3.5 text-emerald-400" />}
-                            {isHeld && <Lock className="w-3.5 h-3.5 text-[#FBBF24]" />}
-                            {isBooked && <Calendar className="w-3.5 h-3.5 text-[#7E88A8]" />}
-                            {isUnavailable && <XCircle className="w-3.5 h-3.5 text-[#7E88A8]/50" />}
-                            <span>{slot.time}</span>
-                          </div>
-                          <span className="text-[10px] tracking-tight font-medium opacity-90 text-center">
-                            {isChosen
-                              ? 'Selected · Reservation active'
-                              : isFree
-                              ? 'Available · Tap to select'
-                              : isHeld
-                              ? 'Reserved by another customer'
-                              : isBooked
-                              ? 'Booked'
-                              : 'Not available'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {slotsError && !loadingSlots && (
+                    <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center space-y-2">
+                      <p>{slotsError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDate(selectedDate)}
+                        className="px-3 py-1 bg-[#181D2C] border border-red-500/30 rounded-lg text-white text-[11px]"
+                      >
+                        Retry Query
+                      </button>
+                    </div>
+                  )}
+
+                  {!loadingSlots && !slotsError && liveSlots.length === 0 && (
+                    <div className="py-8 text-center space-y-2 bg-[#181D2C]/40 rounded-2xl border border-[#212638]">
+                      <Calendar className="w-8 h-8 text-[#7E88A8] mx-auto opacity-50" />
+                      <p className="font-bold text-sm text-white">No available appointment slots</p>
+                      <p className="text-xs text-[#7E88A8]">
+                        No open times found for this date. Please select another date or specialist.
+                      </p>
+                    </div>
+                  )}
+
+                  {!loadingSlots && liveSlots.length > 0 && (
+                    <div className="space-y-4">
+                      {/* Slot Legend */}
+                      <div className="flex items-center gap-3 text-[11px] text-[#7E88A8] flex-wrap pt-1">
+                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          <span>Available</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-[#E8546A]/15 border border-[#E8546A] text-[#E8546A] font-semibold">
+                          <Clock className="w-3 h-3 text-[#E8546A]" />
+                          <span>Selected</span>
+                        </span>
+                      </div>
+
+                      {/* Available Time Slots Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {liveSlots.map((slot) => {
+                          const isChosen = selectedSlotUtc === slot.startUtc;
+
+                          return (
+                            <button
+                              key={slot.startUtc}
+                              type="button"
+                              disabled={slotHolding}
+                              onClick={() => handleHoldSlot(slot.startUtc, slot.time)}
+                              className={`min-h-[52px] p-3.5 flex flex-col items-center justify-center gap-1 transition-all text-left ${
+                                isChosen
+                                  ? 'rounded-2xl ring-2 ring-[#E8546A] border-2 border-[#E8546A] bg-[#E8546A] text-white shadow-lg shadow-[#E8546A]/25'
+                                  : 'rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/20'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 font-bold text-xs">
+                                {isChosen ? (
+                                  <Clock className="w-3.5 h-3.5 text-white animate-spin" />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                )}
+                                <span>{slot.time}</span>
+                              </div>
+                              <span className="text-[10px] tracking-tight font-medium opacity-90 text-center">
+                                {isChosen ? 'Selected · Reserving hold' : 'Available · Tap to reserve'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

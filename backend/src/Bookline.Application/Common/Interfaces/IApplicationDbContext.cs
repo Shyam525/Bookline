@@ -16,6 +16,7 @@ public interface IApplicationDbContext
     DbSet<Service> Services { get; }
     DbSet<DomainStaff> Staff { get; }
     DbSet<StaffService> StaffServices { get; }
+    DbSet<ServiceLocation> ServiceLocations { get; }
     DbSet<WorkingHours> WorkingHours { get; }
     DbSet<TimeOff> TimeOffs { get; }
     DbSet<Customer> Customers { get; }

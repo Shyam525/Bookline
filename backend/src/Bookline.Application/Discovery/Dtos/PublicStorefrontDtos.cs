@@ -60,7 +60,12 @@ public record PublicServiceDto(
     int BufferMinutes,
     decimal Price,
     string Currency,
-    bool IsOnlineBookingEnabled
+    bool IsOnlineBookingEnabled,
+    string Slug = "",
+    bool IsPublished = true,
+    string? ImageUrl = null,
+    IReadOnlyList<Guid>? EligibleStaffIds = null,
+    IReadOnlyList<Guid>? ApplicableLocationIds = null
 );
 
 public record PublicProductDto(

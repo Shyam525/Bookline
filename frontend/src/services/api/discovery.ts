@@ -209,4 +209,81 @@ export const discoveryApi = {
     const data = await res.json();
     return data.city || 'Ahmedabad';
   },
+
+  async getAvailability(params: {
+    staffId: string;
+    serviceId: string;
+    date: string;
+    timezone?: string;
+    slug?: string;
+  }): Promise<Array<{ start: string; end: string }>> {
+    const searchParams = new URLSearchParams({
+      staffId: params.staffId,
+      serviceId: params.serviceId,
+      date: params.date,
+      timezone: params.timezone || 'Asia/Kolkata',
+    });
+    if (params.slug) searchParams.set('slug', params.slug);
+
+    const res = await fetch(`/api/v1/public/availability?${searchParams.toString()}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || 'Could not load availability for the selected date.');
+    }
+    return res.json();
+  },
+
+  async holdSlot(payload: {
+    staffId: string;
+    serviceId: string;
+    startUtc: string;
+  }): Promise<{ holdId: string; expiresAtUtc: string; slot?: string; status: string }> {
+    const res = await fetch('/api/v1/public/hold', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || 'Selected time slot is no longer available.');
+    }
+    return res.json();
+  },
+
+  async createBooking(payload: {
+    staffId: string;
+    serviceId: string;
+    customerId?: string;
+    startUtc: string;
+    holdId: string;
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    customerNotes?: string;
+  }): Promise<{
+    id: string;
+    tenantId: string;
+    staffId: string;
+    serviceId: string;
+    customerId: string;
+    startUtc: string;
+    endUtc: string;
+    status: string;
+    createdAtUtc: string;
+    bookingReference?: string;
+  }> {
+    const res = await fetch('/api/v1/public/book', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': `book_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || 'Booking confirmation failed. Your hold may have expired.');
+    }
+    return res.json();
+  },
 };

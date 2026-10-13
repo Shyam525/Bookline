@@ -70,6 +70,11 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             throw new NotFoundException(nameof(Service), request.ServiceId);
         }
 
+        if (!service.IsActive || service.IsArchived || !service.IsPublished || !service.IsOnlineBookingEnabled)
+        {
+            throw new ValidationException("SERVICE_NOT_BOOKABLE: This service is unavailable for online booking.");
+        }
+
         var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : service.TenantId;
 
         // 2. Verify Redis slot hold
@@ -188,7 +193,8 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             booking.StartUtc,
             booking.EndUtc,
             booking.Status,
-            booking.CreatedAtUtc);
+            booking.CreatedAtUtc,
+            booking.BookingReference);
     }
 
     private async Task<Customer> ResolveCustomerAsync(

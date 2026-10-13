@@ -50,6 +50,11 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             throw new NotFoundException(nameof(Service), request.ServiceId);
         }
 
+        if (!service.IsActive || service.IsArchived || !service.IsPublished || !service.IsOnlineBookingEnabled)
+        {
+            throw new ValidationException("SERVICE_NOT_BOOKABLE: The requested service is not bookable online.");
+        }
+
         var staff = await _context.Staff
             .IgnoreQueryFilters()
             .AsNoTracking()

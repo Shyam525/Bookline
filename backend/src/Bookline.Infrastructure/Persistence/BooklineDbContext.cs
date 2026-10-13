@@ -26,6 +26,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<Service> Services => Set<Service>();
     public DbSet<DomainStaff> Staff => Set<DomainStaff>();
     public DbSet<StaffService> StaffServices => Set<StaffService>();
+    public DbSet<ServiceLocation> ServiceLocations => Set<ServiceLocation>();
     public DbSet<WorkingHours> WorkingHours => Set<WorkingHours>();
     public DbSet<TimeOff> TimeOffs => Set<TimeOff>();
     public DbSet<Customer> Customers => Set<Customer>();
@@ -53,9 +54,12 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Composite key for StaffService
+        // Composite key for StaffService and ServiceLocation
         modelBuilder.Entity<StaffService>()
             .HasKey(ss => new { ss.StaffId, ss.ServiceId });
+
+        modelBuilder.Entity<ServiceLocation>()
+            .HasKey(sl => new { sl.ServiceId, sl.LocationId });
 
         modelBuilder.Entity<Tenant>(builder =>
         {

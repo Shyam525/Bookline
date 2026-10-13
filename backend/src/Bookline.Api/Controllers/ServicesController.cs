@@ -66,6 +66,13 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("slug/{slug}")]
+    public async Task<ActionResult<ServiceDto>> GetServiceBySlug(string slug)
+    {
+        var result = await _sender.Send(new GetServiceBySlugQuery(slug));
+        return Ok(result);
+    }
+
     [HttpPost]
     public async Task<ActionResult<ServiceDto>> CreateService([FromBody] CreateServiceRequest request)
     {
@@ -77,6 +84,27 @@ public class ServicesController : ControllerBase
     public async Task<ActionResult<ServiceDto>> UpdateService(Guid id, [FromBody] UpdateServiceRequest request)
     {
         var result = await _sender.Send(new UpdateServiceCommand(id, request));
+        return Ok(result);
+    }
+
+    [HttpPut("{id:guid}/staff")]
+    public async Task<ActionResult<ServiceDto>> AssignServiceStaff(Guid id, [FromBody] List<Guid> staffIds)
+    {
+        var result = await _sender.Send(new AssignServiceStaffCommand(id, staffIds));
+        return Ok(result);
+    }
+
+    [HttpPut("{id:guid}/locations")]
+    public async Task<ActionResult<ServiceDto>> AssignServiceLocations(Guid id, [FromBody] List<Guid> locationIds)
+    {
+        var result = await _sender.Send(new AssignServiceLocationsCommand(id, locationIds));
+        return Ok(result);
+    }
+
+    [HttpPut("{id:guid}/publish")]
+    public async Task<ActionResult<ServiceDto>> SetPublishStatus(Guid id, [FromBody] SetPublishStatusRequest request)
+    {
+        var result = await _sender.Send(new SetServicePublishStatusCommand(id, request.IsPublished));
         return Ok(result);
     }
 
@@ -94,3 +122,5 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 }
+
+public record SetPublishStatusRequest(bool IsPublished);

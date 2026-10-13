@@ -20,4 +20,6 @@ public class Location : TenantEntity
     public bool IsArchived { get; set; } = false;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
+
+    public ICollection<ServiceLocation> ServiceLocations { get; set; } = new List<ServiceLocation>();
 }

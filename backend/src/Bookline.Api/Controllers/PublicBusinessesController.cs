@@ -61,6 +61,22 @@ public class PublicBusinessesController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves a single public service by business slug and service slug.
+    /// </summary>
+    [HttpGet("{slug}/services/{serviceSlug}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetServiceBySlug(string slug, string serviceSlug, CancellationToken cancellationToken = default)
+    {
+        var service = await _storefrontService.GetServiceBySlugAsync(slug, serviceSlug, cancellationToken);
+        if (service == null)
+        {
+            return NotFound(new ApiErrorResponse("SERVICE_NOT_FOUND", "The requested service was not found or is unpublished.", HttpContext.TraceIdentifier, 404));
+        }
+
+        return Ok(service);
+    }
+
+    /// <summary>
     /// Retrieves public products for a business.
     /// </summary>
     [HttpGet("{slug}/products")]

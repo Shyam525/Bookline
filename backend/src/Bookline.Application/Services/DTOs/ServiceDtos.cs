@@ -29,6 +29,7 @@ public record ServiceDto(
     Guid CategoryId,
     string CategoryName,
     string Name,
+    string Slug,
     string? Description,
     int DurationMinutes,
     int BufferBeforeMinutes,
@@ -38,8 +39,15 @@ public record ServiceDto(
     string Currency,
     bool IsActive,
     bool IsOnlineBookingEnabled,
+    bool IsPublished,
+    string Status,
     bool IsArchived,
     string? ColorHex,
+    bool RequiresResource,
+    string? RequiredResourceType,
+    string? ImageUrl,
+    List<Guid> StaffIds,
+    List<Guid> LocationIds,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc
 );
@@ -47,6 +55,7 @@ public record ServiceDto(
 public record CreateServiceRequest(
     Guid CategoryId,
     string Name,
+    string? Slug = null,
     string? Description = null,
     int DurationMinutes = 30,
     int BufferBeforeMinutes = 0,
@@ -54,12 +63,19 @@ public record CreateServiceRequest(
     decimal Price = 0.00m,
     string Currency = "USD",
     bool IsOnlineBookingEnabled = true,
-    string? ColorHex = "#E8546A"
+    bool IsPublished = true,
+    string? ColorHex = "#E8546A",
+    bool RequiresResource = false,
+    string? RequiredResourceType = null,
+    string? ImageUrl = null,
+    List<Guid>? StaffIds = null,
+    List<Guid>? LocationIds = null
 );
 
 public record UpdateServiceRequest(
     Guid CategoryId,
     string Name,
+    string? Slug = null,
     string? Description = null,
     int DurationMinutes = 30,
     int BufferBeforeMinutes = 0,
@@ -68,5 +84,11 @@ public record UpdateServiceRequest(
     string Currency = "USD",
     bool IsActive = true,
     bool IsOnlineBookingEnabled = true,
-    string? ColorHex = "#E8546A"
+    bool IsPublished = true,
+    string? ColorHex = "#E8546A",
+    bool RequiresResource = false,
+    string? RequiredResourceType = null,
+    string? ImageUrl = null,
+    List<Guid>? StaffIds = null,
+    List<Guid>? LocationIds = null
 );

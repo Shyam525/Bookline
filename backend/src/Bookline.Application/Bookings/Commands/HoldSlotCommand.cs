@@ -39,10 +39,16 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
     public async Task<HoldSlotResultDto> Handle(HoldSlotCommand request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : Guid.Empty;
-        if (tenantId == Guid.Empty)
+
+        if (_context != null)
         {
             var service = await _context.Services.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.ServiceId, cancellationToken);
-            if (service != null)
+            if (service != null && (!service.IsActive || service.IsArchived || !service.IsPublished || !service.IsOnlineBookingEnabled))
+            {
+                throw new ValidationException("SERVICE_NOT_BOOKABLE: This service is unavailable for online booking.");
+            }
+
+            if (tenantId == Guid.Empty && service != null)
             {
                 tenantId = service.TenantId;
             }

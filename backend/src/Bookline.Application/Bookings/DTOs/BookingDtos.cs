@@ -11,7 +11,8 @@ public record BookingDto(
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc,
     BookingStatus Status,
-    DateTimeOffset CreatedAtUtc
+    DateTimeOffset CreatedAtUtc,
+    string? BookingReference = null
 );
 
 public record HoldSlotResultDto(

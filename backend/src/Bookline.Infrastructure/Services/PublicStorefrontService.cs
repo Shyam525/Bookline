@@ -35,7 +35,9 @@ public class PublicStorefrontService : IPublicStorefrontService
             .ToListAsync(cancellationToken);
 
         var services = await _dbContext.Services.IgnoreQueryFilters()
-            .Where(s => s.TenantId == tenant.Id && s.IsActive && !s.IsArchived)
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .Where(s => s.TenantId == tenant.Id && s.IsActive && !s.IsArchived && s.IsPublished)
             .ToListAsync(cancellationToken);
 
         var products = await _dbContext.Products.IgnoreQueryFilters()
@@ -92,7 +94,12 @@ public class PublicStorefrontService : IPublicStorefrontService
             s.BufferMinutes,
             s.Price,
             tenant.Currency ?? "USD",
-            s.IsOnlineBookingEnabled
+            s.IsOnlineBookingEnabled,
+            s.Slug,
+            s.IsPublished,
+            s.ImageUrl,
+            s.StaffServices.Select(ss => ss.StaffId).ToList(),
+            s.ServiceLocations.Select(sl => sl.LocationId).ToList()
         )).ToList();
 
         var productDtos = products.Select(p => new PublicProductDto(
@@ -189,7 +196,9 @@ public class PublicStorefrontService : IPublicStorefrontService
         if (tenant == null) return null;
 
         return await _dbContext.Services.IgnoreQueryFilters()
-            .Where(s => s.TenantId == tenant.Id && s.IsActive && !s.IsArchived)
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .Where(s => s.TenantId == tenant.Id && s.IsActive && !s.IsArchived && s.IsPublished)
             .Select(s => new PublicServiceDto(
                 s.Id,
                 s.CategoryId,
@@ -199,9 +208,48 @@ public class PublicStorefrontService : IPublicStorefrontService
                 s.BufferMinutes,
                 s.Price,
                 tenant.Currency ?? "USD",
-                s.IsOnlineBookingEnabled
+                s.IsOnlineBookingEnabled,
+                s.Slug,
+                s.IsPublished,
+                s.ImageUrl,
+                s.StaffServices.Select(ss => ss.StaffId).ToList(),
+                s.ServiceLocations.Select(sl => sl.LocationId).ToList()
             ))
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PublicServiceDto?> GetServiceBySlugAsync(string businessSlug, string serviceSlug, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(businessSlug) || string.IsNullOrWhiteSpace(serviceSlug)) return null;
+
+        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Slug == businessSlug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
+
+        if (tenant == null) return null;
+
+        var service = await _dbContext.Services.IgnoreQueryFilters()
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .FirstOrDefaultAsync(s => s.TenantId == tenant.Id && s.Slug == serviceSlug.ToLowerInvariant() && s.IsActive && !s.IsArchived && s.IsPublished, cancellationToken);
+
+        if (service == null) return null;
+
+        return new PublicServiceDto(
+            service.Id,
+            service.CategoryId,
+            service.Name,
+            service.Description,
+            service.DurationMinutes,
+            service.BufferMinutes,
+            service.Price,
+            tenant.Currency ?? "USD",
+            service.IsOnlineBookingEnabled,
+            service.Slug,
+            service.IsPublished,
+            service.ImageUrl,
+            service.StaffServices.Select(ss => ss.StaffId).ToList(),
+            service.ServiceLocations.Select(sl => sl.LocationId).ToList()
+        );
     }
 
     public async Task<IReadOnlyList<PublicProductDto>?> GetProductsBySlugAsync(string slug, CancellationToken cancellationToken = default)

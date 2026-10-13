@@ -83,10 +83,11 @@ public class ProviderDiscoveryService : IProviderDiscoveryService
         // Filter by Category at database level
         if (!string.IsNullOrWhiteSpace(effectiveCategory) && !effectiveCategory.Equals("All", StringComparison.OrdinalIgnoreCase))
         {
-            var catPrefix = effectiveCategory.Split('&')[0].Trim();
+            var normalizedCat = effectiveCategory.Replace("-", " ").Trim();
+            var catFirstWord = normalizedCat.Split(new[] { ' ', '&' }, StringSplitOptions.RemoveEmptyEntries)[0].ToLower();
             tenantsQuery = tenantsQuery.Where(t =>
-                t.Category.Contains(catPrefix) ||
-                t.BusinessType.Contains(catPrefix));
+                t.Category.ToLower().Contains(catFirstWord) ||
+                t.BusinessType.ToLower().Contains(catFirstWord));
         }
 
         var tenants = await tenantsQuery.ToListAsync(cancellationToken);

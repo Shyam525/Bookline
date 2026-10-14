@@ -13,10 +13,10 @@ namespace Bookline.Api.Controllers;
 [Authorize]
 public class CustomerController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly ISlotEngine _slotEngine;
 
-    public CustomerController(BooklineDbContext dbContext, ISlotEngine slotEngine)
+    public CustomerController(IApplicationDbContext dbContext, ISlotEngine slotEngine)
     {
         _dbContext = dbContext;
         _slotEngine = slotEngine;
@@ -39,11 +39,16 @@ public class CustomerController : ControllerBase
 
         if (user == null) return NotFound(new { Message = "Customer profile not found." });
 
+        var localCustomerIds = await _dbContext.Customers.IgnoreQueryFilters()
+            .Where(c => c.UserId == customerId.Value || c.Id == customerId.Value)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
         var bookingCount = await _dbContext.Bookings.IgnoreQueryFilters()
-            .CountAsync(b => b.CustomerId == customerId.Value, cancellationToken);
+            .CountAsync(b => b.CustomerId == customerId.Value || localCustomerIds.Contains(b.CustomerId), cancellationToken);
 
         var orderCount = await _dbContext.Orders.IgnoreQueryFilters()
-            .CountAsync(o => o.CustomerId == customerId.Value, cancellationToken);
+            .CountAsync(o => o.CustomerId == customerId.Value || localCustomerIds.Contains(o.CustomerId), cancellationToken);
 
         var favoriteCount = await _dbContext.Favorites
             .CountAsync(f => f.CustomerId == customerId.Value, cancellationToken);
@@ -101,8 +106,13 @@ public class CustomerController : ControllerBase
         var customerId = GetCustomerId();
         if (!customerId.HasValue) return Unauthorized();
 
+        var localCustomerIds = await _dbContext.Customers.IgnoreQueryFilters()
+            .Where(c => c.UserId == customerId.Value || c.Id == customerId.Value)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
         var bookings = await _dbContext.Bookings.IgnoreQueryFilters()
-            .Where(b => b.CustomerId == customerId.Value)
+            .Where(b => b.CustomerId == customerId.Value || localCustomerIds.Contains(b.CustomerId))
             .Include(b => b.Staff)
             .Include(b => b.Service)
             .OrderByDescending(b => b.StartUtc)
@@ -157,8 +167,13 @@ public class CustomerController : ControllerBase
         var customerId = GetCustomerId();
         if (!customerId.HasValue) return Unauthorized();
 
+        var localCustomerIds = await _dbContext.Customers.IgnoreQueryFilters()
+            .Where(c => c.UserId == customerId.Value || c.Id == customerId.Value)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
         var booking = await _dbContext.Bookings.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(b => b.Id == id && b.CustomerId == customerId.Value, cancellationToken);
+            .FirstOrDefaultAsync(b => b.Id == id && (b.CustomerId == customerId.Value || localCustomerIds.Contains(b.CustomerId)), cancellationToken);
 
         if (booking == null) return NotFound(new { Message = "Appointment not found." });
 
@@ -236,8 +251,13 @@ public class CustomerController : ControllerBase
         var customerId = GetCustomerId();
         if (!customerId.HasValue) return Unauthorized();
 
+        var localCustomerIds = await _dbContext.Customers.IgnoreQueryFilters()
+            .Where(c => c.UserId == customerId.Value || c.Id == customerId.Value)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
         var booking = await _dbContext.Bookings.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(b => b.Id == id && b.CustomerId == customerId.Value, cancellationToken);
+            .FirstOrDefaultAsync(b => b.Id == id && (b.CustomerId == customerId.Value || localCustomerIds.Contains(b.CustomerId)), cancellationToken);
 
         if (booking == null) return NotFound(new { Message = "Appointment not found." });
 
@@ -310,8 +330,13 @@ public class CustomerController : ControllerBase
         var user = await _dbContext.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Id == customerId.Value, cancellationToken);
 
+        var localCustomerIds = await _dbContext.Customers.IgnoreQueryFilters()
+            .Where(c => c.UserId == customerId.Value || c.Id == customerId.Value)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
         var query = _dbContext.NotificationLogs.IgnoreQueryFilters()
-            .Where(n => n.CustomerId == customerId.Value || (user != null && n.RecipientEmail == user.Email));
+            .Where(n => n.CustomerId == customerId.Value || (n.CustomerId.HasValue && localCustomerIds.Contains(n.CustomerId.Value)) || (user != null && n.RecipientEmail == user.Email));
 
         var dbLogs = await query
             .OrderByDescending(n => n.CreatedAtUtc)

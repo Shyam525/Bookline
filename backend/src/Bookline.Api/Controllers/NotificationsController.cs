@@ -1,9 +1,9 @@
 namespace Bookline.Api.Controllers;
 
+using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Notifications.DTOs;
 using Bookline.Application.Notifications.Handlers;
 using Bookline.Domain.Entities;
-using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,9 +15,9 @@ using System.Security.Claims;
 public class NotificationsController : ControllerBase
 {
     private readonly NotificationHandlers _handlers;
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
 
-    public NotificationsController(NotificationHandlers handlers, BooklineDbContext dbContext)
+    public NotificationsController(NotificationHandlers handlers, IApplicationDbContext dbContext)
     {
         _handlers = handlers;
         _dbContext = dbContext;

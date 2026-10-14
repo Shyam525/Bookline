@@ -13,9 +13,9 @@ namespace Bookline.Api.Controllers;
 [Authorize]
 public class FavoritesController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
 
-    public FavoritesController(BooklineDbContext dbContext)
+    public FavoritesController(IApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
     }

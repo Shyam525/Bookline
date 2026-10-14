@@ -13,10 +13,10 @@ namespace Bookline.Api.Controllers;
 [Authorize] // Platform admin authorization
 public class AdminController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly IPayoutProvider _payoutProvider;
 
-    public AdminController(BooklineDbContext dbContext, IPayoutProvider payoutProvider)
+    public AdminController(IApplicationDbContext dbContext, IPayoutProvider payoutProvider)
     {
         _dbContext = dbContext;
         _payoutProvider = payoutProvider;

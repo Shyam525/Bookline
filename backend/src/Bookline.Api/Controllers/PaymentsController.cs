@@ -21,7 +21,7 @@ public class PaymentsController : ControllerBase
     private readonly IPaymentProvider _paymentProvider;
     private readonly IPayoutProvider _payoutProvider;
     private readonly ITenantContext _tenantContext;
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly IIdempotencyService _idempotencyService;
 
     public PaymentsController(
@@ -29,7 +29,7 @@ public class PaymentsController : ControllerBase
         IPaymentProvider paymentProvider,
         IPayoutProvider payoutProvider,
         ITenantContext tenantContext,
-        BooklineDbContext dbContext,
+        IApplicationDbContext dbContext,
         IIdempotencyService idempotencyService)
     {
         _handlers = handlers;

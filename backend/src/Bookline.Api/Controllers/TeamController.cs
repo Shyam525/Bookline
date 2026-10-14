@@ -14,12 +14,12 @@ namespace Bookline.Api.Controllers;
 [Authorize]
 public class TeamController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly ITenantContext _tenantContext;
     private readonly ITeamAuthorizationService _teamAuth;
 
     public TeamController(
-        BooklineDbContext dbContext,
+        IApplicationDbContext dbContext,
         ITenantContext tenantContext,
         ITeamAuthorizationService teamAuth)
     {

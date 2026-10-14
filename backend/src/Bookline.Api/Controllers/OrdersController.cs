@@ -13,13 +13,13 @@ namespace Bookline.Api.Controllers;
 [Route("api/v1/orders")]
 public class OrdersController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly ITenantContext _tenantContext;
     private readonly IPaymentProvider _paymentProvider;
     private readonly IIdempotencyService _idempotencyService;
 
     public OrdersController(
-        BooklineDbContext dbContext,
+        IApplicationDbContext dbContext,
         ITenantContext tenantContext,
         IPaymentProvider paymentProvider,
         IIdempotencyService idempotencyService)
@@ -105,6 +105,14 @@ public class OrdersController : ControllerBase
             customerId = parsedUserId;
         }
 
+        // Resolve optional related booking (Section 27: Services + Products Combined Flow)
+        Booking? relatedBooking = null;
+        if (request.RelatedBookingId.HasValue)
+        {
+            relatedBooking = await _dbContext.Bookings.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(b => b.Id == request.RelatedBookingId.Value && b.TenantId == request.TenantId, cancellationToken);
+        }
+
         var order = new Order
         {
             Id = Guid.NewGuid(),
@@ -122,8 +130,15 @@ public class OrdersController : ControllerBase
             Status = OrderStatus.Paid, // Completed instant payment in checkout
             PaidAtUtc = DateTime.UtcNow,
             CreatedAtUtc = DateTime.UtcNow,
+            RelatedBookingId = relatedBooking?.Id,
+            RelatedBookingReference = relatedBooking?.BookingReference,
             Items = orderItems
         };
+
+        if (relatedBooking != null)
+        {
+            relatedBooking.AttachRelatedOrder(order.Id, order.OrderNumber);
+        }
 
         foreach (var item in orderItems)
         {
@@ -214,6 +229,8 @@ public class OrdersController : ControllerBase
                 order.Tax,
                 order.TotalAmount,
                 order.PaymentId,
+                order.RelatedBookingId,
+                order.RelatedBookingReference,
                 Items = orderItems.Select(i => new
                 {
                     i.Id,
@@ -268,6 +285,8 @@ public class OrdersController : ControllerBase
                 o.Tax,
                 o.TotalAmount,
                 o.PaymentId,
+                o.RelatedBookingId,
+                o.RelatedBookingReference,
                 Items = o.Items.Select(i => new
                 {
                     i.Id,
@@ -310,6 +329,8 @@ public class OrdersController : ControllerBase
                 o.Tax,
                 o.TotalAmount,
                 o.PaymentId,
+                o.RelatedBookingId,
+                o.RelatedBookingReference,
                 Items = o.Items.Select(i => new
                 {
                     i.Id,
@@ -347,6 +368,8 @@ public class OrdersController : ControllerBase
             order.Tax,
             order.TotalAmount,
             order.PaymentId,
+            order.RelatedBookingId,
+            order.RelatedBookingReference,
             Items = order.Items.Select(i => new
             {
                 i.Id,
@@ -399,6 +422,7 @@ public record CreateOrderRequest(
     string? ShippingAddress,
     string? Notes,
     List<OrderItemRequest> Items,
-    string? PaymentMethod = "CreditCard"
+    string? PaymentMethod = "CreditCard",
+    Guid? RelatedBookingId = null
 );
 public record UpdateOrderStatusRequest(string Status);

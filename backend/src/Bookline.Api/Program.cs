@@ -116,6 +116,7 @@ builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPublicStorefr
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPaymentProvider, Bookline.Infrastructure.Payments.PaymentProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IPayoutProvider, Bookline.Infrastructure.Payments.PayoutProvider>();
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.ITeamAuthorizationService, Bookline.Infrastructure.Services.TeamAuthorizationService>();
+builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IProductImageService, Bookline.Infrastructure.Services.ProductImageService>();
 builder.Services.AddHostedService<Bookline.Infrastructure.Jobs.OutboxAndReminderWorker>();
 
 builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IIdempotencyService, Bookline.Infrastructure.Services.IdempotencyService>();
@@ -407,7 +408,7 @@ try
             }
 
             var demoTenant = db.Tenants.IgnoreQueryFilters()
-                .FirstOrDefault(tenant => tenant.Slug == "acme-salon");
+                .FirstOrDefault(tenant => tenant.Slug == "glow-studio" || tenant.Slug == "acme-salon");
             const string demoOwnerEmail = "demo@bookline.local";
             if (app.Environment.IsDevelopment() && demoTenant != null && !db.Users.IgnoreQueryFilters()
                     .Any(user => user.Email.ToLower() == demoOwnerEmail))
@@ -424,7 +425,7 @@ try
                     Role = "Owner"
                 });
                 db.SaveChanges();
-                Log.Information("Demo owner account seeded for tenant 'acme-salon'.");
+                Log.Information("Demo owner account seeded for tenant '{Slug}'.", demoTenant.Slug);
             }
 
             // Seed comprehensive marketplace data (Multi-vendor, products, orders, reviews, demo accounts)

@@ -14,10 +14,10 @@ namespace Bookline.Api.Controllers;
 public class ObservabilityController : ControllerBase
 {
     private static readonly DateTimeOffset StartTime = DateTimeOffset.UtcNow;
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly IConnectionMultiplexer? _redis;
 
-    public ObservabilityController(BooklineDbContext dbContext, IConnectionMultiplexer? redis = null)
+    public ObservabilityController(IApplicationDbContext dbContext, IConnectionMultiplexer? redis = null)
     {
         _dbContext = dbContext;
         _redis = redis;

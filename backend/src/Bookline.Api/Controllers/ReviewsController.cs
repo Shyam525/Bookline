@@ -13,9 +13,9 @@ namespace Bookline.Api.Controllers;
 [Route("api/v1/reviews")]
 public class ReviewsController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
 
-    public ReviewsController(BooklineDbContext dbContext)
+    public ReviewsController(IApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
     }

@@ -7,6 +7,7 @@ public class OrganizationMembership : TenantEntity
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
     public string Role { get; set; } = "Staff"; // Owner, Admin, Manager, Receptionist, Staff, Viewer
+    public bool IsActive { get; set; } = true;
     public DateTime JoinedAtUtc { get; set; } = DateTime.UtcNow;
 
     public Enums.ProviderTeamRole GetTeamRole() =>

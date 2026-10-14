@@ -23,6 +23,8 @@ public class Booking : TenantEntity
     public string? CreatedBy { get; set; }
     public string? Resource { get; set; }
     public Guid? ResourceId { get; set; }
+    public Guid? RelatedOrderId { get; set; }
+    public string? RelatedOrderNumber { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }
@@ -118,5 +120,12 @@ public class Booking : TenantEntity
     {
         ReminderSentAtUtc = sentAtUtc;
         UpdatedAtUtc = sentAtUtc;
+    }
+
+    public void AttachRelatedOrder(Guid orderId, string orderNumber)
+    {
+        RelatedOrderId = orderId;
+        RelatedOrderNumber = orderNumber;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 }

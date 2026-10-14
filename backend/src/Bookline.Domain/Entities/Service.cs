@@ -23,8 +23,11 @@ public class Service : TenantEntity
     public string? ColorHex { get; set; } = "#E8546A";
     public bool RequiresResource { get; set; } = false;
     public string? RequiredResourceType { get; set; } = null; // Room, Chair, Machine, Treatment room
+    public Guid? RequiredResourceId { get; set; } = null;
+    public Resource? RequiredResource { get; set; }
     public string? ImageUrl { get; set; }
     public Enums.ModerationStatus ModerationStatus { get; set; } = Enums.ModerationStatus.Approved;
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
 
@@ -34,3 +37,4 @@ public class Service : TenantEntity
     public int TotalDurationMinutes => DurationMinutes + BufferBeforeMinutes + BufferAfterMinutes;
     public int BufferMinutes { get => BufferBeforeMinutes + BufferAfterMinutes; set { BufferBeforeMinutes = value; } }
 }
+

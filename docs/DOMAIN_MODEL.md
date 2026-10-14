@@ -46,10 +46,12 @@ Bookline follows strict Domain-Driven Design (DDD). The domain layer encapsulate
    - Bookable treatments and appointments.
    - Fields: `Id`, `TenantId`, `CategoryId`, `Name`, `Description`, `DurationMinutes`, `BufferBeforeMinutes`, `BufferAfterMinutes`, `Price`, `Currency`, `IsActive`.
 
-5. **Product** (`Bookline.Domain.Entities.Product`)
-   - Physical retail merchandise.
-   - Invariants: `StockQuantity >= 0` (Section 133). `AvailableQuantity => Math.Max(0, StockQuantity - ReservedQuantity)`.
-   - Fields: `Id`, `TenantId`, `Name`, `Description`, `Price`, `Currency`, `StockQuantity`, `ReservedQuantity`, `SoldQuantity`, `IsActive`.
+5. **Product & ProductCategory** (`Bookline.Domain.Entities.Product`, `ProductCategory`, `ProductImage`)
+   - Physical retail merchandise (Section 26).
+   - Invariants: `StockQuantity >= 0` (Section 133). `AvailableQuantity => TrackInventory ? Math.Max(0, StockQuantity - ReservedQuantity) : int.MaxValue`.
+   - Fields: `Id`, `TenantId` / `BusinessId`, `CategoryId`, `Name`, `Slug`, `Description`, `Price`, `Currency`, `Sku`, `Images`, `TrackInventory`, `StockQuantity`, `ReservedQuantity`, `SoldQuantity`, `LowStockThreshold`, `IsActive`, `IsPurchasableOnline`, `IsPublished`, `RowVersion`.
+   - Strict Separation: Products never alter staff schedules, working hours, or room bookings.
+
 
 6. **Customer** (`Bookline.Domain.Entities.Customer`)
    - Client records and CRM profiles.

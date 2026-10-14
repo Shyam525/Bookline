@@ -19,6 +19,8 @@ public class Order : TenantEntity
     public string? ShippingAddress { get; set; }
     public string? Notes { get; set; }
     public Guid? PaymentId { get; set; }
+    public Guid? RelatedBookingId { get; set; }
+    public string? RelatedBookingReference { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
     public DateTime? PaidAtUtc { get; set; }

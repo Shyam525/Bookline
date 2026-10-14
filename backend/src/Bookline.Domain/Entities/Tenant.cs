@@ -34,7 +34,7 @@ public class Tenant
     public decimal PendingPayoutBalance { get; set; } = 0.00m;
     public decimal AvailablePayoutBalance { get; set; } = 0.00m;
     public decimal PaidOutBalance { get; set; } = 0.00m;
-    public bool IsPublished { get; set; } = true;
+    public bool IsPublished { get; set; } = false;
     public int OnboardingStep { get; set; } = 1;
     public bool IsOnboardingCompleted { get; set; } = false;
     public int HoldDurationMinutes { get; set; } = 5;

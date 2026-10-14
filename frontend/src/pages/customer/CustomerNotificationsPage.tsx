@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bell,
@@ -12,110 +12,66 @@ import {
   Filter,
   Sparkles,
   AlertCircle,
+  RefreshCw,
+  LogIn,
 } from 'lucide-react';
-
-interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  type: 'booking' | 'order' | 'reminder' | 'system';
-  link: string;
-  referenceId?: string;
-}
+import { useAuth } from '../../app/providers/AuthProvider';
+import { notificationsApi, CustomerNotificationItem } from '../../services/api/notifications';
 
 export const CustomerNotificationsPage: React.FC = () => {
+  const { token, isAuthenticated } = useAuth();
   const [filter, setFilter] = useState<'all' | 'unread' | 'booking' | 'order' | 'reminder'>('all');
+  const [notifications, setNotifications] = useState<CustomerNotificationItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const defaultNotifications: NotificationItem[] = [
-    {
-      id: 'notif-1',
-      title: 'Appointment Confirmed & Guaranteed',
-      message: 'Your Signature Aromatherapy session with Elena Vance at Aura Wellness & Spa is confirmed for Saturday, 10:00 AM.',
-      timestamp: '1 hour ago',
-      read: false,
-      type: 'booking',
-      link: '/appointments',
-      referenceId: 'BL-849201',
-    },
-    {
-      id: 'notif-2',
-      title: 'Retail Order Dispatch Scheduled',
-      message: 'Retail Order ORD-948210 (Botanical Keratin Restorative Hair Mask) has been prepared and packed for courier dispatch.',
-      timestamp: '5 hours ago',
-      read: false,
-      type: 'order',
-      link: '/orders',
-      referenceId: 'ORD-948210',
-    },
-    {
-      id: 'notif-3',
-      title: '24-Hour Upcoming Service Reminder',
-      message: 'Reminder: You have an upcoming Balayage & Conditioning appointment tomorrow at Glow Hair Lounge with Marcus Brody.',
-      timestamp: '1 day ago',
-      read: true,
-      type: 'reminder',
-      link: '/appointments',
-      referenceId: 'BL-938102',
-    },
-    {
-      id: 'notif-4',
-      title: 'Post-Care Review Invitation',
-      message: 'How was your Deep Hydration Facial experience? Leave an honest verified review to assist future clients on Bookline.',
-      timestamp: '3 days ago',
-      read: true,
-      type: 'booking',
-      link: '/business/aura-wellness-ahmedabad',
-      referenceId: 'BL-721094',
-    },
-    {
-      id: 'notif-5',
-      title: 'Welcome to Bookline Marketplace',
-      message: 'Your profile has been created with customer access. Discover verified specialists, view live calendar openings, and shop retail essentials.',
-      timestamp: '5 days ago',
-      read: true,
-      type: 'system',
-      link: '/discover',
-    },
-  ];
-
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    try {
-      const stored = localStorage.getItem('bookline_customer_notifications');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const storedIds = new Set(parsed.map((p: any) => p.id));
-        const unseeded = defaultNotifications.filter((d) => !storedIds.has(d.id));
-        return [...parsed, ...unseeded];
-      }
-    } catch {
-      // ignore
+  const loadNotifications = async () => {
+    if (!token) {
+      setIsLoading(false);
+      return;
     }
-    return defaultNotifications;
-  });
 
-  const persistNotifications = (updated: NotificationItem[]) => {
-    setNotifications(updated);
+    setIsLoading(true);
+    setErrorMsg(null);
     try {
-      localStorage.setItem('bookline_customer_notifications', JSON.stringify(updated));
-    } catch {
-      // ignore
+      const res = await notificationsApi.getMyNotifications(token);
+      setNotifications(res.notifications || []);
+    } catch (err: any) {
+      console.error('Failed to load notifications:', err);
+      setErrorMsg(err.message || 'Unable to load notifications.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const markAllAsRead = () => {
-    persistNotifications(notifications.map((item) => ({ ...item, read: true })));
+  useEffect(() => {
+    if (token) {
+      loadNotifications();
+    } else {
+      setIsLoading(false);
+    }
+  }, [token]);
+
+  const markAllAsRead = async () => {
+    if (!token) return;
+    try {
+      await notificationsApi.markAllRead(token);
+      setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
   };
 
-  const markAsRead = (id: string) => {
-    persistNotifications(
-      notifications.map((item) => (item.id === id ? { ...item, read: true } : item))
-    );
-  };
-
-  const clearAllNotifications = () => {
-    persistNotifications([]);
+  const markAsRead = async (id: string) => {
+    if (!token) return;
+    try {
+      await notificationsApi.markAsRead(token, id, true);
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, read: true } : item))
+      );
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
   };
 
   const filteredNotifications = notifications.filter((item) => {
@@ -157,15 +113,15 @@ export const CustomerNotificationsPage: React.FC = () => {
             </button>
           )}
 
-          {notifications.length > 0 && (
-            <button
-              onClick={clearAllNotifications}
-              className="px-3 py-1.5 rounded-[8px] bg-[#1A2130] hover:bg-[#273142] border border-[#273142] text-xs font-semibold text-[#8F9AAF] hover:text-[#F87171] transition-colors flex items-center gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear</span>
-            </button>
-          )}
+          <button
+            onClick={loadNotifications}
+            disabled={isLoading}
+            className="px-3 py-1.5 rounded-[8px] bg-[#1A2130] hover:bg-[#273142] border border-[#273142] text-xs font-semibold text-[#8F9AAF] hover:text-[#F4F6FA] transition-colors flex items-center gap-1.5"
+            title="Refresh notifications"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
@@ -194,7 +150,48 @@ export const CustomerNotificationsPage: React.FC = () => {
 
       {/* Notification List */}
       <div className="space-y-3">
-        {filteredNotifications.length === 0 ? (
+        {isLoading ? (
+          <div className="bg-[#111620] border border-[#273142] rounded-[16px] p-12 text-center space-y-3">
+            <RefreshCw className="w-6 h-6 text-[#E8546A] animate-spin mx-auto" />
+            <p className="text-xs text-[#8F9AAF]">Syncing your notifications...</p>
+          </div>
+        ) : errorMsg ? (
+          <div className="bg-[#111620] border border-red-500/20 rounded-[16px] p-8 text-center space-y-4">
+            <div className="w-12 h-12 rounded-[12px] bg-red-500/10 border border-red-500/20 text-red-400 mx-auto flex items-center justify-center">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-heading font-bold text-base text-[#F4F6FA]">Unable to load notifications</h3>
+              <p className="text-xs text-[#C3CAD6] max-w-sm mx-auto mt-1">{errorMsg}</p>
+            </div>
+            <button
+              onClick={loadNotifications}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[#E8546A] hover:bg-[#F06A7D] text-white text-xs font-bold transition-all shadow-md"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Try Again</span>
+            </button>
+          </div>
+        ) : !isAuthenticated && notifications.length === 0 ? (
+          <div className="bg-[#111620] border border-[#273142] rounded-[16px] p-12 text-center space-y-4">
+            <div className="w-12 h-12 rounded-[12px] bg-[#1A2130] border border-[#273142] text-[#8F9AAF] mx-auto flex items-center justify-center">
+              <LogIn className="w-6 h-6 text-[#E8546A]" />
+            </div>
+            <div>
+              <h3 className="font-heading font-bold text-base text-[#F4F6FA]">Sign in to View Notifications</h3>
+              <p className="text-xs text-[#C3CAD6] max-w-sm mx-auto mt-1">
+                Log in to your Bookline account to track your appointment holds, order dispatches, and personal reminders.
+              </p>
+            </div>
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[#E8546A] hover:bg-[#F06A7D] text-white text-xs font-bold transition-all shadow-md"
+            >
+              <span>Sign In</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        ) : filteredNotifications.length === 0 ? (
           <div className="bg-[#111620] border border-[#273142] rounded-[16px] p-12 text-center space-y-4">
             <div className="w-12 h-12 rounded-[12px] bg-[#1A2130] border border-[#273142] text-[#8F9AAF] mx-auto flex items-center justify-center">
               <Bell className="w-6 h-6" />
@@ -256,11 +253,6 @@ export const CustomerNotificationsPage: React.FC = () => {
                       {!notif.read && (
                         <span className="w-2 h-2 rounded-full bg-[#E8546A] inline-block" />
                       )}
-                      {notif.referenceId && (
-                        <span className="px-2 py-0.5 rounded-[4px] bg-[#1A2130] border border-[#273142] text-[10px] font-mono font-medium text-[#C3CAD6]">
-                          {notif.referenceId}
-                        </span>
-                      )}
                     </div>
 
                     <p className="text-xs text-[#C3CAD6] leading-relaxed">
@@ -269,7 +261,7 @@ export const CustomerNotificationsPage: React.FC = () => {
 
                     <div className="flex items-center gap-2 text-[11px] text-[#8F9AAF] pt-1">
                       <Clock className="w-3 h-3" />
-                      <span>{notif.timestamp}</span>
+                      <span>{notif.time || 'Recently'}</span>
                     </div>
                   </div>
                 </div>
@@ -277,7 +269,7 @@ export const CustomerNotificationsPage: React.FC = () => {
                 {/* Direct Action Link */}
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#273142]">
                   <Link
-                    to={notif.link}
+                    to={notif.link || '/appointments'}
                     className="px-3.5 py-1.5 rounded-[8px] bg-[#1A2130] hover:bg-[#E8546A] text-[#F4F6FA] hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
                   >
                     <span>View Details</span>

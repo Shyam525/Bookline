@@ -2,6 +2,7 @@ import React from 'react';
 import { X, AlertCircle, CheckCircle2, Info, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Button } from '../ui/Button';
+import { EmptyState, ErrorState, Skeleton } from '../data-display/DataDisplay';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -9,18 +10,56 @@ export interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  maxWidth?: string;
+  ariaDescribedBy?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer }) => {
+export const Modal: React.FC<ModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  footer, 
+  maxWidth = 'max-w-lg',
+  ariaDescribedBy 
+}) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
+  const titleId = `modal-title-${title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#111520] border border-[#212638] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div 
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={ariaDescribedBy}
+        className={clsx("bg-[#111520] border border-[#212638] rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] focus:outline-none", maxWidth)}
+        tabIndex={-1}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#212638]">
-          <h3 className="font-heading text-xl font-bold text-white">{title}</h3>
-          <button onClick={onClose} className="text-[#7E88A8] hover:text-white transition-colors">
+          <h3 id={titleId} className="font-heading text-xl font-bold text-white">{title}</h3>
+          <button 
+            type="button"
+            onClick={onClose} 
+            aria-label="Close dialog"
+            className="text-[#7E88A8] hover:text-white transition-colors p-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8546A]"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -43,14 +82,41 @@ export interface DrawerProps {
 }
 
 export const Drawer: React.FC<DrawerProps> = ({ isOpen, onClose, title, children }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
+  const titleId = `drawer-title-${title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#111520] border-l border-[#212638] w-full max-w-md h-full shadow-2xl flex flex-col">
+    <div 
+      className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div 
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="bg-[#111520] border-l border-[#212638] w-full max-w-md h-full shadow-2xl flex flex-col focus:outline-none"
+        tabIndex={-1}
+      >
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#212638]">
-          <h3 className="font-heading text-xl font-bold text-white">{title}</h3>
-          <button onClick={onClose} className="text-[#7E88A8] hover:text-white transition-colors">
+          <h3 id={titleId} className="font-heading text-xl font-bold text-white">{title}</h3>
+          <button 
+            type="button"
+            onClick={onClose} 
+            aria-label="Close drawer"
+            className="text-[#7E88A8] hover:text-white transition-colors p-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8546A]"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -179,4 +245,64 @@ export const Toast: React.FC<ToastProps> = ({
 
 // Re-exports from DataDisplay to ensure complete Feedback contract in Section 109
 export { Skeleton, EmptyState, ErrorState } from '../data-display/DataDisplay';
+
+/* =========================================================================
+ * ASYNC VIEW (Phase 37: LOADING / SUCCESS / EMPTY / ERROR)
+ * ========================================================================= */
+export interface AsyncViewProps {
+  isLoading: boolean;
+  error?: string | null;
+  isEmpty?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyAction?: React.ReactNode;
+  loadingSkeleton?: React.ReactNode;
+  onRetry?: () => void;
+  children: React.ReactNode;
+}
+
+export const AsyncView: React.FC<AsyncViewProps> = ({
+  isLoading,
+  error,
+  isEmpty = false,
+  emptyTitle = 'No records found',
+  emptyDescription = 'There are currently no items to display.',
+  emptyAction,
+  loadingSkeleton,
+  onRetry,
+  children,
+}) => {
+  if (isLoading) {
+    if (loadingSkeleton) return <>{loadingSkeleton}</>;
+    return (
+      <div className="flex flex-col items-center justify-center p-12 space-y-3">
+        <div className="w-8 h-8 border-2 border-[#E8546A] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-[#7E88A8]">Loading records...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        title="Unable to load content"
+        message={error}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <EmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+        action={emptyAction}
+      />
+    );
+  }
+
+  return <>{children}</>;
+};
+
 

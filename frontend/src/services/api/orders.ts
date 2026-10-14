@@ -20,7 +20,10 @@ export interface OrderDto {
   customerEmail: string;
   customerPhone?: string;
   shippingAddress?: string;
+  notes?: string;
   createdAtUtc: string;
+  relatedBookingId?: string;
+  relatedBookingReference?: string;
   items: OrderItemDto[];
 }
 
@@ -33,6 +36,9 @@ export const ordersApi = {
     customerEmail: string;
     customerPhone?: string;
     shippingAddress?: string;
+    notes?: string;
+    paymentMethod?: string;
+    relatedBookingId?: string;
     items: Array<{ productId: string; quantity: number }>;
   }, token?: string): Promise<{ order: OrderDto }> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

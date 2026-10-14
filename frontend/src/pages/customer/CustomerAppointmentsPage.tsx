@@ -17,6 +17,7 @@ import {
   X,
   ExternalLink,
   Info,
+  Package,
 } from 'lucide-react';
 import {
   formatBusinessDate,
@@ -400,6 +401,19 @@ END:VCALENDAR`;
                         <span>{apt.locationName}</span>
                       </span>
                     </div>
+
+                    {apt.relatedOrderNumber && (
+                      <div className="pt-1">
+                        <Link
+                          to="/orders"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8546A]/10 border border-[#E8546A]/20 text-[#E8546A] text-[11px] font-medium hover:bg-[#E8546A]/20 transition-colors"
+                          title="View Retail Order Attached to this Visit"
+                        >
+                          <Package className="w-3 h-3" />
+                          <span>Includes Retail Order #{apt.relatedOrderNumber}</span>
+                        </Link>
+                      </div>
+                    )}
 
                     {apt.cancellationReason && (
                       <p className="text-[11px] text-red-400 italic">

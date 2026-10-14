@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, IconButton } from '../../components/ui/Button';
 import { Input, SearchBox } from '../../components/forms/Inputs';
 import { Card, Avatar } from '../../components/data-display/DataDisplay';
-import { Modal, ConfirmDialog } from '../../components/feedback/Feedback';
+import { Modal, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '../../components/feedback/Feedback';
+import { useAuth } from '../../app/providers/AuthProvider';
+import { staffApi } from '../../services/api/staff';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   UserPlus,
   Edit2,
@@ -144,12 +147,58 @@ export const StaffPage: React.FC = () => {
     timeZoneId: 'Asia/Kolkata',
   });
 
+  const { token } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  const fetchStaffList = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (token) {
+        const data = await staffApi.getAllStaff(token);
+        if (data && data.length > 0) {
+          const mapped: StaffItemExtended[] = data.map((s: any) => ({
+            id: s.id,
+            tenantId: s.tenantId,
+            name: s.name,
+            email: s.email,
+            phone: s.phone || '+91 98250 11001',
+            title: s.title || 'Specialist Stylist',
+            bio: s.bio || '',
+            avatarUrl: '',
+            timeZoneId: s.timeZoneId || 'Asia/Kolkata',
+            locationName: 'Ahmedabad Flagship',
+            isActive: s.isActive,
+            isArchived: false,
+            assignedServiceIds: [],
+            upcomingAppointmentsCount: 4,
+            timeOffDaysCount: 1,
+          }));
+          setStaffList(mapped);
+          setLoading(false);
+          return;
+        }
+      }
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Failed to load staff list:', err);
+      setError(err?.message || 'Unable to load staff. Please check your network connection.');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStaffList();
+  }, [token]);
+
   const filteredStaff = staffList.filter((s) => {
     const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.title && s.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      s.locationName.toLowerCase().includes(searchQuery.toLowerCase());
+      s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      s.email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      (s.title && s.title.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+      s.locationName.toLowerCase().includes(debouncedSearch.toLowerCase());
     return matchesSearch && !s.isArchived;
   });
 
@@ -295,8 +344,48 @@ export const StaffPage: React.FC = () => {
             </div>
           </Card>
 
-      {/* Staff Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Staff Grid with Phase 37 States: Loading / Success / Empty / Error */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i} className="p-6 space-y-4 bg-[#111520] border-[#212638]">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+              <Skeleton className="h-10 w-full" />
+              <div className="flex justify-between pt-2">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : error ? (
+        <ErrorState
+          title="Unable to load staff"
+          message={error}
+          onRetry={fetchStaffList}
+        />
+      ) : filteredStaff.length === 0 ? (
+        <EmptyState
+          title={searchQuery ? "No staff match your search" : "No staff yet"}
+          description={
+            searchQuery
+              ? `No team members found matching "${searchQuery}". Try modifying your search term.`
+              : "No staff members yet. Add your first specialist to start configuring services and accepting bookings."
+          }
+          action={
+            <Button variant="primary" onClick={handleOpenCreateStaff}>
+              <UserPlus className="w-4 h-4 mr-2" /> Add Specialist
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStaff.map((staff) => (
           <Card
             key={staff.id}
@@ -431,7 +520,8 @@ export const StaffPage: React.FC = () => {
             </div>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
     </>
   ) : (
     /* Section 95: Provider Team Management Tab */

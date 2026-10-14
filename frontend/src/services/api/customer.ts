@@ -17,6 +17,8 @@ export interface CustomerAppointmentDto {
   customerNotes?: string;
   createdAtUtc: string;
   minimumNoticeHours: number;
+  relatedOrderId?: string;
+  relatedOrderNumber?: string;
 }
 
 export interface CustomerProfileDto {

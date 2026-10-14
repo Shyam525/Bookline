@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../app/providers/AuthProvider';
+import { EmptyState, ErrorState, Skeleton } from '../../components/feedback/Feedback';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   Calendar,
   Clock,
@@ -11,6 +13,7 @@ import {
   Filter,
   Scissors,
   MapPin,
+  RefreshCw,
 } from 'lucide-react';
 
 interface OperationalBooking {
@@ -31,6 +34,10 @@ export const ProviderBookingsPage: React.FC = () => {
   const { activeBusiness } = useAuth();
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const [bookings, setBookings] = useState<OperationalBooking[]>([
     {
@@ -87,6 +94,15 @@ export const ProviderBookingsPage: React.FC = () => {
     },
   ]);
 
+  const fetchBookings = () => {
+    setLoading(true);
+    setError(null);
+    // Simulate real async fetch with reliable fallback
+    setTimeout(() => {
+      setLoading(false);
+    }, 250);
+  };
+
   const handleUpdateStatus = (id: string, newStatus: OperationalBooking['status']) => {
     setBookings((prev) =>
       prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
@@ -96,9 +112,9 @@ export const ProviderBookingsPage: React.FC = () => {
   const filtered = bookings.filter((b) => {
     if (filter !== 'ALL' && b.status !== filter) return false;
     if (
-      searchQuery &&
-      !b.reference.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !b.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+      debouncedSearch &&
+      !b.reference.toLowerCase().includes(debouncedSearch.toLowerCase()) &&
+      !b.customerName.toLowerCase().includes(debouncedSearch.toLowerCase())
     ) {
       return false;
     }
@@ -146,111 +162,228 @@ export const ProviderBookingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Bookings Table */}
-      <div className="bg-[#111520] border border-[#212638] rounded-2xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-[#ECEFFE]">
-            <thead className="bg-[#181D2C] text-[#7E88A8] uppercase tracking-wider font-semibold border-b border-[#212638]">
-              <tr>
-                <th className="py-3 px-4">Booking Ref</th>
-                <th className="py-3 px-4">Client Details</th>
-                <th className="py-3 px-4">Service & Specialist</th>
-                <th className="py-3 px-4">Scheduled Slot</th>
-                <th className="py-3 px-4">Fee / Deposit</th>
-                <th className="py-3 px-4">State</th>
-                <th className="py-3 px-4 text-right">Operational Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#212638]">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-[#7E88A8]">
-                    No bookings found in this status view.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((b) => (
-                  <tr key={b.id} className="hover:bg-[#181D2C]/40 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-white">
-                      {b.reference}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <p className="font-semibold text-white">{b.customerName}</p>
-                      <p className="text-[10px] text-[#7E88A8]">{b.customerEmail}</p>
-                      <p className="text-[10px] text-[#34D399] font-mono">{b.customerPhone}</p>
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <p className="font-medium text-white">{b.serviceName}</p>
-                      <p className="text-[10px] text-[#E8546A]">{b.staffName}</p>
-                    </td>
-
-                    <td className="py-3.5 px-4 font-medium text-white">
-                      {b.startTime}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <p className="font-heading font-bold text-white">₹{b.totalPrice}</p>
-                      {b.depositPaid > 0 && (
-                        <p className="text-[10px] text-[#34D399]">Paid Adv: ₹{b.depositPaid}</p>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold ${
-                          b.status === 'CheckedIn'
-                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                            : b.status === 'Confirmed'
-                            ? 'bg-[#34D399]/15 text-[#34D399] border border-[#34D399]/30'
-                            : b.status === 'Completed'
-                            ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                            : b.status === 'Cancelled'
-                            ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                            : 'bg-[#FBBF24]/15 text-[#FBBF24] border border-[#FBBF24]/30'
-                        }`}
-                      >
-                        {b.status}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {b.status === 'Confirmed' && (
-                          <button
-                            onClick={() => handleUpdateStatus(b.id, 'CheckedIn')}
-                            className="px-2.5 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-[11px]"
-                          >
-                            Check-In
-                          </button>
-                        )}
-                        {b.status === 'CheckedIn' && (
-                          <button
-                            onClick={() => handleUpdateStatus(b.id, 'Completed')}
-                            className="px-2.5 py-1 rounded-lg bg-[#34D399] hover:bg-[#2ebc87] text-black font-bold text-[11px]"
-                          >
-                            Complete
-                          </button>
-                        )}
-                        {(b.status === 'Confirmed' || b.status === 'Pending') && (
-                          <button
-                            onClick={() => handleUpdateStatus(b.id, 'NoShow')}
-                            className="px-2 py-1 rounded-lg bg-[#181D2C] hover:bg-red-500/20 text-[#7E88A8] hover:text-red-400 text-[11px]"
-                            title="Mark No-Show"
-                          >
-                            No-Show
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Bookings Content */}
+      {loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
         </div>
-      </div>
+      ) : error ? (
+        <ErrorState
+          title="Unable to load appointments"
+          message={error}
+          onRetry={fetchBookings}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="No appointments today."
+          description={
+            debouncedSearch
+              ? `No bookings match "${debouncedSearch}". Try another name or reference.`
+              : filter !== 'ALL'
+              ? `No appointments found with status "${filter}".`
+              : 'There are no appointments scheduled for this roster.'
+          }
+          action={
+            <button
+              onClick={() => {
+                setFilter('ALL');
+                setSearchQuery('');
+                fetchBookings();
+              }}
+              className="px-4 py-2 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-md"
+            >
+              Reset Filters
+            </button>
+          }
+        />
+      ) : (
+        <>
+          {/* Responsive Mobile Cards View (< 768px) */}
+          <div className="grid grid-cols-1 gap-4 md:hidden">
+            {filtered.map((b) => (
+              <div
+                key={b.id}
+                className="bg-[#111520] border border-[#212638] rounded-2xl p-4 space-y-3 shadow-lg"
+              >
+                <div className="flex items-center justify-between border-b border-[#212638] pb-2.5">
+                  <span className="font-mono font-bold text-xs text-white">{b.reference}</span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold ${
+                      b.status === 'CheckedIn'
+                        ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                        : b.status === 'Confirmed'
+                        ? 'bg-[#34D399]/15 text-[#34D399] border border-[#34D399]/30'
+                        : b.status === 'Completed'
+                        ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                        : b.status === 'Cancelled'
+                        ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                        : 'bg-[#FBBF24]/15 text-[#FBBF24] border border-[#FBBF24]/30'
+                    }`}
+                  >
+                    {b.status === 'Confirmed' && <CheckCircle className="w-3 h-3 text-[#34D399]" />}
+                    {b.status === 'Completed' && <CheckCircle className="w-3 h-3 text-purple-300" />}
+                    {b.status === 'Cancelled' && <XCircle className="w-3 h-3 text-red-400" />}
+                    {b.status === 'Pending' && <Clock className="w-3 h-3 text-[#FBBF24]" />}
+                    {b.status}
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm text-white">{b.customerName}</p>
+                  <p className="text-xs text-[#7E88A8]">{b.customerPhone} • {b.customerEmail}</p>
+                </div>
+
+                <div className="bg-[#181D2C] p-3 rounded-xl space-y-1 border border-[#212638]">
+                  <p className="font-medium text-xs text-white">{b.serviceName}</p>
+                  <div className="flex items-center justify-between text-[11px] text-[#7E88A8]">
+                    <span>Specialist: <strong className="text-white">{b.staffName}</strong></span>
+                    <span className="text-[#34D399] font-semibold">{b.startTime}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#212638]/50">
+                    <span className="text-[#ECEFFE] font-bold">Total: ₹{b.totalPrice}</span>
+                    {b.depositPaid > 0 && (
+                      <span className="text-[#34D399]">Paid: ₹{b.depositPaid}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mobile Touch Action Targets */}
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  {b.status === 'Confirmed' && (
+                    <button
+                      onClick={() => handleUpdateStatus(b.id, 'CheckedIn')}
+                      className="min-h-[38px] px-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs shadow-sm transition-all"
+                    >
+                      Check-In
+                    </button>
+                  )}
+                  {b.status === 'CheckedIn' && (
+                    <button
+                      onClick={() => handleUpdateStatus(b.id, 'Completed')}
+                      className="min-h-[38px] px-4 rounded-xl bg-[#34D399] hover:bg-[#2ebc87] text-black font-bold text-xs shadow-sm transition-all"
+                    >
+                      Mark Completed
+                    </button>
+                  )}
+                  {(b.status === 'Confirmed' || b.status === 'Pending') && (
+                    <button
+                      onClick={() => handleUpdateStatus(b.id, 'NoShow')}
+                      className="min-h-[38px] px-3 rounded-xl bg-[#181D2C] hover:bg-red-500/20 text-[#7E88A8] hover:text-red-400 text-xs border border-[#212638] transition-all"
+                      title="Mark No-Show"
+                    >
+                      No-Show
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop & Tablet Table View (>= 768px) */}
+          <div className="hidden md:block bg-[#111520] border border-[#212638] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-[#ECEFFE]">
+                <thead className="bg-[#181D2C] text-[#7E88A8] uppercase tracking-wider font-semibold border-b border-[#212638]">
+                  <tr>
+                    <th className="py-3 px-4">Booking Ref</th>
+                    <th className="py-3 px-4">Client Details</th>
+                    <th className="py-3 px-4">Service & Specialist</th>
+                    <th className="py-3 px-4">Scheduled Slot</th>
+                    <th className="py-3 px-4">Fee / Deposit</th>
+                    <th className="py-3 px-4">State</th>
+                    <th className="py-3 px-4 text-right">Operational Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#212638]">
+                  {filtered.map((b) => (
+                    <tr key={b.id} className="hover:bg-[#181D2C]/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-white">
+                        {b.reference}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <p className="font-semibold text-white">{b.customerName}</p>
+                        <p className="text-[10px] text-[#7E88A8]">{b.customerEmail}</p>
+                        <p className="text-[10px] text-[#34D399] font-mono">{b.customerPhone}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <p className="font-medium text-white">{b.serviceName}</p>
+                        <p className="text-[10px] text-[#E8546A]">{b.staffName}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-medium text-white">
+                        {b.startTime}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <p className="font-heading font-bold text-white">₹{b.totalPrice}</p>
+                        {b.depositPaid > 0 && (
+                          <p className="text-[10px] text-[#34D399]">Paid Adv: ₹{b.depositPaid}</p>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold ${
+                            b.status === 'CheckedIn'
+                              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                              : b.status === 'Confirmed'
+                              ? 'bg-[#34D399]/15 text-[#34D399] border border-[#34D399]/30'
+                              : b.status === 'Completed'
+                              ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                              : b.status === 'Cancelled'
+                              ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                              : 'bg-[#FBBF24]/15 text-[#FBBF24] border border-[#FBBF24]/30'
+                          }`}
+                        >
+                          {b.status === 'Confirmed' && <CheckCircle className="w-3 h-3 text-[#34D399]" />}
+                          {b.status === 'Completed' && <CheckCircle className="w-3 h-3 text-purple-300" />}
+                          {b.status === 'Cancelled' && <XCircle className="w-3 h-3 text-red-400" />}
+                          {b.status === 'Pending' && <Clock className="w-3 h-3 text-[#FBBF24]" />}
+                          {b.status}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {b.status === 'Confirmed' && (
+                            <button
+                              onClick={() => handleUpdateStatus(b.id, 'CheckedIn')}
+                              className="px-2.5 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-[11px] transition-colors"
+                            >
+                              Check-In
+                            </button>
+                          )}
+                          {b.status === 'CheckedIn' && (
+                            <button
+                              onClick={() => handleUpdateStatus(b.id, 'Completed')}
+                              className="px-2.5 py-1 rounded-lg bg-[#34D399] hover:bg-[#2ebc87] text-black font-bold text-[11px] transition-colors"
+                            >
+                              Complete
+                            </button>
+                          )}
+                          {(b.status === 'Confirmed' || b.status === 'Pending') && (
+                            <button
+                              onClick={() => handleUpdateStatus(b.id, 'NoShow')}
+                              className="px-2 py-1 rounded-lg bg-[#181D2C] hover:bg-red-500/20 text-[#7E88A8] hover:text-red-400 text-[11px] transition-colors"
+                              title="Mark No-Show"
+                            >
+                              No-Show
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -15,6 +15,7 @@ import {
   X,
   Printer,
   MapPin,
+  Calendar,
 } from 'lucide-react';
 
 export const CustomerOrdersPage: React.FC = () => {
@@ -227,6 +228,16 @@ export const CustomerOrdersPage: React.FC = () => {
                       &bull; {orderDate.toLocaleDateString()} at{' '}
                       {orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
+                    {order.relatedBookingReference && (
+                      <Link
+                        to="/appointments"
+                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#34D399]/10 border border-[#34D399]/20 text-[#34D399] text-[11px] font-medium hover:bg-[#34D399]/20 transition-colors"
+                        title="View Linked Appointment"
+                      >
+                        <Calendar className="w-3 h-3" />
+                        <span>Visit #{order.relatedBookingReference}</span>
+                      </Link>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">

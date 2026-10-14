@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { discoveryApi, ProviderStorefrontData } from '../../services/api/discovery';
 import { reviewsApi, ReviewItem } from '../../services/api/reviews';
+import { ordersApi, OrderDto } from '../../services/api/orders';
 import { useCart } from '../../app/providers/CartContext';
 import { useAuth } from '../../app/providers/AuthProvider';
 import {
@@ -88,6 +89,32 @@ export const ProviderStorefrontPage: React.FC = () => {
   const [slotError, setSlotError] = useState<string | null>(null);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
+  const [selectedAddonProducts, setSelectedAddonProducts] = useState<Array<{ id: string; name: string; price: number; quantity: number }>>([]);
+  const [confirmedOrder, setConfirmedOrder] = useState<OrderDto | null>(null);
+  const [productOrderError, setProductOrderError] = useState<string | null>(null);
+
+  const handleToggleAddonProduct = (prod: any) => {
+    setSelectedAddonProducts((prev) => {
+      const exists = prev.find((p) => p.id === prod.id);
+      if (exists) {
+        return prev.filter((p) => p.id !== prod.id);
+      } else {
+        return [...prev, { id: prod.id, name: prod.name, price: prod.price, quantity: 1 }];
+      }
+    });
+  };
+
+  const handleUpdateAddonQuantity = (productId: string, delta: number) => {
+    setSelectedAddonProducts((prev) =>
+      prev.map((p) => {
+        if (p.id === productId) {
+          const newQty = Math.max(1, p.quantity + delta);
+          return { ...p, quantity: newQty };
+        }
+        return p;
+      })
+    );
+  };
 
   // Write Review Modal State
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -289,6 +316,41 @@ export const ProviderStorefrontPage: React.FC = () => {
         customerNotes: bookingCustomerNotes.trim() || undefined,
       });
 
+      // Section 27: Combined Purchase Flow (Services + Products Together)
+      let orderRecord: OrderDto | null = null;
+      if (selectedAddonProducts.length > 0 && storefront) {
+        try {
+          const orderRes = await ordersApi.createOrder(
+            {
+              tenantId: storefront.provider.id,
+              customerName: bookingCustomerName.trim(),
+              customerEmail: bookingCustomerEmail.trim(),
+              customerPhone: bookingCustomerPhone.trim(),
+              notes: `Purchased with appointment ${booking.bookingReference || ''}`,
+              relatedBookingId: booking.id,
+              items: selectedAddonProducts.map((p) => ({
+                productId: p.id,
+                quantity: p.quantity,
+              })),
+            },
+            token || undefined
+          );
+          orderRecord = orderRes.order;
+          setConfirmedOrder(orderRecord);
+
+          try {
+            const prevOrders = JSON.parse(localStorage.getItem('bookline_customer_orders') || '[]');
+            localStorage.setItem('bookline_customer_orders', JSON.stringify([orderRecord, ...prevOrders]));
+          } catch {}
+        } catch (orderErr: any) {
+          // Failure isolation (Section 27): Product failure must not invalidate the booking hold or cancel the booking
+          setProductOrderError(
+            orderErr.message ||
+              'Your retail product could not be reserved due to inventory limits. You can still purchase it in-studio.'
+          );
+        }
+      }
+
       const bookingRecord = {
         id: booking.id,
         reference: booking.bookingReference || `BL-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -300,6 +362,9 @@ export const ProviderStorefrontPage: React.FC = () => {
         currency: selectedService.currency || '₹',
         providerName: storefront?.provider.name,
         location: selectedLocation ? `${selectedLocation.name}, ${selectedLocation.address}` : storefront?.provider.address,
+        relatedOrderNumber: orderRecord?.orderNumber,
+        relatedOrderId: orderRecord?.id,
+        addonProducts: selectedAddonProducts,
       };
 
       // Persist to local customer state so Appointments and Notifications pages reflect it
@@ -321,6 +386,8 @@ export const ProviderStorefrontPage: React.FC = () => {
           currency: selectedService.currency || '₹',
           createdAtUtc: new Date().toISOString(),
           minimumNoticeHours: 4,
+          relatedOrderNumber: orderRecord?.orderNumber,
+          relatedOrderId: orderRecord?.id,
         };
         const prevApts = JSON.parse(localStorage.getItem('bookline_customer_appointments') || '[]');
         localStorage.setItem('bookline_customer_appointments', JSON.stringify([appointmentItem, ...prevApts]));
@@ -1930,6 +1997,116 @@ END:VCALENDAR`;
                     </div>
                   </div>
 
+                  {/* Section 27: Add Recommended Retail Products to Appointment Flow */}
+                  {storefront?.products && storefront.products.length > 0 && (
+                    <div className="space-y-3 pt-3 border-t border-[#212638]">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8]">
+                          Recommended Products &amp; Aftercare (Optional)
+                        </label>
+                        <span className="text-[10px] text-[#34D399] font-medium bg-[#34D399]/10 px-2 py-0.5 rounded-full border border-[#34D399]/20">
+                          Pickup at Visit
+                        </span>
+                      </div>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {storefront.products.slice(0, 3).map((prod) => {
+                          const selected = selectedAddonProducts.find((p) => p.id === prod.id);
+                          return (
+                            <div
+                              key={prod.id}
+                              className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                                selected
+                                  ? 'bg-[#E8546A]/10 border-[#E8546A]/50'
+                                  : 'bg-[#181D2C] border-[#212638] hover:border-[#384158]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-[#212638] flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
+                                  <Package className="w-4 h-4 text-[#E8546A]" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-white truncate">{prod.name}</p>
+                                  <p className="text-[11px] font-mono text-[#34D399]">
+                                    {prod.currency || '₹'}{prod.price.toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {selected ? (
+                                  <div className="flex items-center gap-1.5 bg-[#111520] border border-[#212638] rounded-lg px-2 py-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateAddonQuantity(prod.id, -1)}
+                                      className="w-4 h-4 rounded flex items-center justify-center text-[#7E88A8] hover:text-white"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="text-xs font-mono text-white font-bold px-1">
+                                      {selected.quantity}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateAddonQuantity(prod.id, 1)}
+                                      className="w-4 h-4 rounded flex items-center justify-center text-[#7E88A8] hover:text-white"
+                                    >
+                                      +
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleAddonProduct(prod)}
+                                      className="ml-1 text-red-400 hover:text-red-300"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleAddonProduct(prod)}
+                                    className="px-2.5 py-1 rounded-lg bg-[#212638] hover:bg-[#E8546A] hover:text-white text-[#ECEFFE] text-xs font-semibold transition-colors flex items-center gap-1"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>Add</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {selectedAddonProducts.length > 0 && (
+                        <div className="p-3 rounded-xl bg-[#111520] border border-[#212638] space-y-1.5 text-[11px]">
+                          <div className="flex justify-between text-[#7E88A8]">
+                            <span>Treatment Appointment:</span>
+                            <span className="font-mono text-white">
+                              {selectedService?.currency || '₹'}{selectedService?.price.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[#7E88A8]">
+                            <span>
+                              Retail Items ({selectedAddonProducts.reduce((sum, p) => sum + p.quantity, 0)}):
+                            </span>
+                            <span className="font-mono text-white">
+                              {selectedService?.currency || '₹'}
+                              {selectedAddonProducts.reduce((sum, p) => sum + p.price * p.quantity, 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="border-t border-[#212638] pt-1 flex justify-between font-bold text-white">
+                            <span>Total Due at Studio / Online:</span>
+                            <span className="font-mono text-[#34D399]">
+                              {selectedService?.currency || '₹'}
+                              {(
+                                (selectedService?.price || 0) +
+                                selectedAddonProducts.reduce((sum, p) => sum + p.price * p.quantity, 0)
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Section 62: BOOKING BUTTON (Disabled when invalid/expired/missing state) */}
                   {(() => {
                     const isHoldExpired = holdTimer <= 0;
@@ -2057,6 +2234,53 @@ END:VCALENDAR`;
                       );
                     })()}
                   </div>
+
+                  {/* Section 27: Distinct Retail Order Confirmation (Services + Products Together) */}
+                  {confirmedOrder && (
+                    <div className="p-5 rounded-2xl bg-[#181D2C] border border-[#212638] text-xs text-left space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#212638]">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-[#E8546A]" />
+                          <span className="font-bold text-white">Retail Merchandise Order</span>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#34D399]/10 border border-[#34D399]/20 font-mono text-[#34D399] text-xs font-bold">
+                          {confirmedOrder.orderNumber}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#7E88A8]">
+                        Attached to Appointment {confirmedBooking.reference} · Ready for collection during your treatment.
+                      </p>
+                      <div className="divide-y divide-[#212638]">
+                        {confirmedOrder.items?.map((item, idx) => (
+                          <div key={idx} className="py-2 flex items-center justify-between text-xs">
+                            <span className="text-white font-medium">
+                              {item.productName} × {item.quantity}
+                            </span>
+                            <span className="font-mono text-[#34D399] font-bold">
+                              ₹{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t border-[#212638] pt-2 flex justify-between font-bold text-xs text-white">
+                        <span>Products Total Paid:</span>
+                        <span className="font-mono text-[#34D399]">
+                          ₹{confirmedOrder.totalAmount?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 27: Graceful Product Failure Notice */}
+                  {productOrderError && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs text-left flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-bold text-amber-200">Product Order Notice</p>
+                        <p className="text-[11px] leading-relaxed text-amber-300/90">{productOrderError}</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-3">
                     <button

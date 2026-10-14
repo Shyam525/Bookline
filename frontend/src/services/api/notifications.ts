@@ -51,9 +51,57 @@ export interface SendTestNotificationPayload {
   channel: string;
 }
 
+export interface CustomerNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  createdAtUtc: string;
+  read: boolean;
+  link: string;
+  type: 'booking' | 'order' | 'reminder' | 'system';
+}
+
+export interface MyNotificationsResponse {
+  unreadCount: number;
+  notifications: CustomerNotificationItem[];
+}
+
 const API_BASE = '/api/v1/notifications';
 
 export const notificationsApi = {
+  async getMyNotifications(token: string): Promise<MyNotificationsResponse> {
+    const res = await fetch(`${API_BASE}/my`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to load notifications');
+    return res.json();
+  },
+
+  async markAsRead(token: string, id: string, read: boolean = true): Promise<{ success: boolean; isRead: boolean }> {
+    const res = await fetch(`${API_BASE}/${id}/read`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ read }),
+    });
+    if (!res.ok) throw new Error('Failed to update notification');
+    return res.json();
+  },
+
+  async markAllRead(token: string): Promise<{ success: boolean; count: number }> {
+    const res = await fetch(`${API_BASE}/read-all`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw new Error('Failed to mark notifications as read');
+    return res.json();
+  },
+
   async getLogs(
     token: string,
     params?: { pageNumber?: number; pageSize?: number; status?: string; channel?: string }

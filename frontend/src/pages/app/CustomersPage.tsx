@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Button, IconButton } from '../../components/ui/Button';
 import { Input, SearchBox } from '../../components/forms/Inputs';
 import { Card, Avatar } from '../../components/data-display/DataDisplay';
-import { Modal, Drawer, ConfirmDialog } from '../../components/feedback/Feedback';
-import { UserPlus, Edit2, Archive, Eye, Mail, Phone, Calendar, Users, FileText } from 'lucide-react';
+import { Modal, Drawer, ConfirmDialog, Skeleton, EmptyState, ErrorState } from '../../components/feedback/Feedback';
+import { UserPlus, Edit2, Archive, Eye, Mail, Phone, Calendar, Users, FileText, RefreshCw } from 'lucide-react';
 import { CustomerItem } from '../../services/api/customers';
+import { useDebounce } from '../../hooks/useDebounce';
 
 export const CustomersPage: React.FC = () => {
   // Mock initial state for design system & offline presentation
@@ -57,6 +58,18 @@ export const CustomersPage: React.FC = () => {
   ]);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  const fetchCustomers = () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 200);
+  };
   
   // Modals & Drawers
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -74,9 +87,9 @@ export const CustomersPage: React.FC = () => {
   });
 
   const filteredCustomers = customers.filter((c) => {
-    const matchesSearch = c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = c.fullName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      c.email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      c.phone.toLowerCase().includes(debouncedSearch.toLowerCase());
     return matchesSearch && !c.isArchived;
   });
 
@@ -165,111 +178,126 @@ export const CustomersPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Customer Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredCustomers.map((cust) => (
-          <Card key={cust.id} className="flex flex-col justify-between hover:border-[#E8546A]/40 transition-all group">
-            <div>
-              {/* Header Info */}
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <Avatar name={cust.fullName} size="md" />
-                  <div>
-                    <h3 className="text-base font-semibold text-[#ECEFFE] group-hover:text-[#E8546A] transition-colors">
-                      {cust.fullName}
-                    </h3>
-                    <div className="flex items-center gap-1.5 text-xs text-[#7E88A8] mt-0.5">
-                      <Mail className="w-3 h-3 text-[#ECEFFE]/60" />
-                      <span className="truncate">{cust.email}</span>
+      {/* Customer Content */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      ) : errorMsg ? (
+        <ErrorState
+          title="Unable to load customers"
+          message={errorMsg}
+          onRetry={fetchCustomers}
+        />
+      ) : filteredCustomers.length === 0 ? (
+        <EmptyState
+          title={debouncedSearch ? "No clients found." : "No clients yet."}
+          description={
+            debouncedSearch
+              ? `No client profiles match "${debouncedSearch}". Try a different name, email, or phone.`
+              : "Start building your client directory to track lifetime appointments and personal formulas."
+          }
+          action={
+            <Button variant="primary" onClick={handleOpenCreateCustomer}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add First Client
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredCustomers.map((cust) => (
+            <Card key={cust.id} className="flex flex-col justify-between hover:border-[#E8546A]/40 transition-all group">
+              <div>
+                {/* Header Info */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={cust.fullName} size="md" />
+                    <div>
+                      <h3 className="text-base font-semibold text-[#ECEFFE] group-hover:text-[#E8546A] transition-colors">
+                        {cust.fullName}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-xs text-[#7E88A8] mt-0.5">
+                        <Mail className="w-3 h-3 text-[#ECEFFE]/60" />
+                        <span className="truncate">{cust.email}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Phone & Date Info */}
-              <div className="space-y-1.5 pt-3 border-t border-[#212638] text-xs text-[#7E88A8]">
-                {cust.phone && (
+                {/* Phone & Date Info */}
+                <div className="space-y-1.5 pt-3 border-t border-[#212638] text-xs text-[#7E88A8]">
+                  {cust.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-[#ECEFFE]/60" />
+                      <span>{cust.phone}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-[#ECEFFE]/60" />
-                    <span>{cust.phone}</span>
+                    <Calendar className="w-3.5 h-3.5 text-[#ECEFFE]/60" />
+                    <span>Client since {new Date(cust.createdAtUtc).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Stats Bar */}
+                <div className="grid grid-cols-2 gap-2 my-4 pt-3 border-t border-[#212638]">
+                  <div className="bg-[#181D2C] p-2.5 rounded-xl border border-[#212638]">
+                    <div className="text-[10px] uppercase font-semibold tracking-wider text-[#7E88A8]">
+                      Total Bookings
+                    </div>
+                    <div className="text-sm font-bold text-[#ECEFFE] mt-0.5">
+                      {cust.totalBookingsCount} appointments
+                    </div>
+                  </div>
+
+                  <div className="bg-[#181D2C] p-2.5 rounded-xl border border-[#212638]">
+                    <div className="text-[10px] uppercase font-semibold tracking-wider text-[#7E88A8]">
+                      Lifetime Value
+                    </div>
+                    <div className="text-sm font-bold text-[#34D399] mt-0.5">
+                      ${cust.totalSpentAmount.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes Snippet */}
+                {cust.notes && (
+                  <div className="bg-[#181D2C]/60 p-2.5 rounded-xl border border-[#212638] text-xs text-[#7E88A8] line-clamp-2">
+                    <span className="font-semibold text-[#ECEFFE] mr-1">Notes:</span>
+                    {cust.notes}
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-[#ECEFFE]/60" />
-                  <span>Client since {new Date(cust.createdAtUtc).toLocaleDateString()}</span>
-                </div>
               </div>
 
-              {/* Stats Bar */}
-              <div className="grid grid-cols-2 gap-2 my-4 pt-3 border-t border-[#212638]">
-                <div className="bg-[#181D2C] p-2.5 rounded-xl border border-[#212638]">
-                  <div className="text-[10px] uppercase font-semibold tracking-wider text-[#7E88A8]">
-                    Total Bookings
-                  </div>
-                  <div className="text-sm font-bold text-[#ECEFFE] mt-0.5">
-                    {cust.totalBookingsCount} appointments
-                  </div>
-                </div>
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-4 border-t border-[#212638] mt-4">
+                <Button variant="outline" size="sm" onClick={() => setViewingCustomer(cust)}>
+                  <Eye className="w-3.5 h-3.5 mr-1.5 text-[#E8546A]" />
+                  View Details
+                </Button>
 
-                <div className="bg-[#181D2C] p-2.5 rounded-xl border border-[#212638]">
-                  <div className="text-[10px] uppercase font-semibold tracking-wider text-[#7E88A8]">
-                    Lifetime Value
-                  </div>
-                  <div className="text-sm font-bold text-[#34D399] mt-0.5">
-                    ${cust.totalSpentAmount.toFixed(2)}
-                  </div>
+                <div className="flex items-center gap-1">
+                  <IconButton
+                    icon={<Edit2 className="w-4 h-4" />}
+                    variant="ghost"
+                    size="sm"
+                    title="Edit Customer"
+                    onClick={() => handleOpenEditCustomer(cust)}
+                  />
+                  <IconButton
+                    icon={<Archive className="w-4 h-4 text-[#E8546A]" />}
+                    variant="ghost"
+                    size="sm"
+                    title="Archive Customer"
+                    onClick={() => setArchivingCustomerId(cust.id)}
+                  />
                 </div>
               </div>
-
-              {/* Notes Snippet */}
-              {cust.notes && (
-                <div className="bg-[#181D2C]/60 p-2.5 rounded-xl border border-[#212638] text-xs text-[#7E88A8] line-clamp-2">
-                  <span className="font-semibold text-[#ECEFFE] mr-1">Notes:</span>
-                  {cust.notes}
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-4 border-t border-[#212638] mt-4">
-              <Button variant="outline" size="sm" onClick={() => setViewingCustomer(cust)}>
-                <Eye className="w-3.5 h-3.5 mr-1.5 text-[#E8546A]" />
-                View Details
-              </Button>
-
-              <div className="flex items-center gap-1">
-                <IconButton
-                  icon={<Edit2 className="w-4 h-4" />}
-                  variant="ghost"
-                  size="sm"
-                  title="Edit Customer"
-                  onClick={() => handleOpenEditCustomer(cust)}
-                />
-                <IconButton
-                  icon={<Archive className="w-4 h-4 text-[#E8546A]" />}
-                  variant="ghost"
-                  size="sm"
-                  title="Archive Customer"
-                  onClick={() => setArchivingCustomerId(cust.id)}
-                />
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {filteredCustomers.length === 0 && (
-        <Card className="p-12 text-center">
-          <Users className="w-10 h-10 text-[#7E88A8] mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-[#ECEFFE]">No clients found</h3>
-          <p className="text-xs text-[#7E88A8] mt-1 max-w-sm mx-auto">
-            Try searching for another name, email, or phone number, or add a new client.
-          </p>
-          <Button variant="primary" className="mt-4" onClick={handleOpenCreateCustomer}>
-            <UserPlus className="w-4 h-4 mr-2" />
-            Add First Client
-          </Button>
-        </Card>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Customer Create/Edit Modal */}

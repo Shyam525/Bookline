@@ -32,6 +32,8 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<Resource> Resources => Set<Resource>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
@@ -80,6 +82,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<Location>(builder =>
         {
             builder.HasKey(l => l.Id);
+            builder.HasIndex(l => new { l.TenantId, l.Name, l.IsActive });
             builder.HasIndex(l => new { l.TenantId, l.City, l.IsActive });
             builder.HasIndex(l => new { l.Latitude, l.Longitude });
         });
@@ -89,27 +92,109 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasKey(b => b.Id);
             builder.HasIndex(b => b.BookingReference).IsUnique();
             builder.HasIndex(b => new { b.TenantId, b.StaffId, b.StartUtc, b.EndUtc });
+            builder.HasIndex(b => new { b.TenantId, b.LocationId, b.StartUtc });
+            builder.HasIndex(b => new { b.TenantId, b.ServiceId });
+            builder.HasIndex(b => new { b.TenantId, b.Status, b.StartUtc });
             builder.HasIndex(b => new { b.CustomerId, b.Status });
+            builder.HasIndex(b => b.RelatedOrderId);
             builder.Property(b => b.Status).HasConversion<string>();
             builder.Property(b => b.TotalPrice).HasPrecision(18, 2);
             builder.Property(b => b.DepositPaid).HasPrecision(18, 2);
             builder.Property(b => b.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         });
 
+        modelBuilder.Entity<DomainStaff>(builder =>
+        {
+            builder.HasKey(s => s.Id);
+            builder.HasIndex(s => new { s.TenantId, s.IsActive });
+            builder.HasIndex(s => new { s.TenantId, s.Email });
+        });
+
+        modelBuilder.Entity<OrganizationMembership>(builder =>
+        {
+            builder.HasKey(m => m.Id);
+            builder.HasIndex(m => new { m.UserId, m.TenantId }).IsUnique();
+            builder.HasIndex(m => new { m.TenantId, m.Role });
+            builder.HasIndex(m => m.UserId);
+        });
+
+        modelBuilder.Entity<Customer>(builder =>
+        {
+            builder.HasKey(c => c.Id);
+            builder.HasIndex(c => new { c.TenantId, c.Email });
+            builder.HasIndex(c => new { c.TenantId, c.Phone });
+            builder.HasIndex(c => new { c.TenantId, c.UserId });
+            builder.HasIndex(c => c.UserId);
+        });
+
+        modelBuilder.Entity<WorkingHours>(builder =>
+        {
+            builder.HasKey(w => w.Id);
+            builder.HasIndex(w => new { w.TenantId, w.StaffId, w.DayOfWeek });
+        });
+
+        modelBuilder.Entity<TimeOff>(builder =>
+        {
+            builder.HasKey(t => t.Id);
+            builder.HasIndex(t => new { t.TenantId, t.StaffId, t.StartUtc, t.EndUtc });
+        });
+
+        modelBuilder.Entity<ProductCategory>(builder =>
+        {
+            builder.HasKey(c => c.Id);
+            builder.HasIndex(c => new { c.TenantId, c.Slug });
+            builder.HasIndex(c => new { c.TenantId, c.IsActive });
+        });
+
         modelBuilder.Entity<Product>(builder =>
         {
             builder.HasKey(p => p.Id);
             builder.HasIndex(p => new { p.TenantId, p.IsActive, p.IsPurchasableOnline });
+            builder.HasIndex(p => new { p.TenantId, p.Slug });
+            builder.HasIndex(p => new { p.TenantId, p.Sku });
             builder.Property(p => p.Price).HasPrecision(18, 2);
             builder.Property(p => p.ModerationStatus).HasConversion<string>();
+            builder.Property(p => p.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+
+            builder.HasOne(p => p.Category)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasMany(p => p.Images)
+                .WithOne(i => i.Product)
+                .HasForeignKey(i => i.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProductImage>(builder =>
+        {
+            builder.HasKey(i => i.Id);
+            builder.HasIndex(i => new { i.TenantId, i.ProductId });
         });
 
         modelBuilder.Entity<Service>(builder =>
         {
             builder.HasKey(s => s.Id);
             builder.HasIndex(s => new { s.TenantId, s.IsActive, s.IsOnlineBookingEnabled });
+            builder.HasIndex(s => new { s.TenantId, s.Slug });
             builder.Property(s => s.Price).HasPrecision(18, 2);
             builder.Property(s => s.ModerationStatus).HasConversion<string>();
+            builder.Property(s => s.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+            builder.HasOne(s => s.RequiredResource)
+                .WithMany()
+                .HasForeignKey(s => s.RequiredResourceId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Resource>(builder =>
+        {
+            builder.HasKey(r => r.Id);
+            builder.HasIndex(r => new { r.TenantId, r.LocationId, r.IsActive });
+            builder.HasOne(r => r.Location)
+                .WithMany()
+                .HasForeignKey(r => r.LocationId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Order>(builder =>
@@ -118,6 +203,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasIndex(o => o.OrderNumber).IsUnique();
             builder.HasIndex(o => new { o.TenantId, o.Status });
             builder.HasIndex(o => o.CustomerId);
+            builder.HasIndex(o => o.RelatedBookingId);
             builder.Property(o => o.Status).HasConversion<string>();
             builder.Property(o => o.Subtotal).HasPrecision(18, 2);
             builder.Property(o => o.Tax).HasPrecision(18, 2);
@@ -182,9 +268,18 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<NotificationLog>(builder =>
         {
             builder.HasKey(n => n.Id);
+            builder.HasIndex(n => new { n.TenantId, n.CreatedAtUtc });
+            builder.HasIndex(n => new { n.TenantId, n.RecipientEmail });
             builder.Property(n => n.NotificationType).HasConversion<string>();
             builder.Property(n => n.Channel).HasConversion<string>();
             builder.Property(n => n.Status).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<AuditLog>(builder =>
+        {
+            builder.HasKey(a => a.Id);
+            builder.HasIndex(a => new { a.TenantId, a.CreatedAtUtc });
+            builder.HasIndex(a => new { a.TenantId, a.Action });
         });
 
         modelBuilder.Entity<Payment>(builder =>
@@ -251,6 +346,13 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     private void RefreshBookingRowVersions()
     {
         foreach (var entry in ChangeTracker.Entries<Booking>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            }
+        }
+        foreach (var entry in ChangeTracker.Entries<Product>())
         {
             if (entry.State is EntityState.Added or EntityState.Modified)
             {

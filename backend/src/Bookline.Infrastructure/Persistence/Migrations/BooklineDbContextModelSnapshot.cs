@@ -98,6 +98,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId", "Action");
+
+                    b.HasIndex("TenantId", "CreatedAtUtc");
+
                     b.ToTable("AuditLogs");
                 });
 
@@ -143,6 +147,12 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("LocationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("RelatedOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RelatedOrderNumber")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset?>("ReminderSentAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -185,11 +195,19 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.HasIndex("BookingReference")
                         .IsUnique();
 
+                    b.HasIndex("RelatedOrderId");
+
                     b.HasIndex("ServiceId");
 
                     b.HasIndex("StaffId");
 
                     b.HasIndex("CustomerId", "Status");
+
+                    b.HasIndex("TenantId", "ServiceId");
+
+                    b.HasIndex("TenantId", "LocationId", "StartUtc");
+
+                    b.HasIndex("TenantId", "Status", "StartUtc");
 
                     b.HasIndex("TenantId", "StaffId", "StartUtc", "EndUtc");
 
@@ -341,7 +359,18 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "Email");
+
+                    b.HasIndex("TenantId", "Phone");
+
+                    b.HasIndex("TenantId", "UserId");
 
                     b.ToTable("Customers");
                 });
@@ -518,6 +547,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "City", "IsActive");
 
+                    b.HasIndex("TenantId", "Name", "IsActive");
+
                     b.ToTable("Locations");
                 });
 
@@ -582,6 +613,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "RecipientEmail");
 
                     b.ToTable("NotificationLogs");
                 });
@@ -669,6 +704,12 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PaymentId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("RelatedBookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RelatedBookingReference")
+                        .HasColumnType("text");
+
                     b.Property<string>("ShippingAddress")
                         .HasColumnType("text");
 
@@ -700,6 +741,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OrderNumber")
                         .IsUnique();
+
+                    b.HasIndex("RelatedBookingId");
 
                     b.HasIndex("TenantId", "Status");
 
@@ -746,6 +789,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("JoinedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -760,6 +806,13 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "Role");
+
+                    b.HasIndex("UserId", "TenantId")
+                        .IsUnique();
 
                     b.ToTable("OrganizationMemberships");
                 });
@@ -910,6 +963,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AllowBackorders")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid");
 
@@ -930,8 +986,14 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsPurchasableOnline")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("LowStockThreshold")
+                        .HasColumnType("integer");
 
                     b.Property<string>("ModerationStatus")
                         .IsRequired()
@@ -949,10 +1011,15 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("bytea");
 
                     b.Property<string>("Sku")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("SoldQuantity")
@@ -964,14 +1031,101 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("TrackInventory")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("TenantId", "Sku");
+
+                    b.HasIndex("TenantId", "Slug");
+
                     b.HasIndex("TenantId", "IsActive", "IsPurchasableOnline");
 
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.ProductCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IsActive");
+
+                    b.HasIndex("TenantId", "Slug");
+
+                    b.ToTable("ProductCategories");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.ProductImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AltText")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId", "ProductId");
+
+                    b.ToTable("ProductImages");
                 });
 
             modelBuilder.Entity("Bookline.Domain.Entities.RefreshToken", b =>
@@ -1086,7 +1240,14 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("TenantId", "LocationId", "IsActive");
 
                     b.ToTable("Resources");
                 });
@@ -1191,6 +1352,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsOnlineBookingEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ModerationStatus")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1203,11 +1367,27 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<Guid?>("RequiredResourceId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("RequiredResourceType")
                         .HasColumnType("text");
 
                     b.Property<bool>("RequiresResource")
                         .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -1218,6 +1398,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("RequiredResourceId");
+
+                    b.HasIndex("TenantId", "Slug");
 
                     b.HasIndex("TenantId", "IsActive", "IsOnlineBookingEnabled");
 
@@ -1255,6 +1439,33 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ServiceCategories");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.ServiceLocation", b =>
+                {
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsAvailable")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("PriceOverride")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ServiceId", "LocationId");
+
+                    b.HasIndex("LocationId");
+
+                    b.ToTable("ServiceLocations");
                 });
 
             modelBuilder.Entity("Bookline.Domain.Entities.Staff", b =>
@@ -1311,6 +1522,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LocationId");
+
+                    b.HasIndex("TenantId", "Email");
+
+                    b.HasIndex("TenantId", "IsActive");
 
                     b.ToTable("Staff");
                 });
@@ -1511,6 +1726,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StaffId");
 
+                    b.HasIndex("TenantId", "StaffId", "StartUtc", "EndUtc");
+
                     b.ToTable("TimeOffs");
                 });
 
@@ -1608,6 +1825,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StaffId");
 
+                    b.HasIndex("TenantId", "StaffId", "DayOfWeek");
+
                     b.ToTable("WorkingHours");
                 });
 
@@ -1658,6 +1877,27 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Bookline.Domain.Entities.Product", b =>
+                {
+                    b.HasOne("Bookline.Domain.Entities.ProductCategory", "Category")
+                        .WithMany("Products")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.ProductImage", b =>
+                {
+                    b.HasOne("Bookline.Domain.Entities.Product", "Product")
+                        .WithMany("Images")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("Bookline.Domain.Entities.Refund", b =>
                 {
                     b.HasOne("Bookline.Domain.Entities.Payment", "Payment")
@@ -1669,6 +1909,16 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Navigation("Payment");
                 });
 
+            modelBuilder.Entity("Bookline.Domain.Entities.Resource", b =>
+                {
+                    b.HasOne("Bookline.Domain.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Location");
+                });
+
             modelBuilder.Entity("Bookline.Domain.Entities.Service", b =>
                 {
                     b.HasOne("Bookline.Domain.Entities.ServiceCategory", "Category")
@@ -1677,7 +1927,33 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Bookline.Domain.Entities.Resource", "RequiredResource")
+                        .WithMany()
+                        .HasForeignKey("RequiredResourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Category");
+
+                    b.Navigation("RequiredResource");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.ServiceLocation", b =>
+                {
+                    b.HasOne("Bookline.Domain.Entities.Location", "Location")
+                        .WithMany("ServiceLocations")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bookline.Domain.Entities.Service", "Service")
+                        .WithMany("ServiceLocations")
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("Bookline.Domain.Entities.Staff", b =>
@@ -1692,7 +1968,7 @@ namespace Bookline.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bookline.Domain.Entities.StaffService", b =>
                 {
                     b.HasOne("Bookline.Domain.Entities.Service", "Service")
-                        .WithMany()
+                        .WithMany("StaffServices")
                         .HasForeignKey("ServiceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1730,9 +2006,31 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Navigation("Staff");
                 });
 
+            modelBuilder.Entity("Bookline.Domain.Entities.Location", b =>
+                {
+                    b.Navigation("ServiceLocations");
+                });
+
             modelBuilder.Entity("Bookline.Domain.Entities.Order", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.Product", b =>
+                {
+                    b.Navigation("Images");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.ProductCategory", b =>
+                {
+                    b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("Bookline.Domain.Entities.Service", b =>
+                {
+                    b.Navigation("ServiceLocations");
+
+                    b.Navigation("StaffServices");
                 });
 
             modelBuilder.Entity("Bookline.Domain.Entities.ServiceCategory", b =>

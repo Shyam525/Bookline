@@ -22,6 +22,8 @@ public interface IApplicationDbContext
     DbSet<Customer> Customers { get; }
     DbSet<Booking> Bookings { get; }
     DbSet<Product> Products { get; }
+    DbSet<ProductCategory> ProductCategories { get; }
+    DbSet<ProductImage> ProductImages { get; }
     DbSet<Resource> Resources { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Favorite> Favorites { get; }
@@ -39,6 +41,8 @@ public interface IApplicationDbContext
     DbSet<Payment> Payments { get; }
     DbSet<Refund> Refunds { get; }
     DbSet<IdempotencyRecord> IdempotencyRecords { get; }
+
+    Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     int SaveChanges();

@@ -19,7 +19,9 @@ public record CreateBookingCommand(
     string? CustomerName = null,
     string? CustomerEmail = null,
     string? CustomerPhone = null,
-    string? CustomerNotes = null
+    string? CustomerNotes = null,
+    Guid? LocationId = null,
+    Guid? ResourceId = null
 ) : IRequest<BookingDto>;
 
 public class CreateBookingCommandValidator : AbstractValidator<CreateBookingCommand>
@@ -77,7 +79,116 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
         var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : service.TenantId;
 
-        // 2. Verify Redis slot hold
+        // 2. Validate Staff Eligibility
+        var staff = await _context.Staff
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.Id == request.StaffId && s.TenantId == tenantId, cancellationToken);
+
+        if (staff == null || !staff.IsActive || staff.IsArchived)
+        {
+            throw new ValidationException("The selected staff member is invalid, inactive, or not part of this business.");
+        }
+
+        var hasAssignedStaff = await _context.StaffServices
+            .IgnoreQueryFilters()
+            .AnyAsync(ss => ss.ServiceId == service.Id, cancellationToken);
+
+        if (hasAssignedStaff)
+        {
+            var isStaffAssigned = await _context.StaffServices
+                .IgnoreQueryFilters()
+                .AnyAsync(ss => ss.StaffId == request.StaffId && ss.ServiceId == service.Id, cancellationToken);
+
+            if (!isStaffAssigned)
+            {
+                throw new ValidationException("The selected staff member is not eligible to perform this service.");
+            }
+        }
+
+        // 3. Validate Location Applicability (if provided or restricted)
+        if (request.LocationId.HasValue)
+        {
+            var location = await _context.Locations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(l => l.Id == request.LocationId.Value && l.TenantId == tenantId && l.IsActive, cancellationToken);
+
+            if (location == null)
+            {
+                throw new ValidationException("The selected location is invalid or inactive.");
+            }
+
+            var hasLocationRestrictions = await _context.ServiceLocations
+                .IgnoreQueryFilters()
+                .AnyAsync(sl => sl.ServiceId == service.Id, cancellationToken);
+
+            if (hasLocationRestrictions)
+            {
+                var isLocationAssigned = await _context.ServiceLocations
+                    .IgnoreQueryFilters()
+                    .AnyAsync(sl => sl.ServiceId == service.Id && sl.LocationId == request.LocationId.Value && sl.IsAvailable, cancellationToken);
+
+                if (!isLocationAssigned)
+                {
+                    throw new ValidationException("This service is not available at the selected location.");
+                }
+            }
+        }
+
+        // 4. Validate Resource Requirements & Potential Conflicts
+        Guid? allocatedResourceId = request.ResourceId ?? service.RequiredResourceId;
+        if (service.RequiresResource && allocatedResourceId == null)
+        {
+            var resQuery = _context.Resources
+                .IgnoreQueryFilters()
+                .Where(r => r.TenantId == tenantId && r.IsActive);
+
+            if (request.LocationId.HasValue)
+            {
+                resQuery = resQuery.Where(r => r.LocationId == null || r.LocationId == request.LocationId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(service.RequiredResourceType))
+            {
+                resQuery = resQuery.Where(r => r.Type.ToLower() == service.RequiredResourceType.ToLower());
+            }
+
+            var matchingRes = await resQuery.FirstOrDefaultAsync(cancellationToken);
+            if (matchingRes != null)
+            {
+                allocatedResourceId = matchingRes.Id;
+            }
+        }
+
+        if (allocatedResourceId.HasValue)
+        {
+            var resource = await _context.Resources
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(r => r.Id == allocatedResourceId.Value && r.TenantId == tenantId && r.IsActive, cancellationToken);
+
+            if (resource == null)
+            {
+                throw new ValidationException("The required resource is unavailable or belongs to another organization.");
+            }
+
+            var occupancyStart = request.StartUtc.AddMinutes(-service.BufferBeforeMinutes);
+            var occupancyEnd = request.StartUtc.AddMinutes(service.DurationMinutes + service.BufferAfterMinutes);
+
+            var resourceConflict = await _context.Bookings
+                .IgnoreQueryFilters()
+                .AnyAsync(b => b.TenantId == tenantId &&
+                               b.ResourceId == allocatedResourceId.Value &&
+                               (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.CheckedIn) &&
+                               b.StartUtc < occupancyEnd &&
+                               b.EndUtc > occupancyStart,
+                               cancellationToken);
+
+            if (resourceConflict)
+            {
+                throw new ValidationException("The required resource is already reserved for this time window.");
+            }
+        }
+
+        // 5. Verify Redis slot hold
         var isValidHold = await _slotHoldService.ValidateHoldAsync(
             tenantId,
             request.StaffId,
@@ -94,7 +205,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
         var endUtc = request.StartUtc.AddMinutes(service.DurationMinutes);
 
-        // 3. Instantiate Booking entity
+        // 6. Instantiate Booking entity
         var booking = new Booking(
             tenantId,
             request.StaffId,
@@ -103,9 +214,14 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             request.StartUtc,
             endUtc);
 
+        booking.LocationId = request.LocationId;
+        booking.ResourceId = allocatedResourceId;
+        booking.TotalPrice = service.Price;
+        booking.Currency = service.Currency;
         booking.CustomerNotes = request.CustomerNotes;
 
         _context.Bookings.Add(booking);
+
 
         // Section 90 & 91: Atomic Audit & Outbox Event
         _context.AuditLogs.Add(new AuditLog
@@ -166,7 +282,6 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         {
             try
             {
-                var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.StaffId, cancellationToken);
                 var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
                 if (staff != null && customer != null && tenant != null)
@@ -194,7 +309,9 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             booking.EndUtc,
             booking.Status,
             booking.CreatedAtUtc,
-            booking.BookingReference);
+            booking.BookingReference,
+            booking.RelatedOrderId,
+            booking.RelatedOrderNumber);
     }
 
     private async Task<Customer> ResolveCustomerAsync(
@@ -207,10 +324,38 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             var existingCustomer = await _context.Customers
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(
-                    customer => customer.Id == customerId && customer.TenantId == tenantId,
+                    customer => (customer.Id == customerId || customer.UserId == customerId) && customer.TenantId == tenantId,
                     cancellationToken);
 
-            return existingCustomer ?? throw new NotFoundException(nameof(Customer), customerId);
+            if (existingCustomer != null)
+            {
+                return existingCustomer;
+            }
+
+            // Check if customerId is an AppUser platform user
+            var appUser = await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Id == customerId, cancellationToken);
+
+            if (appUser != null)
+            {
+                var newCustomer = new Customer
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    UserId = appUser.Id,
+                    FirstName = !string.IsNullOrWhiteSpace(request.CustomerName) ? request.CustomerName.Trim().Split(' ', 2)[0] : appUser.FirstName,
+                    LastName = !string.IsNullOrWhiteSpace(request.CustomerName) && request.CustomerName.Trim().Split(' ', 2).Length > 1 ? request.CustomerName.Trim().Split(' ', 2)[1] : appUser.LastName,
+                    Email = !string.IsNullOrWhiteSpace(request.CustomerEmail) ? request.CustomerEmail.Trim() : appUser.Email,
+                    Phone = request.CustomerPhone?.Trim() ?? appUser.Phone ?? string.Empty,
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+
+                _context.Customers.Add(newCustomer);
+                return newCustomer;
+            }
+
+            throw new NotFoundException(nameof(Customer), customerId);
         }
 
         if (string.IsNullOrWhiteSpace(request.CustomerName) || string.IsNullOrWhiteSpace(request.CustomerEmail))
@@ -219,22 +364,28 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         }
 
         var email = request.CustomerEmail.Trim();
-        var customer = await _context.Customers
+        var customerByEmail = await _context.Customers
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(
                 candidate => candidate.TenantId == tenantId && candidate.Email.ToLower() == email.ToLower(),
                 cancellationToken);
 
-        if (customer != null)
+        if (customerByEmail != null)
         {
-            return customer;
+            return customerByEmail;
         }
 
+        // Check if an AppUser already exists with this email to link UserId
+        var existingUserByEmail = await _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
+
         var nameParts = request.CustomerName.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        customer = new Customer
+        var createdCustomer = new Customer
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
+            UserId = existingUserByEmail?.Id,
             FirstName = nameParts[0],
             LastName = nameParts.Length > 1 ? nameParts[1] : string.Empty,
             Email = email,
@@ -242,8 +393,8 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        _context.Customers.Add(customer);
-        return customer;
+        _context.Customers.Add(createdCustomer);
+        return createdCustomer;
     }
 
     private static bool IsExclusionViolation(DbUpdateException ex)

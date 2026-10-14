@@ -12,7 +12,9 @@ public record BookingDto(
     DateTimeOffset EndUtc,
     BookingStatus Status,
     DateTimeOffset CreatedAtUtc,
-    string? BookingReference = null
+    string? BookingReference = null,
+    Guid? RelatedOrderId = null,
+    string? RelatedOrderNumber = null
 );
 
 public record HoldSlotResultDto(

@@ -29,30 +29,21 @@ public class SlotHoldService : ISlotHoldService
         }
 
         // In-memory fallback for unit testing / redis-less execution
-        CleanupExpiredHolds();
-        var now = DateTimeOffset.UtcNow;
-        var expiresAt = now.AddSeconds(300);
-
-        var entry = new HoldEntry(holdId.ToString(), expiresAt);
-        var added = _inMemoryHolds.TryAdd(key, entry);
-        if (added)
+        lock (_inMemoryHolds)
         {
+            CleanupExpiredHolds();
+            var now = DateTimeOffset.UtcNow;
+            if (_inMemoryHolds.TryGetValue(key, out var existing) && existing.ExpiresAt > now)
+            {
+                return null;
+            }
+
+            var expiresAt = now.AddSeconds(300);
+            var entry = new HoldEntry(holdId.ToString(), expiresAt);
+            _inMemoryHolds[key] = entry;
             return holdId;
         }
 
-        if (_inMemoryHolds.TryGetValue(key, out var existing))
-        {
-            if (existing.ExpiresAt <= now)
-            {
-                _inMemoryHolds.TryRemove(key, out _);
-                if (_inMemoryHolds.TryAdd(key, entry))
-                {
-                    return holdId;
-                }
-            }
-        }
-
-        return null;
     }
 
     public async Task<bool> ValidateHoldAsync(Guid tenantId, Guid staffId, DateTimeOffset startUtc, Guid holdId, CancellationToken cancellationToken = default)

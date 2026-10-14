@@ -70,6 +70,22 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             throw new NotFoundException("Service and Staff belong to different tenants.");
         }
 
+        var hasAssignedStaff = await _context.StaffServices
+            .IgnoreQueryFilters()
+            .AnyAsync(ss => ss.ServiceId == service.Id, cancellationToken);
+
+        if (hasAssignedStaff)
+        {
+            var isStaffAssigned = await _context.StaffServices
+                .IgnoreQueryFilters()
+                .AnyAsync(ss => ss.StaffId == request.StaffId && ss.ServiceId == service.Id, cancellationToken);
+
+            if (!isStaffAssigned)
+            {
+                throw new ValidationException("The selected staff member is not eligible to perform this service.");
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Slug))
         {
             var tenant = await _context.Tenants

@@ -24,7 +24,14 @@ public class ServiceHandlers :
     IRequestHandler<DuplicateServiceCommand, ServiceDto>,
     IRequestHandler<AssignServiceStaffCommand, ServiceDto>,
     IRequestHandler<AssignServiceLocationsCommand, ServiceDto>,
-    IRequestHandler<SetServicePublishStatusCommand, ServiceDto>
+    IRequestHandler<ConfigureServiceResourcesCommand, ServiceDto>,
+    IRequestHandler<SetServicePublishStatusCommand, ServiceDto>,
+    IRequestHandler<SetServiceStatusCommand, ServiceDto>,
+    IRequestHandler<GetResourcesQuery, List<ResourceDto>>,
+    IRequestHandler<GetResourceByIdQuery, ResourceDto>,
+    IRequestHandler<CreateResourceCommand, ResourceDto>,
+    IRequestHandler<UpdateResourceCommand, ResourceDto>,
+    IRequestHandler<DeleteResourceCommand, bool>
 {
     private readonly IApplicationDbContext _context;
     private readonly ITenantContext _tenantContext;
@@ -127,6 +134,7 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .AsQueryable();
 
         if (!request.IncludeArchived)
@@ -137,6 +145,28 @@ public class ServiceHandlers :
         if (request.CategoryId.HasValue)
         {
             query = query.Where(s => s.CategoryId == request.CategoryId.Value);
+        }
+
+        if (request.LocationId.HasValue)
+        {
+            query = query.Where(s => s.ServiceLocations.Any(sl => sl.LocationId == request.LocationId.Value));
+        }
+
+        if (request.StaffId.HasValue)
+        {
+            query = query.Where(s => s.StaffServices.Any(ss => ss.StaffId == request.StaffId.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            query = query.Where(s => s.Status.ToLower() == request.Status.ToLower());
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var searchLower = request.Search.Trim().ToLower();
+            query = query.Where(s => s.Name.ToLower().Contains(searchLower) ||
+                                     (s.Description != null && s.Description.ToLower().Contains(searchLower)));
         }
 
         var services = await query
@@ -154,6 +184,7 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken);
 
         if (service == null) throw new NotFoundException("Service", request.Id);
@@ -168,12 +199,14 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstOrDefaultAsync(s => s.Slug == request.Slug, cancellationToken);
 
         if (service == null) throw new NotFoundException("Service", request.Slug);
 
         return MapServiceToDto(service);
     }
+
 
     public async Task<ServiceDto> Handle(CreateServiceCommand command, CancellationToken cancellationToken)
     {
@@ -191,6 +224,17 @@ public class ServiceHandlers :
         if (slugConflict)
         {
             slug = $"{slug}-{Guid.NewGuid().ToString("n")[..4]}";
+        }
+
+        if (req.RequiredResourceId.HasValue)
+        {
+            var validResource = await _context.Resources
+                .FirstOrDefaultAsync(r => r.Id == req.RequiredResourceId.Value, cancellationToken);
+
+            if (validResource == null || validResource.TenantId != _tenantContext.TenantId)
+            {
+                throw new ValidationException("The assigned resource is invalid or belongs to another organization.");
+            }
         }
 
         var service = new Service
@@ -214,6 +258,7 @@ public class ServiceHandlers :
             ColorHex = req.ColorHex ?? "#E8546A",
             RequiresResource = req.RequiresResource,
             RequiredResourceType = req.RequiredResourceType,
+            RequiredResourceId = req.RequiredResourceId,
             ImageUrl = req.ImageUrl,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -271,11 +316,12 @@ public class ServiceHandlers :
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Reload category, staff and locations for DTO mapping
+        // Reload category, staff, locations, and resource for DTO mapping
         var savedService = await _context.Services
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstAsync(s => s.Id == service.Id, cancellationToken);
 
         return MapServiceToDto(savedService);
@@ -287,12 +333,25 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstOrDefaultAsync(s => s.Id == command.Id, cancellationToken);
 
         if (service == null) throw new NotFoundException("Service", command.Id);
 
         var req = command.Request;
         ValidateServiceRequest(req.Name, req.DurationMinutes, req.BufferBeforeMinutes, req.BufferAfterMinutes, req.Price, req.Currency);
+
+        if (req.RequiredResourceId.HasValue)
+        {
+            var validResource = await _context.Resources
+                .FirstOrDefaultAsync(r => r.Id == req.RequiredResourceId.Value, cancellationToken);
+
+            if (validResource == null || validResource.TenantId != _tenantContext.TenantId)
+            {
+                throw new ValidationException("The assigned resource is invalid or belongs to another organization.");
+            }
+        }
+
 
         if (service.CategoryId != req.CategoryId)
         {
@@ -333,6 +392,7 @@ public class ServiceHandlers :
         service.ColorHex = req.ColorHex ?? "#E8546A";
         service.RequiresResource = req.RequiresResource;
         service.RequiredResourceType = req.RequiredResourceType;
+        service.RequiredResourceId = req.RequiredResourceId;
         if (req.ImageUrl != null) service.ImageUrl = req.ImageUrl;
         service.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -395,6 +455,7 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstAsync(s => s.Id == service.Id, cancellationToken);
 
         return MapServiceToDto(updatedService);
@@ -419,6 +480,7 @@ public class ServiceHandlers :
         var original = await _context.Services
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstOrDefaultAsync(s => s.Id == command.Id, cancellationToken);
         if (original == null) throw new NotFoundException("Service", command.Id);
 
@@ -443,9 +505,11 @@ public class ServiceHandlers :
             ColorHex = original.ColorHex,
             RequiresResource = original.RequiresResource,
             RequiredResourceType = original.RequiredResourceType,
+            RequiredResourceId = original.RequiredResourceId,
             ImageUrl = original.ImageUrl,
             CreatedAtUtc = DateTime.UtcNow
         };
+
 
         _context.Services.Add(duplicate);
 
@@ -522,6 +586,7 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstAsync(s => s.Id == service.Id, cancellationToken);
 
         return MapServiceToDto(reloaded);
@@ -533,6 +598,7 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstOrDefaultAsync(s => s.Id == command.ServiceId, cancellationToken);
 
         if (service == null) throw new NotFoundException("Service", command.ServiceId);
@@ -552,12 +618,14 @@ public class ServiceHandlers :
 
         foreach (var lid in validLocationIds)
         {
+            var priceOverride = command.PriceOverrides?.FirstOrDefault(p => p.LocationId == lid);
             _context.ServiceLocations.Add(new ServiceLocation
             {
                 TenantId = _tenantContext.TenantId,
                 ServiceId = service.Id,
                 LocationId = lid,
-                IsAvailable = true
+                IsAvailable = priceOverride?.IsAvailable ?? true,
+                PriceOverride = priceOverride?.PriceOverride
             });
         }
 
@@ -568,6 +636,44 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
+            .FirstAsync(s => s.Id == service.Id, cancellationToken);
+
+        return MapServiceToDto(reloaded);
+    }
+
+    public async Task<ServiceDto> Handle(ConfigureServiceResourcesCommand command, CancellationToken cancellationToken)
+    {
+        var service = await _context.Services
+            .Include(s => s.Category)
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
+            .FirstOrDefaultAsync(s => s.Id == command.ServiceId, cancellationToken);
+
+        if (service == null) throw new NotFoundException("Service", command.ServiceId);
+
+        if (command.RequiredResourceId.HasValue)
+        {
+            var res = await _context.Resources.FirstOrDefaultAsync(r => r.Id == command.RequiredResourceId.Value, cancellationToken);
+            if (res == null || res.TenantId != _tenantContext.TenantId)
+            {
+                throw new ValidationException("The assigned resource is invalid or belongs to another organization.");
+            }
+        }
+
+        service.RequiresResource = command.RequiresResource;
+        service.RequiredResourceType = command.RequiredResourceType;
+        service.RequiredResourceId = command.RequiredResourceId;
+        service.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var reloaded = await _context.Services
+            .Include(s => s.Category)
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstAsync(s => s.Id == service.Id, cancellationToken);
 
         return MapServiceToDto(reloaded);
@@ -579,6 +685,7 @@ public class ServiceHandlers :
             .Include(s => s.Category)
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
             .FirstOrDefaultAsync(s => s.Id == command.ServiceId, cancellationToken);
 
         if (service == null) throw new NotFoundException("Service", command.ServiceId);
@@ -591,12 +698,183 @@ public class ServiceHandlers :
         return MapServiceToDto(service);
     }
 
+    public async Task<ServiceDto> Handle(SetServiceStatusCommand command, CancellationToken cancellationToken)
+    {
+        var service = await _context.Services
+            .Include(s => s.Category)
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
+            .FirstOrDefaultAsync(s => s.Id == command.ServiceId, cancellationToken);
+
+        if (service == null) throw new NotFoundException("Service", command.ServiceId);
+
+        var normalizedStatus = command.Status.Trim();
+        switch (normalizedStatus.ToLowerInvariant())
+        {
+            case "active":
+                service.Status = "Active";
+                service.IsActive = true;
+                service.IsPublished = true;
+                break;
+            case "inactive":
+                service.Status = "Inactive";
+                service.IsActive = false;
+                break;
+            case "draft":
+                service.Status = "Draft";
+                service.IsActive = true;
+                service.IsPublished = false;
+                break;
+            case "archived":
+                service.Status = "Archived";
+                service.IsActive = false;
+                service.IsArchived = true;
+                break;
+            default:
+                throw new ValidationException($"Invalid service status '{command.Status}'. Valid values are: Active, Inactive, Draft, Archived.");
+        }
+
+        service.UpdatedAtUtc = DateTime.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return MapServiceToDto(service);
+    }
+
+    // --- Resources ---
+
+    public async Task<List<ResourceDto>> Handle(GetResourcesQuery request, CancellationToken cancellationToken)
+    {
+        var query = _context.Resources
+            .AsNoTracking()
+            .Include(r => r.Location)
+            .AsQueryable();
+
+        if (request.LocationId.HasValue)
+        {
+            query = query.Where(r => r.LocationId == request.LocationId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Type))
+        {
+            query = query.Where(r => r.Type.ToLower() == request.Type.ToLower());
+        }
+
+        if (request.IsActive.HasValue)
+        {
+            query = query.Where(r => r.IsActive == request.IsActive.Value);
+        }
+
+        var resources = await query.OrderBy(r => r.Name).ToListAsync(cancellationToken);
+        return resources.Select(MapResourceToDto).ToList();
+    }
+
+    public async Task<ResourceDto> Handle(GetResourceByIdQuery request, CancellationToken cancellationToken)
+    {
+        var resource = await _context.Resources
+            .AsNoTracking()
+            .Include(r => r.Location)
+            .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken);
+
+        if (resource == null) throw new NotFoundException("Resource", request.Id);
+        return MapResourceToDto(resource);
+    }
+
+    public async Task<ResourceDto> Handle(CreateResourceCommand command, CancellationToken cancellationToken)
+    {
+        var req = command.Request;
+        if (string.IsNullOrWhiteSpace(req.Name))
+            throw new ValidationException("Resource name is required.");
+        if (req.Capacity <= 0)
+            throw new ValidationException("Resource capacity must be positive.");
+
+        if (req.LocationId.HasValue)
+        {
+            var loc = await _context.Locations.FirstOrDefaultAsync(l => l.Id == req.LocationId.Value, cancellationToken);
+            if (loc == null || loc.TenantId != _tenantContext.TenantId)
+            {
+                throw new ValidationException("Assigned location is invalid or belongs to another organization.");
+            }
+        }
+
+        var resource = new Resource
+        {
+            Id = Guid.NewGuid(),
+            TenantId = _tenantContext.TenantId,
+            LocationId = req.LocationId,
+            Name = req.Name.Trim(),
+            Description = req.Description ?? string.Empty,
+            Type = string.IsNullOrWhiteSpace(req.Type) ? "Room" : req.Type.Trim(),
+            Capacity = req.Capacity,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.Resources.Add(resource);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var saved = await _context.Resources.Include(r => r.Location).FirstAsync(r => r.Id == resource.Id, cancellationToken);
+        return MapResourceToDto(saved);
+    }
+
+    public async Task<ResourceDto> Handle(UpdateResourceCommand command, CancellationToken cancellationToken)
+    {
+        var resource = await _context.Resources.FirstOrDefaultAsync(r => r.Id == command.Id, cancellationToken);
+        if (resource == null) throw new NotFoundException("Resource", command.Id);
+
+        var req = command.Request;
+        if (string.IsNullOrWhiteSpace(req.Name))
+            throw new ValidationException("Resource name is required.");
+        if (req.Capacity <= 0)
+            throw new ValidationException("Resource capacity must be positive.");
+
+        if (req.LocationId.HasValue)
+        {
+            var loc = await _context.Locations.FirstOrDefaultAsync(l => l.Id == req.LocationId.Value, cancellationToken);
+            if (loc == null || loc.TenantId != _tenantContext.TenantId)
+            {
+                throw new ValidationException("Assigned location is invalid or belongs to another organization.");
+            }
+        }
+
+        resource.LocationId = req.LocationId;
+        resource.Name = req.Name.Trim();
+        resource.Description = req.Description ?? string.Empty;
+        resource.Type = string.IsNullOrWhiteSpace(req.Type) ? "Room" : req.Type.Trim();
+        resource.Capacity = req.Capacity;
+        resource.IsActive = req.IsActive;
+        resource.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var saved = await _context.Resources.Include(r => r.Location).FirstAsync(r => r.Id == resource.Id, cancellationToken);
+        return MapResourceToDto(saved);
+    }
+
+    public async Task<bool> Handle(DeleteResourceCommand command, CancellationToken cancellationToken)
+    {
+        var resource = await _context.Resources.FirstOrDefaultAsync(r => r.Id == command.Id, cancellationToken);
+        if (resource == null) throw new NotFoundException("Resource", command.Id);
+
+        var isUsed = await _context.Services.AnyAsync(s => s.RequiredResourceId == resource.Id && !s.IsArchived, cancellationToken);
+        if (isUsed)
+        {
+            throw new ValidationException("Cannot delete a resource currently required by active services. Remove it from services first.");
+        }
+
+        _context.Resources.Remove(resource);
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     // --- Helpers ---
 
     private static void ValidateServiceRequest(string name, int durationMinutes, int bufferBefore, int bufferAfter, decimal price, string currency)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ValidationException("Service name is required.");
+        if (name.Trim().Length > 150)
+            throw new ValidationException("Service name cannot exceed 150 characters.");
         if (durationMinutes <= 0)
             throw new ValidationException("Duration must be greater than 0 minutes.");
         if (bufferBefore < 0)
@@ -607,6 +885,8 @@ public class ServiceHandlers :
             throw new ValidationException("Price must be non-negative.");
         if (string.IsNullOrWhiteSpace(currency))
             throw new ValidationException("Currency is required.");
+        if (currency.Trim().Length != 3)
+            throw new ValidationException("Currency must be a valid 3-letter currency code.");
     }
 
     private static string Slugify(string text)
@@ -660,7 +940,27 @@ public class ServiceHandlers :
             service.StaffServices?.Select(s => s.StaffId).ToList() ?? new List<Guid>(),
             service.ServiceLocations?.Select(l => l.LocationId).ToList() ?? new List<Guid>(),
             service.CreatedAtUtc,
-            service.UpdatedAtUtc
+            service.UpdatedAtUtc,
+            service.RequiredResourceId,
+            service.RequiredResource?.Name
+        );
+    }
+
+    private static ResourceDto MapResourceToDto(Resource resource)
+    {
+        return new ResourceDto(
+            resource.Id,
+            resource.TenantId,
+            resource.LocationId,
+            resource.Location?.Name,
+            resource.Name,
+            resource.Description,
+            resource.Type,
+            resource.Capacity,
+            resource.IsActive,
+            resource.CreatedAtUtc,
+            resource.UpdatedAtUtc
         );
     }
 }
+

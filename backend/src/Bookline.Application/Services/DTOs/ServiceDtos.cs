@@ -49,7 +49,9 @@ public record ServiceDto(
     List<Guid> StaffIds,
     List<Guid> LocationIds,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc
+    DateTime? UpdatedAtUtc,
+    Guid? RequiredResourceId = null,
+    string? RequiredResourceName = null
 );
 
 public record CreateServiceRequest(
@@ -67,6 +69,7 @@ public record CreateServiceRequest(
     string? ColorHex = "#E8546A",
     bool RequiresResource = false,
     string? RequiredResourceType = null,
+    Guid? RequiredResourceId = null,
     string? ImageUrl = null,
     List<Guid>? StaffIds = null,
     List<Guid>? LocationIds = null
@@ -88,7 +91,54 @@ public record UpdateServiceRequest(
     string? ColorHex = "#E8546A",
     bool RequiresResource = false,
     string? RequiredResourceType = null,
+    Guid? RequiredResourceId = null,
     string? ImageUrl = null,
     List<Guid>? StaffIds = null,
     List<Guid>? LocationIds = null
 );
+
+public record SetServiceStatusRequest(string Status);
+
+public record ConfigureServiceResourcesRequest(
+    bool RequiresResource,
+    string? RequiredResourceType = null,
+    Guid? RequiredResourceId = null
+);
+
+public record LocationPriceOverrideDto(
+    Guid LocationId,
+    decimal? PriceOverride = null,
+    bool IsAvailable = true
+);
+
+public record ResourceDto(
+    Guid Id,
+    Guid TenantId,
+    Guid? LocationId,
+    string? LocationName,
+    string Name,
+    string Description,
+    string Type,
+    int Capacity,
+    bool IsActive,
+    DateTime CreatedAtUtc,
+    DateTime? UpdatedAtUtc
+);
+
+public record CreateResourceRequest(
+    string Name,
+    string? Description = null,
+    string Type = "Room",
+    int Capacity = 1,
+    Guid? LocationId = null
+);
+
+public record UpdateResourceRequest(
+    string Name,
+    string? Description = null,
+    string Type = "Room",
+    int Capacity = 1,
+    bool IsActive = true,
+    Guid? LocationId = null
+);
+

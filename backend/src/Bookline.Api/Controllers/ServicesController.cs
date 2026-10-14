@@ -8,6 +8,7 @@ namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/services")]
+[Route("api/provider/services")]
 [Authorize]
 public class ServicesController : ControllerBase
 {
@@ -20,6 +21,9 @@ public class ServicesController : ControllerBase
 
     // --- Service Categories ---
 
+    /// <summary>
+    /// Lists all service categories for the authorized business.
+    /// </summary>
     [HttpGet("categories")]
     public async Task<ActionResult<List<ServiceCategoryDto>>> GetCategories()
     {
@@ -27,6 +31,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Creates a new service category for the authorized business.
+    /// </summary>
     [HttpPost("categories")]
     public async Task<ActionResult<ServiceCategoryDto>> CreateCategory([FromBody] CreateServiceCategoryRequest request)
     {
@@ -34,6 +41,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Updates a service category.
+    /// </summary>
     [HttpPut("categories/{id:guid}")]
     public async Task<ActionResult<ServiceCategoryDto>> UpdateCategory(Guid id, [FromBody] UpdateServiceCategoryRequest request)
     {
@@ -41,6 +51,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Deletes a service category if it contains no active services.
+    /// </summary>
     [HttpDelete("categories/{id:guid}")]
     public async Task<ActionResult> DeleteCategory(Guid id)
     {
@@ -50,15 +63,25 @@ public class ServicesController : ControllerBase
 
     // --- Services ---
 
+    /// <summary>
+    /// Lists services for the authorized business with optional filtering by category, location, staff, status, search.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<List<ServiceDto>>> GetServices(
         [FromQuery] Guid? categoryId = null,
-        [FromQuery] bool includeArchived = false)
+        [FromQuery] Guid? locationId = null,
+        [FromQuery] Guid? staffId = null,
+        [FromQuery] string? status = null,
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] string? search = null)
     {
-        var result = await _sender.Send(new GetServicesQuery(categoryId, includeArchived));
+        var result = await _sender.Send(new GetServicesQuery(categoryId, locationId, staffId, status, includeArchived, search));
         return Ok(result);
     }
 
+    /// <summary>
+    /// Gets service details by unique service ID.
+    /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ServiceDto>> GetServiceById(Guid id)
     {
@@ -66,6 +89,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Gets service details by public slug.
+    /// </summary>
     [HttpGet("slug/{slug}")]
     public async Task<ActionResult<ServiceDto>> GetServiceBySlug(string slug)
     {
@@ -73,6 +99,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Creates a new service under the authorized business.
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<ServiceDto>> CreateService([FromBody] CreateServiceRequest request)
     {
@@ -80,6 +109,9 @@ public class ServicesController : ControllerBase
         return CreatedAtAction(nameof(GetServiceById), new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// Updates an existing service under the authorized business.
+    /// </summary>
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ServiceDto>> UpdateService(Guid id, [FromBody] UpdateServiceRequest request)
     {
@@ -87,6 +119,19 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Updates service status (Active, Inactive, Draft, Archived).
+    /// </summary>
+    [HttpPatch("{id:guid}/status")]
+    public async Task<ActionResult<ServiceDto>> SetStatus(Guid id, [FromBody] SetServiceStatusRequest request)
+    {
+        var result = await _sender.Send(new SetServiceStatusCommand(id, request.Status));
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Assigns eligible staff members to a service.
+    /// </summary>
     [HttpPut("{id:guid}/staff")]
     public async Task<ActionResult<ServiceDto>> AssignServiceStaff(Guid id, [FromBody] List<Guid> staffIds)
     {
@@ -94,6 +139,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Configures location applicability and optional price overrides for a service.
+    /// </summary>
     [HttpPut("{id:guid}/locations")]
     public async Task<ActionResult<ServiceDto>> AssignServiceLocations(Guid id, [FromBody] List<Guid> locationIds)
     {
@@ -101,6 +149,19 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Configures required resources for a service (treatment room, chair, machine).
+    /// </summary>
+    [HttpPut("{id:guid}/resources")]
+    public async Task<ActionResult<ServiceDto>> ConfigureServiceResources(Guid id, [FromBody] ConfigureServiceResourcesRequest request)
+    {
+        var result = await _sender.Send(new ConfigureServiceResourcesCommand(id, request.RequiresResource, request.RequiredResourceType, request.RequiredResourceId));
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Sets whether the service is published to the public marketplace storefront.
+    /// </summary>
     [HttpPut("{id:guid}/publish")]
     public async Task<ActionResult<ServiceDto>> SetPublishStatus(Guid id, [FromBody] SetPublishStatusRequest request)
     {
@@ -108,6 +169,9 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Archives a service, deactivating it and hiding it from standard listings.
+    /// </summary>
     [HttpPut("{id:guid}/archive")]
     public async Task<ActionResult> ArchiveService(Guid id)
     {
@@ -115,6 +179,9 @@ public class ServicesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Duplicates an existing service with copy suffix.
+    /// </summary>
     [HttpPost("{id:guid}/duplicate")]
     public async Task<ActionResult<ServiceDto>> DuplicateService(Guid id)
     {
@@ -124,3 +191,4 @@ public class ServicesController : ControllerBase
 }
 
 public record SetPublishStatusRequest(bool IsPublished);
+

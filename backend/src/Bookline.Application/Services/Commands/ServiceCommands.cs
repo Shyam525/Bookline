@@ -10,7 +10,15 @@ public record UpdateServiceCategoryCommand(Guid Id, UpdateServiceCategoryRequest
 public record DeleteServiceCategoryCommand(Guid Id) : IRequest<bool>;
 
 // Services
-public record GetServicesQuery(Guid? CategoryId = null, bool IncludeArchived = false) : IRequest<List<ServiceDto>>;
+public record GetServicesQuery(
+    Guid? CategoryId = null,
+    Guid? LocationId = null,
+    Guid? StaffId = null,
+    string? Status = null,
+    bool IncludeArchived = false,
+    string? Search = null
+) : IRequest<List<ServiceDto>>;
+
 public record GetServiceByIdQuery(Guid Id) : IRequest<ServiceDto>;
 public record GetServiceBySlugQuery(string Slug) : IRequest<ServiceDto>;
 public record CreateServiceCommand(CreateServiceRequest Request) : IRequest<ServiceDto>;
@@ -18,5 +26,15 @@ public record UpdateServiceCommand(Guid Id, UpdateServiceRequest Request) : IReq
 public record ArchiveServiceCommand(Guid Id) : IRequest<bool>;
 public record DuplicateServiceCommand(Guid Id) : IRequest<ServiceDto>;
 public record AssignServiceStaffCommand(Guid ServiceId, List<Guid> StaffIds) : IRequest<ServiceDto>;
-public record AssignServiceLocationsCommand(Guid ServiceId, List<Guid> LocationIds) : IRequest<ServiceDto>;
+public record AssignServiceLocationsCommand(Guid ServiceId, List<Guid> LocationIds, List<LocationPriceOverrideDto>? PriceOverrides = null) : IRequest<ServiceDto>;
+public record ConfigureServiceResourcesCommand(Guid ServiceId, bool RequiresResource, string? RequiredResourceType = null, Guid? RequiredResourceId = null) : IRequest<ServiceDto>;
 public record SetServicePublishStatusCommand(Guid ServiceId, bool IsPublished) : IRequest<ServiceDto>;
+public record SetServiceStatusCommand(Guid ServiceId, string Status) : IRequest<ServiceDto>;
+
+// Resources
+public record GetResourcesQuery(Guid? LocationId = null, string? Type = null, bool? IsActive = null) : IRequest<List<ResourceDto>>;
+public record GetResourceByIdQuery(Guid Id) : IRequest<ResourceDto>;
+public record CreateResourceCommand(CreateResourceRequest Request) : IRequest<ResourceDto>;
+public record UpdateResourceCommand(Guid Id, UpdateResourceRequest Request) : IRequest<ResourceDto>;
+public record DeleteResourceCommand(Guid Id) : IRequest<bool>;
+

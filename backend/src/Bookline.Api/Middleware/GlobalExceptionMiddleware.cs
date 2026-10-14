@@ -113,6 +113,13 @@ public class GlobalExceptionMiddleware
                 errorResponse.Message = "Authentication is required to access this resource.";
                 break;
 
+            case ForbiddenAccessException forbEx:
+                context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                errorResponse.Status = (int)HttpStatusCode.Forbidden;
+                errorResponse.Code = "FORBIDDEN";
+                errorResponse.Message = forbEx.Message;
+                break;
+
             case InvalidOperationException invEx when !invEx.Message.Contains("PipeWriter"):
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 errorResponse.Status = (int)HttpStatusCode.BadRequest;

@@ -27,7 +27,7 @@ public class TeamAuthorizationService : ITeamAuthorizationService
 
         // 2. Check OrganizationMembership
         var membership = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == tenantId, cancellationToken);
+            .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == tenantId && m.IsActive, cancellationToken);
 
         if (membership != null && Enum.TryParse<ProviderTeamRole>(membership.Role, true, out var role))
         {

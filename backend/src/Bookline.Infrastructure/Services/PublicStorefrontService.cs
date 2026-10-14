@@ -41,7 +41,8 @@ public class PublicStorefrontService : IPublicStorefrontService
             .ToListAsync(cancellationToken);
 
         var products = await _dbContext.Products.IgnoreQueryFilters()
-            .Where(p => p.TenantId == tenant.Id && p.IsActive && p.IsPurchasableOnline)
+            .Include(p => p.Images)
+            .Where(p => p.TenantId == tenant.Id && p.IsActive && p.IsPublished)
             .ToListAsync(cancellationToken);
 
         var staff = await _dbContext.Staff.IgnoreQueryFilters()
@@ -111,7 +112,12 @@ public class PublicStorefrontService : IPublicStorefrontService
             p.StockQuantity,
             p.Sku,
             p.ImageUrl,
-            p.StockQuantity > 0
+            p.IsInStock,
+            p.Slug,
+            p.IsPurchasableOnline,
+            p.AvailableQuantity,
+            p.CategoryId,
+            p.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).ToList()
         )).ToList();
 
         var staffDtos = staff.Select(st => new PublicStaffDto(
@@ -262,7 +268,8 @@ public class PublicStorefrontService : IPublicStorefrontService
         if (tenant == null) return null;
 
         return await _dbContext.Products.IgnoreQueryFilters()
-            .Where(p => p.TenantId == tenant.Id && p.IsActive && p.IsPurchasableOnline)
+            .Include(p => p.Images)
+            .Where(p => p.TenantId == tenant.Id && p.IsActive && p.IsPublished)
             .Select(p => new PublicProductDto(
                 p.Id,
                 p.Name,
@@ -272,7 +279,12 @@ public class PublicStorefrontService : IPublicStorefrontService
                 p.StockQuantity,
                 p.Sku,
                 p.ImageUrl,
-                p.StockQuantity > 0
+                !p.TrackInventory || p.StockQuantity - p.ReservedQuantity > 0,
+                p.Slug,
+                p.IsPurchasableOnline,
+                p.TrackInventory ? Math.Max(0, p.StockQuantity - p.ReservedQuantity) : int.MaxValue,
+                p.CategoryId,
+                p.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).ToList()
             ))
             .ToListAsync(cancellationToken);
     }

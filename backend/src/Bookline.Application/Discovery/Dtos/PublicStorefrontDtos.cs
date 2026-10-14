@@ -77,7 +77,12 @@ public record PublicProductDto(
     int StockQuantity,
     string? Sku,
     string? ImageUrl,
-    bool IsInStock
+    bool IsInStock,
+    string Slug = "",
+    bool IsPurchasableOnline = true,
+    int AvailableQuantity = 0,
+    Guid? CategoryId = null,
+    IReadOnlyList<string>? Images = null
 );
 
 public record PublicStaffDto(

@@ -20,14 +20,14 @@ public class DiscoveryController : ControllerBase
     private readonly IProviderDiscoveryService _discoveryEngine;
     private readonly ILocationDiscoveryService _locationDiscoveryService;
     private readonly IGeocodingProvider _geocodingProvider;
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
 
     public DiscoveryController(
         IProviderSearchService searchService,
         IProviderDiscoveryService discoveryEngine,
         ILocationDiscoveryService locationDiscoveryService,
         IGeocodingProvider geocodingProvider,
-        BooklineDbContext dbContext)
+        IApplicationDbContext dbContext)
     {
         _searchService = searchService;
         _discoveryEngine = discoveryEngine;
@@ -292,7 +292,8 @@ public class DiscoveryController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var products = await _dbContext.Products.IgnoreQueryFilters()
-            .Where(p => p.TenantId == tenant.Id && p.IsActive && p.IsPurchasableOnline)
+            .Include(p => p.Images)
+            .Where(p => p.TenantId == tenant.Id && p.IsActive && p.IsPublished)
             .ToListAsync(cancellationToken);
 
         var staff = await _dbContext.Staff.IgnoreQueryFilters()
@@ -353,7 +354,12 @@ public class DiscoveryController : ControllerBase
             p.StockQuantity,
             p.Sku,
             p.ImageUrl,
-            p.StockQuantity > 0
+            p.IsInStock,
+            p.Slug,
+            p.IsPurchasableOnline,
+            p.AvailableQuantity,
+            p.CategoryId,
+            p.Images?.OrderBy(i => i.SortOrder).Select(i => i.Url).ToList()
         )).ToList();
 
         var staffDtos = staff.Select(st => new PublicStaffDto(

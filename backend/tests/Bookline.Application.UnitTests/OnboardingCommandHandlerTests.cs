@@ -43,14 +43,21 @@ public class OnboardingCommandHandlerTests
 
         var handler = new OnboardingHandlers(db, context);
 
-        // Act: Save Step 6 (First Service)
+        // Act: Save Step 7 (First Service)
         var result = await handler.Handle(new SaveOnboardingStepCommand(new SaveOnboardingStepRequest(
-            6, "Onboarding Salon", "Salon", "123 Main St", "Asia/Kolkata", "USD",
-            "Initial Haircut", 45, 50.00m, null, null, null, null, null, null
+            Step: 7,
+            BusinessName: "Onboarding Salon",
+            BusinessType: "Salon",
+            Address: "123 Main St",
+            TimeZoneId: "Asia/Kolkata",
+            Currency: "USD",
+            FirstServiceName: "Initial Haircut",
+            FirstServiceDurationMinutes: 45,
+            FirstServicePrice: 50.00m
         )), CancellationToken.None);
 
         // Assert
-        Assert.Equal(7, result.CurrentStep);
+        Assert.Equal(8, result.CurrentStep);
         var service = await db.Services.FirstOrDefaultAsync(s => s.TenantId == tenantId);
         Assert.NotNull(service);
         Assert.Equal("Initial Haircut", service.Name);
@@ -75,6 +82,6 @@ public class OnboardingCommandHandlerTests
 
         // Assert
         Assert.True(result.IsCompleted);
-        Assert.Equal(10, result.CurrentStep);
+        Assert.Equal(13, result.CurrentStep);
     }
 }

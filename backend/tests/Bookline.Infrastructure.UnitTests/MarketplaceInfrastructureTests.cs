@@ -323,4 +323,94 @@ public class MarketplaceInfrastructureTests
         Assert.False(await teamAuth.CanManageBookingsAsync(viewerUser.Id, tenantId));
         Assert.False(await teamAuth.CanMutateDataAsync(viewerUser.Id, tenantId));
     }
+
+    [Fact]
+    public async Task MarketplaceDbSeeder_ShouldSeedDeterministicGlowStudioEnvironment_WithAllEntitiesAndDemoAccount()
+    {
+        // Phase 42 & Phase 43
+        var db = CreateInMemoryContext();
+        var hasher = new Bookline.Infrastructure.Authentication.PasswordHasher();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+        await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, hasher, logger);
+
+        var glowId = Guid.Parse("30000000-0000-0000-0000-000000000002");
+
+        // 1. Organization
+        var glowTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == glowId);
+        Assert.NotNull(glowTenant);
+        Assert.Equal("Glow Studio", glowTenant.Name);
+        Assert.Equal("glow-studio", glowTenant.Slug);
+        Assert.Equal("INR", glowTenant.Currency);
+        Assert.Equal("Ahmedabad", glowTenant.City);
+
+        // 2. Locations: Ahmedabad and Surat
+        var locations = await db.Locations.IgnoreQueryFilters().Where(l => l.TenantId == glowId).ToListAsync();
+        Assert.Equal(2, locations.Count);
+        Assert.Contains(locations, l => l.City == "Ahmedabad");
+        Assert.Contains(locations, l => l.City == "Surat");
+
+        // 3. Staff: multiple realistic staff
+        var staff = await db.Staff.IgnoreQueryFilters().Where(s => s.TenantId == glowId).ToListAsync();
+        Assert.True(staff.Count >= 4);
+        Assert.Contains(staff, s => s.Name == "Priya Sharma");
+        Assert.Contains(staff, s => s.Name == "Aarav Mehta");
+        Assert.Contains(staff, s => s.Name == "Diya Patel");
+        Assert.Contains(staff, s => s.Name == "Rohan Shah");
+
+        // 4. Working hours & Breaks
+        var workingHours = await db.WorkingHours.IgnoreQueryFilters().Where(w => w.TenantId == glowId).ToListAsync();
+        Assert.NotEmpty(workingHours);
+        Assert.Contains(workingHours, w => w.StartTime == new TimeOnly(9, 0) && w.EndTime == new TimeOnly(13, 0));
+        Assert.Contains(workingHours, w => w.StartTime == new TimeOnly(14, 0) && w.EndTime == new TimeOnly(19, 0));
+
+        // 5. Time Off
+        var timeOffs = await db.TimeOffs.IgnoreQueryFilters().Where(t => t.TenantId == glowId).ToListAsync();
+        Assert.NotEmpty(timeOffs);
+
+        // 6. Services: Exact 7 services
+        var services = await db.Services.IgnoreQueryFilters().Where(s => s.TenantId == glowId).ToListAsync();
+        Assert.Equal(7, services.Count);
+        var serviceNames = services.Select(s => s.Name).ToHashSet();
+        Assert.Contains("Haircut", serviceNames);
+        Assert.Contains("Haircut & Style", serviceNames);
+        Assert.Contains("Full Colour", serviceNames);
+        Assert.Contains("Facial", serviceNames);
+        Assert.Contains("Massage", serviceNames);
+        Assert.Contains("Consultation", serviceNames);
+        Assert.Contains("Keratin Treatment", serviceNames);
+
+        // 7. Appointments: Mix of states
+        var bookings = await db.Bookings.IgnoreQueryFilters().Where(b => b.TenantId == glowId).ToListAsync();
+        Assert.Contains(bookings, b => b.Status == BookingStatus.Confirmed);
+        Assert.Contains(bookings, b => b.Status == BookingStatus.Completed);
+        Assert.Contains(bookings, b => b.Status == BookingStatus.Cancelled);
+        Assert.Contains(bookings, b => b.Status == BookingStatus.NoShow);
+
+        var holds = await db.BookingHolds.IgnoreQueryFilters().Where(h => h.TenantId == glowId).ToListAsync();
+        Assert.NotEmpty(holds);
+
+        // 8. Customers
+        var customers = await db.Customers.IgnoreQueryFilters().Where(c => c.TenantId == glowId).ToListAsync();
+        Assert.True(customers.Count >= 4);
+
+        // 9. Notifications & Audit Events
+        var notifications = await db.NotificationLogs.IgnoreQueryFilters().Where(n => n.TenantId == glowId).ToListAsync();
+        Assert.NotEmpty(notifications);
+
+        var auditLogs = await db.AuditLogs.IgnoreQueryFilters().Where(a => a.TenantId == glowId).ToListAsync();
+        Assert.NotEmpty(auditLogs);
+
+        // 10. Demo Account (Phase 43)
+        var demoUser = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "demo@bookline.local");
+        Assert.NotNull(demoUser);
+        Assert.Equal(glowId, demoUser.TenantId);
+        Assert.Equal("Owner", demoUser.Role);
+        Assert.True(hasher.VerifyPassword("BooklineDemo123!", demoUser.PasswordHash));
+
+        var demoMembership = await db.OrganizationMemberships.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(m => m.UserId == demoUser.Id && m.TenantId == glowId);
+        Assert.NotNull(demoMembership);
+        Assert.Equal("Owner", demoMembership.Role);
+    }
 }

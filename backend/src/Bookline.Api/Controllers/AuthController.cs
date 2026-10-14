@@ -15,13 +15,13 @@ namespace Bookline.Api.Controllers;
 [EnableRateLimiting("auth-limit")]
 public class AuthController : ControllerBase
 {
-    private readonly BooklineDbContext _dbContext;
+    private readonly IApplicationDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _tokenGenerator;
     private readonly IEmailSender _emailSender;
 
     public AuthController(
-        BooklineDbContext dbContext,
+        IApplicationDbContext dbContext,
         IPasswordHasher passwordHasher,
         IJwtTokenGenerator tokenGenerator,
         IEmailSender emailSender)
@@ -69,8 +69,19 @@ public class AuthController : ControllerBase
             CreatedAtUtc = DateTime.UtcNow
         };
 
+        var membership = new OrganizationMembership
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            UserId = user.Id,
+            Role = "Owner",
+            IsActive = true,
+            JoinedAtUtc = DateTime.UtcNow
+        };
+
         _dbContext.Tenants.Add(tenant);
         _dbContext.Users.Add(user);
+        _dbContext.OrganizationMemberships.Add(membership);
 
         var tokenResult = _tokenGenerator.GenerateAccessToken(user);
         var rawRefreshToken = _tokenGenerator.GenerateRefreshToken();
@@ -367,18 +378,18 @@ public class AuthController : ControllerBase
         }
 
         var memberships = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
-            .Where(m => m.UserId == userId)
+            .Where(m => m.UserId == userId && m.IsActive)
             .ToListAsync();
 
         var user = await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
-        var tenantIds = memberships.Select(m => m.TenantId).ToList();
-        if (user != null && user.TenantId != Guid.Empty && !tenantIds.Contains(user.TenantId))
+        var tenantIds = memberships.Select(m => m.TenantId).Distinct().ToList();
+        if (user != null && user.TenantId != Guid.Empty && !tenantIds.Contains(user.TenantId) && (user.Role == "Owner" || user.Role == "Provider"))
         {
             tenantIds.Add(user.TenantId);
         }
 
         var businesses = await _dbContext.Tenants.IgnoreQueryFilters()
-            .Where(t => tenantIds.Contains(t.Id))
+            .Where(t => tenantIds.Contains(t.Id) && t.IsActive)
             .Select(t => new
             {
                 t.Id,
@@ -387,7 +398,9 @@ public class AuthController : ControllerBase
                 t.Category,
                 t.City,
                 t.LogoUrl,
-                Role = user != null && user.TenantId == t.Id ? user.Role : "Staff"
+                Role = memberships.FirstOrDefault(m => m.TenantId == t.Id) != null
+                    ? memberships.First(m => m.TenantId == t.Id).Role
+                    : (user != null && user.TenantId == t.Id ? user.Role : "Staff")
             })
             .ToListAsync();
 
@@ -407,14 +420,44 @@ public class AuthController : ControllerBase
         var user = await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null) return NotFound(new { Message = "User not found." });
 
-        var targetTenant = await _dbContext.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == request.TenantId);
+        var targetTenant = await _dbContext.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == request.TenantId && t.IsActive);
         if (targetTenant == null) return NotFound(new { Message = "Business not found." });
 
-        // Generate new JWT scoped to the switched business
-        var tokenResult = _tokenGenerator.GenerateAccessToken(user, targetTenant.Id);
+        // Authorization check: User must be an active member, business owner, or PlatformAdmin
+        var membership = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == request.TenantId && m.IsActive);
+
+        bool isOwnerOrAdmin = user.Role == "PlatformAdmin" || 
+                              membership != null || 
+                              (user.TenantId == request.TenantId && (user.Role == "Owner" || user.Role == "Provider"));
+
+        if (!isOwnerOrAdmin)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { Message = "Forbidden: You are not an active member or owner of this business." });
+        }
+
+        var roleInTenant = membership?.Role ?? (user.TenantId == request.TenantId ? user.Role : "Staff");
+
+        // Generate new JWT scoped to the switched business with the user's role in that business
+        var tokenResult = _tokenGenerator.GenerateAccessToken(user, targetTenant.Id, roleInTenant);
         var rawRefreshToken = _tokenGenerator.GenerateRefreshToken();
         var hashedRefreshToken = _tokenGenerator.HashRefreshToken(rawRefreshToken);
         var refreshTokenExpiryUtc = DateTime.UtcNow.AddDays(7);
+
+        var refreshTokenEntity = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            TenantId = targetTenant.Id,
+            TokenHash = hashedRefreshToken,
+            ExpiryUtc = refreshTokenExpiryUtc,
+            IsRevoked = false,
+            IsUsed = false,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _dbContext.RefreshTokens.Add(refreshTokenEntity);
+        await _dbContext.SaveChangesAsync();
 
         return Ok(new AuthResponse(
             tokenResult.Token,
@@ -424,7 +467,7 @@ public class AuthController : ControllerBase
             user.Id,
             targetTenant.Id,
             user.Email,
-            user.Role
+            roleInTenant
         ));
     }
 

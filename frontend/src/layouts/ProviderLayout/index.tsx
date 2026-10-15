@@ -29,6 +29,8 @@ import {
   Search,
   User,
   Command,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export const ProviderLayout: React.FC = () => {
@@ -36,12 +38,18 @@ export const ProviderLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isBusinessMenuOpen, setIsBusinessMenuOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('Bodakdev Flagship');
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+
+  // Auto-close mobile drawer on route navigation
+  React.useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const locationsList = ['Bodakdev Flagship', 'Satellite Executive Branch', 'Mumbai Studio'];
 
@@ -72,7 +80,17 @@ export const ProviderLayout: React.FC = () => {
       {/* Provider Operations Header */}
       <header className="sticky top-0 z-40 bg-[#111520] border-b border-[#212638] px-6 h-16 flex items-center justify-between gap-4">
         {/* Brand & Business Switcher */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-4">
+          {/* Mobile Drawer Toggle (Section 80: Mobile-friendly provider navigation) */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            aria-label={isMobileMenuOpen ? 'Close provider navigation' : 'Open provider navigation'}
+            className="md:hidden min-h-[44px] min-w-[44px] p-2 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-white flex items-center justify-center transition-colors"
+          >
+            {isMobileMenuOpen ? <X className="w-5 h-5 text-[#E8546A]" /> : <Menu className="w-5 h-5" />}
+          </button>
+
           <Link to="/provider/dashboard" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#E8546A] flex items-center justify-center font-heading font-bold text-white text-base">
               B
@@ -336,6 +354,123 @@ export const ProviderLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile Provider Navigation Drawer Overlay (Section 80) */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          {/* Drawer Panel */}
+          <aside className="relative w-72 max-w-[85vw] bg-[#111520] border-r border-[#212638] flex flex-col h-full shadow-2xl z-10 overflow-y-auto animate-fadeIn">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-[#212638] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#E8546A] flex items-center justify-center font-heading font-bold text-white text-base">
+                  B
+                </div>
+                <span className="font-heading font-bold text-base text-white">
+                  BOOKLINE <span className="text-[10px] uppercase font-sans text-[#E8546A] tracking-wider ml-1">OS</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-[#181D2C] text-[#7E88A8] hover:text-white flex items-center justify-center"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Active Business / Branch Pill */}
+            <div className="p-3 bg-[#0E121B] border-b border-[#212638] space-y-1 text-xs">
+              <div className="flex items-center gap-2 text-white font-semibold">
+                <Building2 className="w-3.5 h-3.5 text-[#E8546A]" />
+                <span className="truncate">{activeBusiness?.name || 'Aura Wellness'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#7E88A8] text-[11px]">
+                <MapPin className="w-3 h-3 text-[#34D399]" />
+                <span className="truncate">{selectedLocation}</span>
+              </div>
+            </div>
+
+            {/* Navigation Items */}
+            <div className="p-4 space-y-1 flex-1">
+              {primaryNavItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-[#E8546A] text-white font-semibold shadow-md shadow-[#E8546A]/20'
+                        : 'text-[#ECEFFE] hover:bg-[#181D2C] hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+
+              <div className="my-3 border-t border-[#212638]" />
+
+              {secondaryNavItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-[#E8546A] text-white font-semibold shadow-md shadow-[#E8546A]/20'
+                        : 'text-[#ECEFFE] hover:bg-[#181D2C] hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Drawer Footer Actions */}
+            <div className="p-4 border-t border-[#212638] bg-[#0E121B] space-y-2">
+              <Link
+                to={`/business/${activeBusiness?.slug || 'aura-wellness'}`}
+                target="_blank"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-2 min-h-[44px] px-3 py-2 rounded-xl bg-[#181D2C] text-xs font-semibold text-white hover:bg-[#212638] transition-colors"
+              >
+                <Store className="w-4 h-4 text-[#34D399]" />
+                <span>Preview Storefront</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  logout();
+                  navigate('/login');
+                }}
+                className="w-full flex items-center gap-2 min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:bg-[#181D2C] transition-colors text-left"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Global Command Palette (Section 94 Ctrl + K) */}
       <CommandPalette

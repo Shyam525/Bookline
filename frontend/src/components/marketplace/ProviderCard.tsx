@@ -244,7 +244,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
           <button
             type="button"
             onClick={handleViewBusiness}
-            className="px-3.5 py-2 text-xs font-semibold text-[#181A1F] dark:text-[#F4F6FA] hover:text-[#B93650] dark:hover:text-[#E8546A] bg-[#F3F0EB] dark:bg-[#1A2130] hover:bg-[#DED8CF] dark:hover:bg-[#273142] rounded-lg transition-colors flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B93650]"
+            className="min-h-[44px] px-3.5 py-2 text-xs font-semibold text-[#181A1F] dark:text-[#F4F6FA] hover:text-[#B93650] dark:hover:text-[#E8546A] bg-[#F3F0EB] dark:bg-[#1A2130] hover:bg-[#DED8CF] dark:hover:bg-[#273142] rounded-xl transition-colors flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B93650]"
           >
             <span>View business</span>
           </button>
@@ -253,7 +253,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
             <button
               type="button"
               onClick={handleBookNow}
-              className="px-4 py-2 text-xs font-bold text-white bg-[#B93650] hover:bg-[#A52E46] active:bg-[#92273D] rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-[#B93650]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B93650] focus-visible:ring-offset-1"
+              className="min-h-[44px] px-5 py-2 text-xs font-bold text-white bg-[#B93650] hover:bg-[#A52E46] active:bg-[#92273D] rounded-xl transition-colors flex items-center gap-1.5 shadow-sm shadow-[#B93650]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B93650] focus-visible:ring-offset-1"
             >
               <span>Book</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -263,7 +263,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
               type="button"
               disabled
               aria-disabled="true"
-              className="px-4 py-2 text-xs font-medium text-[#9AA3B2] dark:text-[#687386] bg-[#F3F0EB] dark:bg-[#1A2130] rounded-lg cursor-not-allowed"
+              className="min-h-[44px] px-4 py-2 text-xs font-medium text-[#9AA3B2] dark:text-[#687386] bg-[#F3F0EB] dark:bg-[#1A2130] rounded-xl cursor-not-allowed"
             >
               Unavailable
             </button>

@@ -267,6 +267,20 @@ export const DiscoveryPage: React.FC = () => {
   // Center coordinates for map
   const mapCenter = { lat: currentLocation.lat, lng: currentLocation.lng };
 
+  // Explicit calculation of providers with valid geographic coordinates (Section 80)
+  const validMappedCount = providers.filter(
+    (p) =>
+      p.latitude != null &&
+      p.longitude != null &&
+      !isNaN(p.latitude) &&
+      !isNaN(p.longitude) &&
+      p.latitude >= -90 &&
+      p.latitude <= 90 &&
+      p.longitude >= -180 &&
+      p.longitude <= 180 &&
+      (Math.abs(p.latitude) > 0.0001 || Math.abs(p.longitude) > 0.0001)
+  ).length;
+
   // Detect query intent keywords for visual feedback
   const isIntentQuery =
     debouncedQuery.toLowerCase().includes('near me') ||
@@ -653,12 +667,18 @@ export const DiscoveryPage: React.FC = () => {
             </div>
           )}
 
-          {/* Reusable Data-Driven Provider Cards (Phase 11) */}
+          {/* Reusable Data-Driven Provider Cards (Phase 11 & Section 80) */}
           {!isLoading &&
             !error &&
             providers.map((p) => {
               const isSelected = p.id === selectedProviderId;
               const isHovered = p.id === hoveredProviderId;
+              const hasValidCoords =
+                p.latitude != null &&
+                p.longitude != null &&
+                !isNaN(p.latitude) &&
+                !isNaN(p.longitude) &&
+                (Math.abs(p.latitude) > 0.0001 || Math.abs(p.longitude) > 0.0001);
 
               return (
                 <div
@@ -666,6 +686,7 @@ export const DiscoveryPage: React.FC = () => {
                   ref={(el) => {
                     cardRefs.current[p.id] = el;
                   }}
+                  className="space-y-1"
                 >
                   <ProviderCard
                     provider={p}
@@ -674,6 +695,12 @@ export const DiscoveryPage: React.FC = () => {
                     onSelect={() => handleSelectProvider(p)}
                     onHover={(hovered) => setHoveredProviderId(hovered ? p.id : null)}
                   />
+                  {!hasValidCoords && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span>Address listed &bull; Map coordinates pending update (in-studio appointments active)</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -746,22 +773,23 @@ export const DiscoveryPage: React.FC = () => {
         onSelectLocation={handleLocationSelect}
       />
 
-      {/* Floating Sticky Map / List Toggle for Mobile */}
+      {/* Floating Sticky Map / List Toggle for Mobile (Preserves all state & filters) */}
       <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
         <button
           type="button"
+          aria-label={mobileView === 'list' ? 'Switch to interactive map view' : 'Switch to list view'}
           onClick={() => setMobileView(mobileView === 'list' ? 'map' : 'list')}
           className="min-h-[48px] px-6 py-3 rounded-full bg-[#B93650] hover:bg-[#A52E46] text-white text-xs font-bold shadow-2xl flex items-center gap-2 border border-white/20 active:scale-95 transition-all"
         >
           {mobileView === 'list' ? (
             <>
               <MapIcon className="w-4 h-4" />
-              <span>View Map ({providers.length})</span>
+              <span>View Map ({validMappedCount} mapped)</span>
             </>
           ) : (
             <>
               <ListIcon className="w-4 h-4" />
-              <span>View List</span>
+              <span>View List ({providers.length})</span>
             </>
           )}
         </button>

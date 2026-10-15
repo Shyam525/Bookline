@@ -21,6 +21,20 @@ export interface ProviderCard {
   rankingScore: number;
 }
 
+export interface PublicServiceSearchResult {
+  id: string;
+  name: string;
+  description?: string;
+  durationMinutes: number;
+  price: number;
+  currency: string;
+  providerName: string;
+  providerSlug: string;
+  providerCity: string;
+  providerCategory: string;
+  isOnlineBookingEnabled: boolean;
+}
+
 export interface ProviderSearchResponse {
   items: ProviderCard[];
   totalCount: number;
@@ -150,7 +164,9 @@ export const discoveryApi = {
     sort?: string;
     page?: number;
     pageSize?: number;
-  }): Promise<ProviderSearchResponse> {
+    signal?: AbortSignal;
+  }, signal?: AbortSignal): Promise<ProviderSearchResponse> {
+    const effectiveSignal = signal || params.signal;
     const searchParams = new URLSearchParams();
     if (params.q) searchParams.set('q', params.q);
     if (params.category && params.category !== 'All') searchParams.set('category', params.category);
@@ -172,8 +188,18 @@ export const discoveryApi = {
     if (params.page) searchParams.set('page', params.page.toString());
     if (params.pageSize) searchParams.set('pageSize', params.pageSize.toString());
 
-    const res = await fetch(`${API_BASE}/providers?${searchParams.toString()}`);
+    const res = await fetch(`${API_BASE}/providers?${searchParams.toString()}`, { signal: effectiveSignal });
     if (!res.ok) throw new Error('Failed to load discovery results');
+    return res.json();
+  },
+
+  async searchServices(query: string, limit = 8, signal?: AbortSignal): Promise<PublicServiceSearchResult[]> {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    params.set('limit', limit.toString());
+
+    const res = await fetch(`${API_BASE}/services?${params.toString()}`, { signal });
+    if (!res.ok) return [];
     return res.json();
   },
 

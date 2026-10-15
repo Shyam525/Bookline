@@ -65,7 +65,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const pendingBoundsRef = useRef<ViewportSearchBounds | null>(null);
   const hasUserMovedRef = useRef(false);
 
-  // Filter valid geographic coordinates
+  // Filter valid geographic coordinates (Explicitly excludes 0,0 Null Island defaults)
   const validProviders = providers.filter(
     (p) =>
       p.latitude != null &&
@@ -75,8 +75,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       p.latitude >= -90 &&
       p.latitude <= 90 &&
       p.longitude >= -180 &&
-      p.longitude <= 180
+      p.longitude <= 180 &&
+      (Math.abs(p.latitude) > 0.0001 || Math.abs(p.longitude) > 0.0001)
   );
+
+  // Responsive container observer: ensures Leaflet recalculates tile bounds on viewport resize / mobile toggle
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    });
+    observer.observe(mapContainerRef.current);
+    return () => observer.disconnect();
+  }, [isMapReady]);
 
   // 1. Initialize Leaflet Map
   useEffect(() => {
@@ -429,12 +442,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         </button>
       </div>
 
-      {/* 5. Provider Count Badge */}
-      <div className="absolute top-4 left-4 z-20">
-        <div className="bg-white/90 dark:bg-[#111620]/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#DED8CF] dark:border-[#30394A] text-[11px] font-semibold text-[#181A1F] dark:text-[#F4F6FA] shadow-sm flex items-center gap-1.5">
+      {/* 5. Provider Count & Spatial Coverage Badge */}
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-1.5 pointer-events-none">
+        <div className="bg-white/95 dark:bg-[#111620]/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-[#DED8CF] dark:border-[#30394A] text-[11px] font-semibold text-[#181A1F] dark:text-[#F4F6FA] shadow-sm flex items-center gap-1.5">
           <MapPin className="w-3.5 h-3.5 text-[#B93650]" />
           <span>{validProviders.length} venues mapped</span>
         </div>
+        {providers.length > validProviders.length && (
+          <div className="bg-amber-50/95 dark:bg-amber-950/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-800 text-[10px] font-medium text-amber-900 dark:text-amber-200 shadow-sm flex items-center gap-1.5">
+            <AlertCircle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>{providers.length - validProviders.length} without map coordinates</span>
+          </div>
+        )}
       </div>
     </div>
   );

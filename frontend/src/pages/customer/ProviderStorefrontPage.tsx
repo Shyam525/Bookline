@@ -21,6 +21,7 @@ import {
   CheckCircle,
   AlertCircle,
   X,
+  ChevronLeft,
   ChevronRight,
   Download,
   Share2,
@@ -167,13 +168,19 @@ export const ProviderStorefrontPage: React.FC = () => {
   useEffect(() => {
     if (!storefront) return;
     const params = new URLSearchParams(location.search);
-    const serviceIdParam = params.get('serviceId') || (location.state as any)?.serviceId;
+    const serviceIdParam = params.get('serviceId') || params.get('service') || (location.state as any)?.serviceId;
     const locationIdParam = params.get('locationId') || (location.state as any)?.locationId;
 
     if (serviceIdParam && storefront.services?.length > 0) {
-      const matchedService = storefront.services.find((s) => s.id === serviceIdParam);
+      const paramLower = serviceIdParam.toLowerCase();
+      const matchedService = storefront.services.find(
+        (s) => s.id === serviceIdParam || s.name.toLowerCase() === paramLower || s.name.toLowerCase().includes(paramLower)
+      );
       if (matchedService) {
         setSelectedService(matchedService);
+        if (params.get('book') === 'true' || params.get('booking') === 'true' || params.has('serviceId') || params.has('service')) {
+          setIsBookingOpen(true);
+        }
       }
     }
 
@@ -198,12 +205,18 @@ export const ProviderStorefrontPage: React.FC = () => {
     }
   }, [user]);
 
-  // Hold Timer Countdown
+  // Hold Timer Countdown (Section 80: Clear expired hold immediately upon expiry)
   useEffect(() => {
     let interval: any = null;
     if (bookingStep === 4 && holdTimer > 0) {
       interval = setInterval(() => {
-        setHoldTimer((prev) => (prev > 0 ? prev - 1 : 0));
+        setHoldTimer((prev) => {
+          if (prev <= 1) {
+            setHoldId(null);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -411,7 +424,12 @@ export const ProviderStorefrontPage: React.FC = () => {
       setConfirmedBooking(bookingRecord);
       setBookingStep(5);
     } catch (err: any) {
-      setSlotError(err.message || 'Failed to complete booking. Your hold may have expired.');
+      const errMsg = err.message || 'Failed to complete booking. Your hold may have expired.';
+      setSlotError(errMsg);
+      if (errMsg.toLowerCase().includes('hold') || errMsg.toLowerCase().includes('expired')) {
+        setHoldId(null);
+        setHoldTimer(0);
+      }
     } finally {
       setBookingSubmitting(false);
     }
@@ -1600,19 +1618,31 @@ END:VCALENDAR`;
       </div>
 
       {/* ==================================================================== */}
-      {/* 5-STEP PUBLIC BOOKING ENGINE MODAL (Mandatory Points 35, 38, 39, 40) */}
+      {/* 5-STEP PUBLIC BOOKING ENGINE MODAL (Section 80: Mobile-First Responsive) */}
       {/* ==================================================================== */}
       {isBookingOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#111520] border border-[#212638] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-[#212638] flex items-center justify-between sticky top-0 bg-[#111520] z-10">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#111520] border-t sm:border border-[#212638] rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col pb-safe">
+            {/* Modal Header with Responsive Back Navigation */}
+            <div className="p-4 sm:p-6 border-b border-[#212638] flex items-center justify-between sticky top-0 bg-[#111520] z-20">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-[#E8546A] text-white flex items-center justify-center font-bold text-sm">
-                  {bookingStep}
-                </div>
+                {bookingStep > 1 && bookingStep < 5 ? (
+                  <button
+                    type="button"
+                    onClick={() => setBookingStep((s) => (s - 1) as any)}
+                    className="p-2 -ml-1 rounded-xl bg-[#181D2C] hover:bg-[#212638] text-[#7E88A8] hover:text-white transition-colors"
+                    title="Previous step"
+                    aria-label="Previous step"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-[#E8546A] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                    {bookingStep}
+                  </div>
+                )}
                 <div>
-                  <h3 className="font-heading font-bold text-lg text-white">
+                  <h3 className="font-heading font-bold text-base sm:text-lg text-white">
                     {bookingStep === 1 && 'Select Service'}
                     {bookingStep === 2 && 'Select Specialist'}
                     {bookingStep === 3 && 'Choose Date & Time Slot'}
@@ -1628,6 +1658,7 @@ END:VCALENDAR`;
               <button
                 onClick={() => setIsBookingOpen(false)}
                 className="p-2 rounded-xl bg-[#181D2C] hover:bg-[#212638] text-[#7E88A8] hover:text-white"
+                aria-label="Close booking modal"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1940,7 +1971,7 @@ END:VCALENDAR`;
                     );
                   })()}
 
-                  {/* Customer Information Inputs (Section 68: Name, Phone, Email, Optional notes, Validate) */}
+                  {/* Customer Information Inputs (Section 68 & Section 80: Touch keyboard friendly, explicit error indicators) */}
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
@@ -1948,12 +1979,19 @@ END:VCALENDAR`;
                       </label>
                       <input
                         type="text"
+                        name="name"
+                        autoComplete="name"
                         value={bookingCustomerName}
                         onChange={(e) => setBookingCustomerName(e.target.value)}
                         placeholder="e.g. Priya Sharma"
-                        className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+                        className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
                         required
                       />
+                      {slotError && !bookingCustomerName.trim() && (
+                        <p className="text-[11px] text-[#E8546A] mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" /> Full name is required
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -1962,12 +2000,20 @@ END:VCALENDAR`;
                         </label>
                         <input
                           type="email"
+                          inputMode="email"
+                          name="email"
+                          autoComplete="email"
                           value={bookingCustomerEmail}
                           onChange={(e) => setBookingCustomerEmail(e.target.value)}
                           placeholder="client@example.com"
-                          className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+                          className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
                           required
                         />
+                        {slotError && !bookingCustomerEmail.trim() && (
+                          <p className="text-[11px] text-[#E8546A] mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> Valid email is required
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
@@ -1975,12 +2021,20 @@ END:VCALENDAR`;
                         </label>
                         <input
                           type="tel"
+                          inputMode="tel"
+                          name="tel"
+                          autoComplete="tel"
                           value={bookingCustomerPhone}
                           onChange={(e) => setBookingCustomerPhone(e.target.value)}
                           placeholder="+91 98765 43210"
-                          className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
+                          className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white text-xs focus:outline-none focus:border-[#E8546A]"
                           required
                         />
+                        {slotError && !bookingCustomerPhone.trim() && (
+                          <p className="text-[11px] text-[#E8546A] mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> Phone number is required
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -2124,7 +2178,7 @@ END:VCALENDAR`;
                           type="button"
                           disabled={!isFormValid}
                           onClick={handleConfirmBooking}
-                          className="w-full py-3.5 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="w-full min-h-[48px] py-3.5 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           {bookingSubmitting ? (
                             <span>Reserving Slot & Securing...</span>
@@ -2429,29 +2483,31 @@ END:VCALENDAR`;
       )}
 
       {/* ==================================================================== */}
-      {/* SECTION 106: MOBILE STICKY BOOKING ACTION BAR (Sticky Action & Touch Target) */}
+      {/* SECTION 106: MOBILE STICKY BOOKING ACTION BAR (Hidden when modal open) */}
       {/* ==================================================================== */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-[#111520]/95 backdrop-blur-md border-t border-[#212638] px-4 py-3 shadow-2xl flex items-center justify-between gap-4">
-        <div className="flex flex-col min-w-0">
-          <span className="text-[10px] text-[#7E88A8] uppercase tracking-wider font-bold">Appointments</span>
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="text-sm font-bold text-white font-heading">
-              {services.length > 0 ? `From ${services[0].currency || provider.currency || '₹'}${services[0].price}` : 'Book Consultation'}
-            </span>
-            <span className="flex items-center gap-0.5 text-xs text-[#FBBF24] font-semibold">
-              <Star className="w-3.5 h-3.5 fill-current" />
-              {provider.reviewCount > 0 && provider.averageRating > 0 ? provider.averageRating.toFixed(1) : 'New'}
-            </span>
+      {!isBookingOpen && (
+        <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-[#111520]/95 backdrop-blur-md border-t border-[#212638] px-4 py-3 shadow-2xl flex items-center justify-between gap-4">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] text-[#7E88A8] uppercase tracking-wider font-bold">Appointments</span>
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-sm font-bold text-white font-heading">
+                {services.length > 0 ? `From ${services[0].currency || provider.currency || '₹'}${services[0].price}` : 'Book Consultation'}
+              </span>
+              <span className="flex items-center gap-0.5 text-xs text-[#FBBF24] font-semibold">
+                <Star className="w-3.5 h-3.5 fill-current" />
+                {provider.reviewCount > 0 && provider.averageRating > 0 ? provider.averageRating.toFixed(1) : 'New'}
+              </span>
+            </div>
           </div>
+          <button
+            onClick={() => handleStartBooking(services[0] || null)}
+            className="min-h-[48px] px-6 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/25 flex items-center justify-center gap-2 flex-shrink-0 active:scale-95"
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Book now</span>
+          </button>
         </div>
-        <button
-          onClick={() => handleStartBooking(services[0] || null)}
-          className="min-h-[48px] px-6 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg shadow-[#E8546A]/25 flex items-center justify-center gap-2 flex-shrink-0 active:scale-95"
-        >
-          <Calendar className="w-4 h-4" />
-          <span>Book now</span>
-        </button>
-      </div>
+      )}
     </div>
   );
 };

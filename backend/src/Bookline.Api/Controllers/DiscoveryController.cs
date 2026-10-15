@@ -267,6 +267,50 @@ public class DiscoveryController : ControllerBase
         };
     }
 
+    [HttpGet("services")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SearchPublicServices(
+        [FromQuery] string? q,
+        [FromQuery] int limit = 8,
+        CancellationToken cancellationToken = default)
+    {
+        var baseQuery = from s in _dbContext.Services.IgnoreQueryFilters()
+                        join t in _dbContext.Tenants.IgnoreQueryFilters() on s.TenantId equals t.Id
+                        where s.IsActive && !s.IsArchived && s.IsOnlineBookingEnabled && t.IsActive && t.IsPublished
+                        select new { s, t };
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim().ToLower();
+            baseQuery = baseQuery.Where(x =>
+                x.s.Name.ToLower().Contains(term) ||
+                (x.s.Description != null && x.s.Description.ToLower().Contains(term)) ||
+                x.t.Name.ToLower().Contains(term) ||
+                x.t.City.ToLower().Contains(term));
+        }
+
+        var results = await baseQuery
+            .OrderBy(x => x.s.Name)
+            .Take(Math.Clamp(limit, 1, 20))
+            .Select(x => new
+            {
+                Id = x.s.Id,
+                Name = x.s.Name,
+                Description = x.s.Description,
+                DurationMinutes = x.s.DurationMinutes,
+                Price = x.s.Price,
+                Currency = x.t.Currency ?? "INR",
+                ProviderName = x.t.Name,
+                ProviderSlug = x.t.Slug,
+                ProviderCity = x.t.City,
+                ProviderCategory = x.t.Category,
+                IsOnlineBookingEnabled = x.s.IsOnlineBookingEnabled
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(results);
+    }
+
     [HttpGet("providers/{slug}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetProviderStorefront(string slug, CancellationToken cancellationToken = default)

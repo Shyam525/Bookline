@@ -399,21 +399,33 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
     private static bool IsExclusionViolation(DbUpdateException ex)
     {
-        if (ex.InnerException == null) return false;
-
-        var innerType = ex.InnerException.GetType();
-        if (innerType.Name == "PostgresException")
+        var inner = ex.InnerException;
+        while (inner != null)
         {
-            var sqlStateProp = innerType.GetProperty("SqlState");
-            var constraintProp = innerType.GetProperty("ConstraintName");
+            var innerType = inner.GetType();
+            if (innerType.Name == "PostgresException")
+            {
+                var sqlStateProp = innerType.GetProperty("SqlState");
+                var constraintProp = innerType.GetProperty("ConstraintName");
 
-            var sqlState = sqlStateProp?.GetValue(ex.InnerException)?.ToString();
-            var constraint = constraintProp?.GetValue(ex.InnerException)?.ToString();
+                var sqlState = sqlStateProp?.GetValue(inner)?.ToString();
+                var constraint = constraintProp?.GetValue(inner)?.ToString();
 
-            return sqlState == "23P01" || constraint == "no_overlap";
+                if (sqlState == "23P01" || constraint == "no_overlap" || constraint == "no_resource_overlap")
+                {
+                    return true;
+                }
+            }
+
+            if (inner.Message.Contains("23P01") || inner.Message.Contains("no_overlap") || inner.Message.Contains("no_resource_overlap"))
+            {
+                return true;
+            }
+
+            inner = inner.InnerException;
         }
 
-        return ex.InnerException.Message.Contains("23P01") || ex.InnerException.Message.Contains("no_overlap");
+        return false;
     }
 
 

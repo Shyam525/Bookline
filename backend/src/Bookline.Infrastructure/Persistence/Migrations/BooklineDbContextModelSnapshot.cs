@@ -199,15 +199,17 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ServiceId");
 
-                    b.HasIndex("StaffId");
-
-                    b.HasIndex("CustomerId", "Status");
-
                     b.HasIndex("TenantId", "ServiceId");
 
-                    b.HasIndex("TenantId", "LocationId", "StartUtc");
+                    b.HasIndex("CustomerId", "StartUtc", "Status");
 
                     b.HasIndex("TenantId", "Status", "StartUtc");
+
+                    b.HasIndex("StaffId", "StartUtc", "EndUtc", "Status");
+
+                    b.HasIndex("TenantId", "LocationId", "StartUtc", "EndUtc");
+
+                    b.HasIndex("TenantId", "ResourceId", "StartUtc", "EndUtc");
 
                     b.HasIndex("TenantId", "StaffId", "StartUtc", "EndUtc");
 
@@ -547,6 +549,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "City", "IsActive");
 
+                    b.HasIndex("TenantId", "IsActive", "IsArchived");
+
                     b.HasIndex("TenantId", "Name", "IsActive");
 
                     b.ToTable("Locations");
@@ -617,6 +621,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "CreatedAtUtc");
 
                     b.HasIndex("TenantId", "RecipientEmail");
+
+                    b.HasIndex("RecipientEmail", "IsRead", "CreatedAtUtc");
 
                     b.ToTable("NotificationLogs");
                 });
@@ -737,14 +743,16 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
-
                     b.HasIndex("OrderNumber")
                         .IsUnique();
 
                     b.HasIndex("RelatedBookingId");
 
-                    b.HasIndex("TenantId", "Status");
+                    b.HasIndex("CustomerId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "Status", "CreatedAtUtc");
 
                     b.ToTable("Orders");
                 });
@@ -852,6 +860,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId", "CreatedAtUtc");
+
+                    b.HasIndex("Status", "RetryCount", "CreatedAtUtc");
+
                     b.ToTable("OutboxMessages");
                 });
 
@@ -909,6 +921,16 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("StripeCheckoutSessionId");
+
+                    b.HasIndex("StripePaymentIntentId");
+
+                    b.HasIndex("CustomerId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "Status", "CreatedAtUtc");
 
                     b.ToTable("Payments");
                 });
@@ -1046,6 +1068,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "Slug");
 
                     b.HasIndex("TenantId", "IsActive", "IsPurchasableOnline");
+
+                    b.HasIndex("TenantId", "CategoryId", "IsActive", "Price");
 
                     b.ToTable("Products");
                 });
@@ -1299,9 +1323,11 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("CustomerId", "CreatedAtUtc");
 
-                    b.HasIndex("TenantId", "ModerationStatus");
+                    b.HasIndex("TenantId", "ModerationStatus", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "ModerationStatus", "Rating", "CreatedAtUtc");
 
                     b.ToTable("Reviews");
                 });
@@ -1694,6 +1720,8 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("City", "Category", "IsPublished");
 
+                    b.HasIndex("IsActive", "IsPublished", "ModerationStatus", "City", "AverageRating");
+
                     b.ToTable("Tenants");
                 });
 
@@ -1823,7 +1851,7 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StaffId");
+                    b.HasIndex("StaffId", "DayOfWeek");
 
                     b.HasIndex("TenantId", "StaffId", "DayOfWeek");
 

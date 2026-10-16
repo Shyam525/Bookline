@@ -428,6 +428,14 @@ try
                         tstzrange(""StartUtc"", ""EndUtc"") WITH &&
                       )
                       WHERE (""Status"" IN ('Pending','Confirmed'));
+
+                    ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_resource_overlap;
+                    ALTER TABLE ""Bookings"" ADD CONSTRAINT no_resource_overlap
+                      EXCLUDE USING gist (
+                        ""ResourceId"" WITH =,
+                        tstzrange(""StartUtc"", ""EndUtc"") WITH &&
+                      )
+                      WHERE (""ResourceId"" IS NOT NULL AND ""Status"" IN ('Pending','Confirmed'));
                 ");
             }
             else

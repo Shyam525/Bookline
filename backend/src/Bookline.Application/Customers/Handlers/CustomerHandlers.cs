@@ -26,8 +26,22 @@ public class CustomerCommandHandler :
         _tenantContext = tenantContext;
     }
 
+    private static readonly SortMapping<Customer> CustomerSorts = new SortMapping<Customer>(c => c.Id)
+        .Add("name", c => c.LastName)
+        .Add("email", c => c.Email)
+        .Add("created", c => c.CreatedAtUtc, defaultDescending: true)
+        .Add("spent", c => c.TotalSpentAmount, defaultDescending: true)
+        .Add("bookings", c => c.TotalBookingsCount, defaultDescending: true);
+
     public async Task<PagedResult<CustomerDto>> Handle(GetCustomersQuery request, CancellationToken cancellationToken)
     {
+        var validator = new GetCustomersQueryValidator();
+        var validationResult = await validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.Errors);
+        }
+
         var query = _context.Customers.AsNoTracking().AsQueryable();
 
         if (!request.IncludeArchived)
@@ -45,12 +59,12 @@ public class CustomerCommandHandler :
                 c.Phone.ToLower().Contains(search));
         }
 
-        var pagedQuery = new PagedQuery(request.Page, request.PageSize);
+        var pagedQuery = new PagedQuery(request.Page, request.PageSize, request.Sort, request.Direction);
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var items = await query
-            .OrderBy(c => c.LastName)
-            .ThenBy(c => c.FirstName)
+        var sortedQuery = CustomerSorts.Apply(query, request.Sort, request.Direction, defaultField: "name");
+
+        var items = await sortedQuery
             .Skip((pagedQuery.Page - 1) * pagedQuery.PageSize)
             .Take(pagedQuery.PageSize)
             .ToListAsync(cancellationToken);

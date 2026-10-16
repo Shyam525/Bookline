@@ -70,6 +70,9 @@ public class PaymentHandlers
             dbQuery = dbQuery.Where(p => p.PaymentType == type);
         }
 
+        var safePage = Math.Max(1, query.PageNumber);
+        var safePageSize = Math.Clamp(query.PageSize, 1, 100);
+
         var totalCount = await dbQuery.CountAsync(cancellationToken);
 
         var customersDict = await _context.Customers
@@ -78,8 +81,9 @@ public class PaymentHandlers
 
         var items = await dbQuery
             .OrderByDescending(p => p.CreatedAtUtc)
-            .Skip((query.PageNumber - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .ThenBy(p => p.Id)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
             .ToListAsync(cancellationToken);
 
         var dtos = items.Select(p => new PaymentDto(
@@ -101,7 +105,7 @@ public class PaymentHandlers
             p.CompletedAtUtc
         )).ToList();
 
-        return new PagedResult<PaymentDto>(dtos, totalCount, query.PageNumber, query.PageSize);
+        return new PagedResult<PaymentDto>(dtos, totalCount, safePage, safePageSize);
     }
 
     public async Task<PaymentSummaryDto> Handle(GetPaymentSummaryQuery query, CancellationToken cancellationToken = default)

@@ -11,6 +11,7 @@ namespace Bookline.Application.Staff.Handlers;
 
 public class StaffCommandHandler :
     IRequestHandler<GetAllStaffQuery, List<StaffDto>>,
+    IRequestHandler<GetPagedStaffQuery, Bookline.Application.Common.Models.PagedResult<StaffDto>>,
     IRequestHandler<GetStaffByIdQuery, StaffDto>,
     IRequestHandler<CreateStaffCommand, StaffDto>,
     IRequestHandler<UpdateStaffCommand, StaffDto>,
@@ -41,8 +42,49 @@ public class StaffCommandHandler :
             query = query.Where(s => !s.IsArchived);
         }
 
-        var staffList = await query.OrderBy(s => s.Name).ToListAsync(cancellationToken);
+        var staffList = await query.OrderBy(s => s.Name).ThenBy(s => s.Id).ToListAsync(cancellationToken);
         return staffList.Select(MapToDto).ToList();
+    }
+
+    public async Task<Bookline.Application.Common.Models.PagedResult<StaffDto>> Handle(GetPagedStaffQuery request, CancellationToken cancellationToken)
+    {
+        var query = _context.Staff
+            .AsNoTracking()
+            .Include(s => s.StaffServices)
+            .Include(s => s.WorkingHours)
+            .AsQueryable();
+
+        if (!request.IncludeArchived)
+        {
+            query = query.Where(s => !s.IsArchived);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(s => s.Name.ToLower().Contains(search) || s.Email.ToLower().Contains(search) || (s.Title != null && s.Title.ToLower().Contains(search)));
+        }
+
+        var safePage = Math.Max(1, request.Page);
+        var safePageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(request.Direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (request.Sort?.ToLowerInvariant()) switch
+        {
+            "email" => isAsc ? query.OrderBy(s => s.Email).ThenBy(s => s.Id) : query.OrderByDescending(s => s.Email).ThenBy(s => s.Id),
+            "title" => isAsc ? query.OrderBy(s => s.Title).ThenBy(s => s.Id) : query.OrderByDescending(s => s.Title).ThenBy(s => s.Id),
+            _ => isAsc ? query.OrderBy(s => s.Name).ThenBy(s => s.Id) : query.OrderByDescending(s => s.Name).ThenBy(s => s.Id)
+        };
+
+        var items = await query
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync(cancellationToken);
+
+        var dtos = items.Select(MapToDto).ToList();
+        return new Bookline.Application.Common.Models.PagedResult<StaffDto>(dtos, totalCount, safePage, safePageSize);
     }
 
     public async Task<StaffDto> Handle(GetStaffByIdQuery request, CancellationToken cancellationToken)

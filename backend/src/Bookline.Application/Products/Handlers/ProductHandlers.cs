@@ -17,6 +17,7 @@ public class ProductHandlers :
     IRequestHandler<UpdateProductCategoryCommand, ProductCategoryDto>,
     IRequestHandler<DeleteProductCategoryCommand, Unit>,
     IRequestHandler<GetProductsQuery, List<ProductDto>>,
+    IRequestHandler<GetPagedProductsQuery, Bookline.Application.Common.Models.PagedResult<ProductDto>>,
     IRequestHandler<GetProductByIdQuery, ProductDto>,
     IRequestHandler<GetProductBySlugQuery, ProductDto>,
     IRequestHandler<CreateProductCommand, ProductDto>,
@@ -190,9 +191,75 @@ public class ProductHandlers :
 
         var products = await query
             .OrderByDescending(p => p.CreatedAtUtc)
+            .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
 
         return products.Select(MapProductToDto).ToList();
+    }
+
+    public async Task<Bookline.Application.Common.Models.PagedResult<ProductDto>> Handle(GetPagedProductsQuery request, CancellationToken cancellationToken)
+    {
+        var query = _context.Products
+            .AsNoTracking()
+            .Include(p => p.Category)
+            .Include(p => p.Images)
+            .Where(p => p.TenantId == _tenantContext.TenantId);
+
+        if (request.CategoryId.HasValue)
+        {
+            query = query.Where(p => p.CategoryId == request.CategoryId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(p =>
+                p.Name.ToLower().Contains(search) ||
+                (p.Sku != null && p.Sku.ToLower().Contains(search)) ||
+                p.Description.ToLower().Contains(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            var normalizedStatus = request.Status.Trim().ToLowerInvariant();
+            query = normalizedStatus switch
+            {
+                "active_in_stock" or "in_stock" => query.Where(p => p.IsActive && p.IsPublished && (!p.TrackInventory || p.StockQuantity - p.ReservedQuantity > 0) && p.IsPurchasableOnline),
+                "out_of_stock" => query.Where(p => p.IsActive && p.IsPublished && p.TrackInventory && p.StockQuantity - p.ReservedQuantity <= 0),
+                "low_stock" => query.Where(p => p.IsActive && p.TrackInventory && (p.StockQuantity - p.ReservedQuantity > 0) && (p.StockQuantity - p.ReservedQuantity <= p.LowStockThreshold)),
+                "store_only" => query.Where(p => p.IsActive && p.IsPublished && !p.IsPurchasableOnline),
+                "draft" or "unpublished" => query.Where(p => p.IsActive && !p.IsPublished),
+                "inactive" => query.Where(p => !p.IsActive),
+                "all" => query,
+                _ => request.IncludeInactive ? query : query.Where(p => p.IsActive)
+            };
+        }
+        else if (!request.IncludeInactive)
+        {
+            query = query.Where(p => p.IsActive);
+        }
+
+        var safePage = Math.Max(1, request.Page);
+        var safePageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(request.Direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (request.Sort?.ToLowerInvariant()) switch
+        {
+            "name" => isAsc ? query.OrderBy(p => p.Name).ThenBy(p => p.Id) : query.OrderByDescending(p => p.Name).ThenBy(p => p.Id),
+            "price" => isAsc ? query.OrderBy(p => p.Price).ThenBy(p => p.Id) : query.OrderByDescending(p => p.Price).ThenBy(p => p.Id),
+            "stock" => isAsc ? query.OrderBy(p => p.StockQuantity).ThenBy(p => p.Id) : query.OrderByDescending(p => p.StockQuantity).ThenBy(p => p.Id),
+            _ => isAsc ? query.OrderBy(p => p.CreatedAtUtc).ThenBy(p => p.Id) : query.OrderByDescending(p => p.CreatedAtUtc).ThenBy(p => p.Id)
+        };
+
+        var items = await query
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync(cancellationToken);
+
+        var dtos = items.Select(MapProductToDto).ToList();
+        return new Bookline.Application.Common.Models.PagedResult<ProductDto>(dtos, totalCount, safePage, safePageSize);
     }
 
     public async Task<ProductDto> Handle(GetProductByIdQuery request, CancellationToken cancellationToken)

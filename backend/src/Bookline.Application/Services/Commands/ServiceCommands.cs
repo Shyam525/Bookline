@@ -19,6 +19,19 @@ public record GetServicesQuery(
     string? Search = null
 ) : IRequest<List<ServiceDto>>;
 
+public record GetPagedServicesQuery(
+    Guid? CategoryId = null,
+    Guid? LocationId = null,
+    Guid? StaffId = null,
+    string? Status = null,
+    bool IncludeArchived = false,
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20,
+    string? Sort = "name",
+    string? Direction = "asc"
+) : IRequest<Bookline.Application.Common.Models.PagedResult<ServiceDto>>;
+
 public record GetServiceByIdQuery(Guid Id) : IRequest<ServiceDto>;
 public record GetServiceBySlugQuery(string Slug) : IRequest<ServiceDto>;
 public record CreateServiceCommand(CreateServiceRequest Request) : IRequest<ServiceDto>;

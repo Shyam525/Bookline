@@ -16,6 +16,7 @@ public class ServiceHandlers :
     IRequestHandler<UpdateServiceCategoryCommand, ServiceCategoryDto>,
     IRequestHandler<DeleteServiceCategoryCommand, bool>,
     IRequestHandler<GetServicesQuery, List<ServiceDto>>,
+    IRequestHandler<GetPagedServicesQuery, Bookline.Application.Common.Models.PagedResult<ServiceDto>>,
     IRequestHandler<GetServiceByIdQuery, ServiceDto>,
     IRequestHandler<GetServiceBySlugQuery, ServiceDto>,
     IRequestHandler<CreateServiceCommand, ServiceDto>,
@@ -172,9 +173,74 @@ public class ServiceHandlers :
         var services = await query
             .OrderBy(s => s.Category != null ? s.Category.SortOrder : 0)
             .ThenBy(s => s.Name)
+            .ThenBy(s => s.Id)
             .ToListAsync(cancellationToken);
 
         return services.Select(MapServiceToDto).ToList();
+    }
+
+    public async Task<Bookline.Application.Common.Models.PagedResult<ServiceDto>> Handle(GetPagedServicesQuery request, CancellationToken cancellationToken)
+    {
+        var query = _context.Services
+            .AsNoTracking()
+            .Include(s => s.Category)
+            .Include(s => s.StaffServices)
+            .Include(s => s.ServiceLocations)
+            .Include(s => s.RequiredResource)
+            .AsQueryable();
+
+        if (!request.IncludeArchived)
+        {
+            query = query.Where(s => !s.IsArchived);
+        }
+
+        if (request.CategoryId.HasValue)
+        {
+            query = query.Where(s => s.CategoryId == request.CategoryId.Value);
+        }
+
+        if (request.LocationId.HasValue)
+        {
+            query = query.Where(s => s.ServiceLocations.Any(sl => sl.LocationId == request.LocationId.Value));
+        }
+
+        if (request.StaffId.HasValue)
+        {
+            query = query.Where(s => s.StaffServices.Any(ss => ss.StaffId == request.StaffId.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            query = query.Where(s => s.Status.ToLower() == request.Status.ToLower());
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var searchLower = request.Search.Trim().ToLower();
+            query = query.Where(s => s.Name.ToLower().Contains(searchLower) ||
+                                     (s.Description != null && s.Description.ToLower().Contains(searchLower)));
+        }
+
+        var safePage = Math.Max(1, request.Page);
+        var safePageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(request.Direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (request.Sort?.ToLowerInvariant()) switch
+        {
+            "price" => isAsc ? query.OrderBy(s => s.Price).ThenBy(s => s.Id) : query.OrderByDescending(s => s.Price).ThenBy(s => s.Id),
+            "duration" => isAsc ? query.OrderBy(s => s.DurationMinutes).ThenBy(s => s.Id) : query.OrderByDescending(s => s.DurationMinutes).ThenBy(s => s.Id),
+            _ => isAsc ? query.OrderBy(s => s.Name).ThenBy(s => s.Id) : query.OrderByDescending(s => s.Name).ThenBy(s => s.Id)
+        };
+
+        var items = await query
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync(cancellationToken);
+
+        var dtos = items.Select(MapServiceToDto).ToList();
+        return new Bookline.Application.Common.Models.PagedResult<ServiceDto>(dtos, totalCount, safePage, safePageSize);
     }
 
     public async Task<ServiceDto> Handle(GetServiceByIdQuery request, CancellationToken cancellationToken)

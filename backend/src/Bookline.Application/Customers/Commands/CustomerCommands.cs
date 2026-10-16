@@ -10,7 +10,9 @@ public record GetCustomersQuery(
     string? SearchQuery = null,
     bool IncludeArchived = false,
     int Page = 1,
-    int PageSize = 20
+    int PageSize = 20,
+    string? Sort = null,
+    string? Direction = "asc"
 ) : IRequest<PagedResult<CustomerDto>>;
 
 public record GetCustomerByIdQuery(Guid Id) : IRequest<CustomerDto>;
@@ -23,6 +25,34 @@ public record UpdateCustomerCommand(Guid Id, UpdateCustomerRequest Request) : IR
 public record ArchiveCustomerCommand(Guid Id) : IRequest<bool>;
 
 // Validators
+public class GetCustomersQueryValidator : AbstractValidator<GetCustomersQuery>
+{
+    private static readonly string[] AllowedSorts = { "name", "email", "created", "spent", "bookings" };
+
+    public GetCustomersQueryValidator()
+    {
+        RuleFor(x => x.Page)
+            .GreaterThanOrEqualTo(1)
+            .WithMessage("Page must be greater than or equal to 1.");
+
+        RuleFor(x => x.PageSize)
+            .InclusiveBetween(1, 100)
+            .WithMessage("PageSize must be between 1 and 100.");
+
+        RuleFor(x => x.SearchQuery)
+            .MaximumLength(100)
+            .WithMessage("Search query cannot exceed 100 characters.");
+
+        RuleFor(x => x.Direction)
+            .Must(d => string.IsNullOrEmpty(d) || d.Equals("asc", StringComparison.OrdinalIgnoreCase) || d.Equals("desc", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Direction must be 'asc' or 'desc'.");
+
+        RuleFor(x => x.Sort)
+            .Must(s => string.IsNullOrEmpty(s) || AllowedSorts.Contains(s.Trim().ToLowerInvariant()))
+            .WithMessage($"Sort must be one of: {string.Join(", ", AllowedSorts)}.");
+    }
+}
+
 public class CreateCustomerCommandValidator : AbstractValidator<CreateCustomerCommand>
 {
     public CreateCustomerCommandValidator()

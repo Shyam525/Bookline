@@ -61,6 +61,14 @@ public record UpdateStaffRequest(
 
 // Queries & Commands
 public record GetAllStaffQuery(bool IncludeArchived = false) : IRequest<List<StaffDto>>;
+public record GetPagedStaffQuery(
+    bool IncludeArchived = false,
+    int Page = 1,
+    int PageSize = 20,
+    string? Search = null,
+    string? Sort = "name",
+    string? Direction = "asc"
+) : IRequest<Bookline.Application.Common.Models.PagedResult<StaffDto>>;
 public record GetStaffByIdQuery(Guid Id) : IRequest<StaffDto>;
 public record CreateStaffCommand(CreateStaffRequest Request) : IRequest<StaffDto>;
 public record UpdateStaffCommand(Guid Id, UpdateStaffRequest Request) : IRequest<StaffDto>;

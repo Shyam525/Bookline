@@ -1,6 +1,7 @@
 namespace Bookline.Domain.Entities;
 
 using Bookline.Domain.Common;
+using Bookline.Domain.Enums;
 using Bookline.Domain.Exceptions;
 
 public class Booking : TenantEntity
@@ -19,6 +20,8 @@ public class Booking : TenantEntity
     public string? CustomerNotes { get; set; }
     public decimal TotalPrice { get; set; }
     public decimal DepositPaid { get; set; }
+    public DepositType DepositPolicy { get; set; } = DepositType.None;
+    public decimal DepositRequiredAmount { get; set; } = 0.00m;
     public string Currency { get; set; } = "INR";
     public string? CreatedBy { get; set; }
     public string? Resource { get; set; }

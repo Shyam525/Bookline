@@ -102,8 +102,10 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasIndex(b => new { b.CustomerId, b.StartUtc, b.Status });
             builder.HasIndex(b => b.RelatedOrderId);
             builder.Property(b => b.Status).HasConversion<string>();
+            builder.Property(b => b.DepositPolicy).HasConversion<string>();
             builder.Property(b => b.TotalPrice).HasPrecision(18, 2);
             builder.Property(b => b.DepositPaid).HasPrecision(18, 2);
+            builder.Property(b => b.DepositRequiredAmount).HasPrecision(18, 2);
             builder.Property(b => b.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         });
 

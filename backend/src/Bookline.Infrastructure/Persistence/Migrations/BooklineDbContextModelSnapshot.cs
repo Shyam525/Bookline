@@ -141,6 +141,12 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<int>("DepositPolicy")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("DepositRequiredAmount")
+                        .HasColumnType("numeric");
+
                     b.Property<DateTimeOffset>("EndUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -762,6 +768,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");

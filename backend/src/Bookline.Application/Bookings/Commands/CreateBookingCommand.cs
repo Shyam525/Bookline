@@ -4,6 +4,7 @@ using Bookline.Application.Bookings.DTOs;
 using Bookline.Application.Common.Exceptions;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
+using Bookline.Domain.Common;
 using Bookline.Domain.Entities;
 using FluentValidation;
 using MediatR;
@@ -220,6 +221,18 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         booking.Currency = service.Currency;
         booking.CustomerNotes = request.CustomerNotes;
 
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+        if (tenant != null)
+        {
+            booking.DepositPolicy = tenant.DepositType;
+            booking.DepositRequiredAmount = tenant.DepositType switch
+            {
+                Bookline.Domain.Enums.DepositType.Fixed => CurrencyRegistry.Round(tenant.DepositAmount, service.Currency),
+                Bookline.Domain.Enums.DepositType.Percentage => CurrencyRegistry.Round(service.Price * (tenant.DepositAmount / 100m), service.Currency),
+                _ => 0.00m
+            };
+        }
+
         _context.Bookings.Add(booking);
 
 
@@ -282,8 +295,6 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         {
             try
             {
-                var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
-
                 if (staff != null && customer != null && tenant != null)
                 {
                     var rescheduleToken = _tokenService.GenerateToken(booking.Id, "reschedule", TimeSpan.FromDays(7));

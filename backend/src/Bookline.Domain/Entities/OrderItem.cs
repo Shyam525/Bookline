@@ -9,4 +9,5 @@ public class OrderItem
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; } = 1;
     public decimal TotalPrice { get; set; }
+    public string Currency { get; set; } = "USD";
 }

@@ -1,6 +1,7 @@
 using Bookline.Api.Extensions;
 using Bookline.Api.Validators;
 using Bookline.Application.Common.Interfaces;
+using Bookline.Domain.Common;
 using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
 using Bookline.Infrastructure.Persistence;
@@ -91,22 +92,29 @@ public class OrdersController : ControllerBase
                 return this.ApiConflict("INSUFFICIENT_INVENTORY", $"Insufficient inventory for product: {product.Name}.");
             }
 
-            var lineTotal = product.Price * itemReq.Quantity;
-            subtotal += lineTotal;
+            var unitPriceMoney = new Money(product.Price, tenant.Currency);
+            var lineTotalMoney = unitPriceMoney * itemReq.Quantity;
 
             orderItems.Add(new OrderItem
             {
                 Id = Guid.NewGuid(),
                 ProductId = product.Id,
                 ProductName = product.Name,
-                UnitPrice = product.Price,
+                UnitPrice = unitPriceMoney.Amount,
                 Quantity = itemReq.Quantity,
-                TotalPrice = lineTotal
+                TotalPrice = lineTotalMoney.Amount,
+                Currency = tenant.Currency
             });
         }
 
-        var tax = Math.Round(subtotal * 0.05m, 2);
-        var totalAmount = subtotal + tax;
+        var orderSummary = FinancialReconciliation.CalculateOrderSummary(
+            orderItems.Select(i => new Money(i.TotalPrice, i.Currency)),
+            tenant.Currency,
+            taxRatePercentage: 5.00m);
+
+        subtotal = orderSummary.Subtotal.Amount;
+        var tax = orderSummary.Tax.Amount;
+        var totalAmount = orderSummary.TotalAmount.Amount;
 
         // Resolve customer id from auth or request
         Guid customerId = Guid.NewGuid();

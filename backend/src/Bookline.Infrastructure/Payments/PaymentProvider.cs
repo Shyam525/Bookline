@@ -1,4 +1,5 @@
 using Bookline.Application.Common.Interfaces;
+using Bookline.Domain.Common;
 using Bookline.Domain.Constants;
 using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
@@ -422,10 +423,17 @@ public class PaymentProvider : IPaymentProvider
 
         if (commission != null)
         {
-            commission.Status = "Refunded";
+            var origGross = new Money(payment.Amount, payment.Currency);
+            var origCommission = new Money(commission.CommissionAmount, payment.Currency);
+            var refAmount = new Money(request.Amount, payment.Currency);
+
+            var refundSplit = FinancialReconciliation.SplitRefund(origGross, origCommission, refAmount);
+
+            commission.Status = request.Amount >= payment.Amount ? "Refunded" : "PartiallyRefunded";
             if (tenant != null)
             {
-                tenant.AvailablePayoutBalance = Math.Max(0, tenant.AvailablePayoutBalance - commission.ProviderNetAmount);
+                tenant.AvailablePayoutBalance = Math.Max(0m, tenant.AvailablePayoutBalance - refundSplit.RefundedProviderNet.Amount);
+                tenant.PendingPayoutBalance = Math.Max(0m, tenant.PendingPayoutBalance - refundSplit.RefundedProviderNet.Amount);
             }
         }
 

@@ -18,8 +18,11 @@ public class Commission : TenantEntity
 
     public static Commission Calculate(Guid tenantId, decimal grossAmount, decimal ratePercentage, string currency = "USD", Guid? paymentId = null, Guid? bookingId = null, Guid? orderId = null)
     {
-        var commissionAmt = Math.Round(grossAmount * (ratePercentage / 100m), 2);
-        var netAmt = Math.Max(0, grossAmount - commissionAmt);
+        var normalizedCurrency = CurrencyRegistry.Normalize(currency);
+        var normalizedGross = CurrencyRegistry.Round(grossAmount, normalizedCurrency);
+        var commissionAmt = CurrencyRegistry.Round(normalizedGross * (ratePercentage / 100m), normalizedCurrency);
+        // Reconciliation invariant: GrossAmount = CommissionAmount + ProviderNetAmount
+        var netAmt = Math.Max(0m, normalizedGross - commissionAmt);
 
         return new Commission
         {
@@ -27,11 +30,11 @@ public class Commission : TenantEntity
             PaymentId = paymentId,
             BookingId = bookingId,
             OrderId = orderId,
-            GrossAmount = grossAmount,
+            GrossAmount = normalizedGross,
             CommissionRatePercentage = ratePercentage,
             CommissionAmount = commissionAmt,
             ProviderNetAmount = netAmt,
-            Currency = currency,
+            Currency = normalizedCurrency,
             Status = "Collected",
             CreatedAtUtc = DateTime.UtcNow
         };

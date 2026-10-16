@@ -25,6 +25,19 @@ public class StaffController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("paged")]
+    public async Task<ActionResult<Bookline.Application.Common.Models.PagedResult<StaffDto>>> GetPagedStaff(
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = "name",
+        [FromQuery] string? direction = "asc")
+    {
+        var result = await _sender.Send(new GetPagedStaffQuery(includeArchived, page, pageSize, search, sort, direction));
+        return Ok(result);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<StaffDto>> GetStaffById(Guid id)
     {

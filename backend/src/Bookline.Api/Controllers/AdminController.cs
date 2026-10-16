@@ -63,10 +63,56 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("providers")]
-    public async Task<IActionResult> GetProviders(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetProviders(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? category = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = "created",
+        [FromQuery] string? direction = "desc",
+        CancellationToken cancellationToken = default)
     {
-        var providers = await _dbContext.Tenants.IgnoreQueryFilters()
-            .OrderByDescending(t => t.CreatedAtUtc)
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _dbContext.Tenants.IgnoreQueryFilters();
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            query = query.Where(t => t.Category == category);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (status.Equals("active", StringComparison.OrdinalIgnoreCase)) query = query.Where(t => t.IsActive);
+            else if (status.Equals("inactive", StringComparison.OrdinalIgnoreCase)) query = query.Where(t => !t.IsActive);
+            else if (status.Equals("verified", StringComparison.OrdinalIgnoreCase)) query = query.Where(t => t.VerificationStatus == VerificationStatus.Verified);
+            else if (status.Equals("pending", StringComparison.OrdinalIgnoreCase)) query = query.Where(t => t.VerificationStatus == VerificationStatus.Pending);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.Trim().ToLower();
+            query = query.Where(t => t.Name.ToLower().Contains(searchLower) ||
+                                     t.City.ToLower().Contains(searchLower) ||
+                                     (t.Address != null && t.Address.ToLower().Contains(searchLower)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "name" => isAsc ? query.OrderBy(t => t.Name).ThenBy(t => t.Id) : query.OrderByDescending(t => t.Name).ThenBy(t => t.Id),
+            "rating" => isAsc ? query.OrderBy(t => t.AverageRating).ThenBy(t => t.Id) : query.OrderByDescending(t => t.AverageRating).ThenBy(t => t.Id),
+            "reviews" => isAsc ? query.OrderBy(t => t.ReviewCount).ThenBy(t => t.Id) : query.OrderByDescending(t => t.ReviewCount).ThenBy(t => t.Id),
+            _ => isAsc ? query.OrderBy(t => t.CreatedAtUtc).ThenBy(t => t.Id) : query.OrderByDescending(t => t.CreatedAtUtc).ThenBy(t => t.Id)
+        };
+
+        var providers = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(t => new
             {
                 t.Id,
@@ -90,7 +136,7 @@ public class AdminController : ControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        return Ok(providers);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<object>(providers, totalCount, page, pageSize));
     }
 
     [HttpPut("providers/{id:guid}/verification")]
@@ -495,14 +541,68 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("audit")]
-    public async Task<IActionResult> GetAuditLogs(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAuditLogs(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? action = null,
+        [FromQuery] string? actor = null,
+        [FromQuery] DateTimeOffset? fromUtc = null,
+        [FromQuery] DateTimeOffset? toUtc = null,
+        [FromQuery] string? sort = "created",
+        [FromQuery] string? direction = "desc",
+        CancellationToken cancellationToken = default)
     {
-        var logs = await _dbContext.AuditLogs.IgnoreQueryFilters()
-            .OrderByDescending(a => a.CreatedAtUtc)
-            .Take(100)
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        if (fromUtc.HasValue && toUtc.HasValue && toUtc.Value < fromUtc.Value)
+        {
+            return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                "INVALID_DATE_RANGE",
+                "End date must be greater than or equal to start date.",
+                HttpContext.TraceIdentifier,
+                400
+            ));
+        }
+
+        var query = _dbContext.AuditLogs.IgnoreQueryFilters();
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            query = query.Where(a => a.Action.ToLower().Contains(action.Trim().ToLower()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(actor))
+        {
+            query = query.Where(a => a.Actor.ToLower().Contains(actor.Trim().ToLower()));
+        }
+
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(a => a.CreatedAtUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(a => a.CreatedAtUtc <= toUtc.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "action" => isAsc ? query.OrderBy(a => a.Action).ThenBy(a => a.Id) : query.OrderByDescending(a => a.Action).ThenBy(a => a.Id),
+            "actor" => isAsc ? query.OrderBy(a => a.Actor).ThenBy(a => a.Id) : query.OrderByDescending(a => a.Actor).ThenBy(a => a.Id),
+            _ => isAsc ? query.OrderBy(a => a.CreatedAtUtc).ThenBy(a => a.Id) : query.OrderByDescending(a => a.CreatedAtUtc).ThenBy(a => a.Id)
+        };
+
+        var logs = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return Ok(logs);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<AuditLog>(logs, totalCount, page, pageSize));
     }
 
     [HttpGet("system")]

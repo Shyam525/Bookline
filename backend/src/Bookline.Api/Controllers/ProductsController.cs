@@ -35,6 +35,24 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
+    /// Section 84: Lists retail products with bounded pagination, filters, and sort allowlist.
+    /// </summary>
+    [HttpGet("paged")]
+    public async Task<ActionResult<Bookline.Application.Common.Models.PagedResult<ProductDto>>> GetPagedProducts(
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] string? status = null,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? sort = "name",
+        [FromQuery] string? direction = "asc")
+    {
+        var result = await _sender.Send(new GetPagedProductsQuery(categoryId, status, includeInactive, search, page, pageSize, sort, direction));
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Retrieves a single retail product by its unique identifier.
     /// </summary>
     [HttpGet("{id:guid}")]

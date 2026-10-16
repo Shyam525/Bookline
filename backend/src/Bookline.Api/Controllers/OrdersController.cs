@@ -1,3 +1,5 @@
+using Bookline.Api.Extensions;
+using Bookline.Api.Validators;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
@@ -6,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace Bookline.Api.Controllers;
 
@@ -34,7 +37,7 @@ public class OrdersController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
-        var idempKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        var idempKey = Request?.Headers?["Idempotency-Key"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(idempKey))
         {
             var cached = await _idempotencyService.GetExistingAsync(idempKey, "CreateOrder", cancellationToken);
@@ -45,9 +48,17 @@ public class OrdersController : ControllerBase
             }
         }
 
-        if (request.Items == null || !request.Items.Any())
+        var validator = new CreateOrderRequestValidator();
+        var valResult = await validator.ValidateAsync(request, cancellationToken);
+        if (!valResult.IsValid)
         {
-            return BadRequest(new { Message = "Order must have at least one product." });
+            var errors = valResult.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(
+                    g => JsonNamingPolicy.CamelCase.ConvertName(g.Key),
+                    g => g.Select(e => e.ErrorMessage).ToArray()
+                );
+            return this.ApiValidation(errors);
         }
 
         var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
@@ -55,10 +66,10 @@ public class OrdersController : ControllerBase
 
         if (tenant == null)
         {
-            return BadRequest(new { Message = "Provider not found." });
+            return this.ApiNotFound("Provider not found.");
         }
 
-        // Fetch products and validate stock
+        // Fetch products and validate stock at authoritative mutation boundary
         var productIds = request.Items.Select(i => i.ProductId).ToList();
         var products = await _dbContext.Products.IgnoreQueryFilters()
             .Where(p => productIds.Contains(p.Id) && p.TenantId == request.TenantId)
@@ -70,14 +81,14 @@ public class OrdersController : ControllerBase
         foreach (var itemReq in request.Items)
         {
             var product = products.FirstOrDefault(p => p.Id == itemReq.ProductId);
-            if (product == null)
+            if (product == null || !product.IsActive)
             {
-                return BadRequest(new { Message = $"Product {itemReq.ProductId} not found." });
+                return this.ApiNotFound($"Product {itemReq.ProductId} not found or inactive.");
             }
 
             if (!product.Purchase(itemReq.Quantity))
             {
-                return BadRequest(new { Message = $"Insufficient inventory for product: {product.Name}." });
+                return this.ApiConflict("INSUFFICIENT_INVENTORY", $"Insufficient inventory for product: {product.Name}.");
             }
 
             var lineTotal = product.Price * itemReq.Quantity;
@@ -262,7 +273,13 @@ public class OrdersController : ControllerBase
 
     [HttpGet("my")]
     [Authorize]
-    public async Task<IActionResult> GetCustomerOrders(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetCustomerOrders(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        [FromQuery] string? sort = "created",
+        [FromQuery] string? direction = "desc",
+        CancellationToken cancellationToken = default)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var customerId))
@@ -270,10 +287,31 @@ public class OrdersController : ControllerBase
             return Unauthorized();
         }
 
-        var orders = await _dbContext.Orders.IgnoreQueryFilters()
-            .Where(o => o.CustomerId == customerId)
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _dbContext.Orders.IgnoreQueryFilters()
+            .Where(o => o.CustomerId == customerId);
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var orderStatus))
+        {
+            query = query.Where(o => o.Status == orderStatus);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "total" or "amount" => isAsc ? query.OrderBy(o => o.TotalAmount).ThenBy(o => o.Id) : query.OrderByDescending(o => o.TotalAmount).ThenBy(o => o.Id),
+            "status" => isAsc ? query.OrderBy(o => o.Status).ThenBy(o => o.Id) : query.OrderByDescending(o => o.Status).ThenBy(o => o.Id),
+            _ => isAsc ? query.OrderBy(o => o.CreatedAtUtc).ThenBy(o => o.Id) : query.OrderByDescending(o => o.CreatedAtUtc).ThenBy(o => o.Id)
+        };
+
+        var orders = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Include(o => o.Items)
-            .OrderByDescending(o => o.CreatedAtUtc)
             .Select(o => new
             {
                 o.Id,
@@ -300,30 +338,81 @@ public class OrdersController : ControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        return Ok(orders);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<object>(orders, totalCount, page, pageSize));
     }
 
     [HttpGet("provider")]
     [Authorize]
-    public async Task<IActionResult> GetProviderOrders([FromQuery] Guid? tenantId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetProviderOrders(
+        [FromQuery] Guid? tenantId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = "created",
+        [FromQuery] string? direction = "desc",
+        CancellationToken cancellationToken = default)
     {
-        var targetTenantId = tenantId ?? (_tenantContext.IsResolved ? _tenantContext.TenantId : (Guid?)null);
-
-        var query = _dbContext.Orders.IgnoreQueryFilters();
-        if (targetTenantId.HasValue && targetTenantId.Value != Guid.Empty)
+        // Section 84.4: Authoritative Tenant-scoped isolation
+        Guid effectiveTenantId;
+        if (_tenantContext.IsResolved)
         {
-            query = query.Where(o => o.TenantId == targetTenantId.Value);
+            if (tenantId.HasValue && tenantId.Value != Guid.Empty && tenantId.Value != _tenantContext.TenantId && !User.IsInRole("Admin") && !User.IsInRole("PlatformAdmin"))
+            {
+                return this.ApiForbidden("Cannot access orders outside your authorized tenant boundary.");
+            }
+            effectiveTenantId = _tenantContext.TenantId;
+        }
+        else if (tenantId.HasValue && tenantId.Value != Guid.Empty)
+        {
+            effectiveTenantId = tenantId.Value;
+        }
+        else
+        {
+            return this.ApiForbidden("Tenant context is required.");
         }
 
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _dbContext.Orders.IgnoreQueryFilters()
+            .Where(o => o.TenantId == effectiveTenantId);
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var orderStatus))
+        {
+            query = query.Where(o => o.Status == orderStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.Trim().ToLower();
+            query = query.Where(o => o.OrderNumber.ToLower().Contains(searchLower) ||
+                                     (o.CustomerName != null && o.CustomerName.ToLower().Contains(searchLower)) ||
+                                     (o.CustomerEmail != null && o.CustomerEmail.ToLower().Contains(searchLower)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "total" or "amount" => isAsc ? query.OrderBy(o => o.TotalAmount).ThenBy(o => o.Id) : query.OrderByDescending(o => o.TotalAmount).ThenBy(o => o.Id),
+            "status" => isAsc ? query.OrderBy(o => o.Status).ThenBy(o => o.Id) : query.OrderByDescending(o => o.Status).ThenBy(o => o.Id),
+            _ => isAsc ? query.OrderBy(o => o.CreatedAtUtc).ThenBy(o => o.Id) : query.OrderByDescending(o => o.CreatedAtUtc).ThenBy(o => o.Id)
+        };
+
         var orders = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Include(o => o.Items)
-            .OrderByDescending(o => o.CreatedAtUtc)
             .Select(o => new
             {
                 o.Id,
                 o.OrderNumber,
                 o.TenantId,
                 o.CustomerId,
+                o.CustomerName,
+                o.CustomerEmail,
                 Status = o.Status.ToString(),
                 o.Subtotal,
                 o.Tax,
@@ -344,7 +433,7 @@ public class OrdersController : ControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        return Ok(orders);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<object>(orders, totalCount, page, pageSize));
     }
 
     [HttpGet("{id:guid}")]

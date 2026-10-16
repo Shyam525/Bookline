@@ -24,9 +24,11 @@ public class CustomersController : ControllerBase
         [FromQuery] string? searchQuery = null,
         [FromQuery] bool includeArchived = false,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? direction = "asc")
     {
-        var result = await _sender.Send(new GetCustomersQuery(searchQuery, includeArchived, page, pageSize));
+        var result = await _sender.Send(new GetCustomersQuery(searchQuery, includeArchived, page, pageSize, sort, direction));
         return Ok(result);
     }
 

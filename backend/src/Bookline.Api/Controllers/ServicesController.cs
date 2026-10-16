@@ -80,6 +80,26 @@ public class ServicesController : ControllerBase
     }
 
     /// <summary>
+    /// Section 84: Lists services with bounded pagination, filters, and sort allowlist.
+    /// </summary>
+    [HttpGet("paged")]
+    public async Task<ActionResult<Bookline.Application.Common.Models.PagedResult<ServiceDto>>> GetPagedServices(
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] Guid? locationId = null,
+        [FromQuery] Guid? staffId = null,
+        [FromQuery] string? status = null,
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? sort = "name",
+        [FromQuery] string? direction = "asc")
+    {
+        var result = await _sender.Send(new GetPagedServicesQuery(categoryId, locationId, staffId, status, includeArchived, search, page, pageSize, sort, direction));
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Gets service details by unique service ID.
     /// </summary>
     [HttpGet("{id:guid}")]

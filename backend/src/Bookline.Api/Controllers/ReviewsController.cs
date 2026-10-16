@@ -1,3 +1,5 @@
+using Bookline.Api.Extensions;
+using Bookline.Api.Validators;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
@@ -6,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace Bookline.Api.Controllers;
 
@@ -22,19 +25,50 @@ public class ReviewsController : ControllerBase
 
     [HttpGet("provider/{tenantId:guid}")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetProviderReviews(Guid tenantId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetProviderReviews(
+        Guid tenantId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? rating = null,
+        [FromQuery] string? sort = "newest",
+        CancellationToken cancellationToken = default)
     {
-        var reviews = await _dbContext.Reviews.IgnoreQueryFilters()
-            .Where(r => r.TenantId == tenantId && r.ModerationStatus == ModerationStatus.Approved)
-            .OrderByDescending(r => r.CreatedAtUtc)
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var query = _dbContext.Reviews.IgnoreQueryFilters()
+            .Where(r => r.TenantId == tenantId && r.ModerationStatus == ModerationStatus.Approved);
+
+        if (rating.HasValue)
+        {
+            query = query.Where(r => r.Rating == rating.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "oldest" => query.OrderBy(r => r.CreatedAtUtc).ThenBy(r => r.Id),
+            "highest" or "top" => query.OrderByDescending(r => r.Rating).ThenByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id),
+            "lowest" => query.OrderBy(r => r.Rating).ThenByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id),
+            _ => query.OrderByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id)
+        };
+
+        var reviews = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return Ok(reviews);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<Review>(reviews, totalCount, page, pageSize));
     }
 
     [HttpGet("my")]
     [Authorize]
-    public async Task<IActionResult> GetMyReviews(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMyReviews(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? sort = "newest",
+        CancellationToken cancellationToken = default)
     {
         Guid customerId = Guid.NewGuid();
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -43,9 +77,25 @@ public class ReviewsController : ControllerBase
             customerId = parsedUserId;
         }
 
-        var reviews = await _dbContext.Reviews.IgnoreQueryFilters()
-            .Where(r => r.CustomerId == customerId)
-            .OrderByDescending(r => r.CreatedAtUtc)
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var query = _dbContext.Reviews.IgnoreQueryFilters()
+            .Where(r => r.CustomerId == customerId);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "oldest" => query.OrderBy(r => r.CreatedAtUtc).ThenBy(r => r.Id),
+            "highest" => query.OrderByDescending(r => r.Rating).ThenByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id),
+            "lowest" => query.OrderBy(r => r.Rating).ThenByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id),
+            _ => query.OrderByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id)
+        };
+
+        var reviews = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         var tenantIds = reviews.Select(r => r.TenantId).Distinct().ToList();
@@ -76,16 +126,24 @@ public class ReviewsController : ControllerBase
             };
         }).ToList();
 
-        return Ok(result);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<object>(result, totalCount, page, pageSize));
     }
 
     [HttpPost]
     [AllowAnonymous]
     public async Task<IActionResult> SubmitReview([FromBody] SubmitReviewRequest request, CancellationToken cancellationToken)
     {
-        if (request.Rating < 1 || request.Rating > 5)
+        var validator = new SubmitReviewRequestValidator();
+        var valResult = await validator.ValidateAsync(request, cancellationToken);
+        if (!valResult.IsValid)
         {
-            return BadRequest(new { Message = "Rating must be between 1 and 5." });
+            var errors = valResult.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(
+                    g => JsonNamingPolicy.CamelCase.ConvertName(g.Key),
+                    g => g.Select(e => e.ErrorMessage).ToArray()
+                );
+            return this.ApiValidation(errors);
         }
 
         var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
@@ -93,11 +151,11 @@ public class ReviewsController : ControllerBase
 
         if (tenant == null)
         {
-            return BadRequest(new { Message = "Provider not found." });
+            return this.ApiNotFound("Provider not found.");
         }
 
         Guid customerId = Guid.NewGuid();
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdClaim = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedUserId))
         {
             customerId = parsedUserId;
@@ -116,7 +174,7 @@ public class ReviewsController : ControllerBase
 
         if (!isEligible)
         {
-            return BadRequest(new { Message = "You must have a completed appointment or order with this provider to submit a review." });
+            return this.ApiConflict("VERIFIED_PURCHASE_REQUIRED", "You must have a completed appointment or order with this provider to submit a review.");
         }
 
         var review = new Review
@@ -189,7 +247,7 @@ public class ReviewsController : ControllerBase
         var review = await _dbContext.Reviews.IgnoreQueryFilters()
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
-        if (review == null) return NotFound(new { Message = "Review not found." });
+        if (review == null) return this.ApiNotFound("Review not found.");
 
         review.Respond(request.Response);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -204,7 +262,7 @@ public class ReviewsController : ControllerBase
         var review = await _dbContext.Reviews.IgnoreQueryFilters()
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
-        if (review == null) return NotFound(new { Message = "Review not found." });
+        if (review == null) return this.ApiNotFound("Review not found.");
 
         if (Enum.TryParse<ModerationStatus>(request.Status, true, out var status))
         {
@@ -213,7 +271,7 @@ public class ReviewsController : ControllerBase
             return Ok(review);
         }
 
-        return BadRequest(new { Message = "Invalid moderation status." });
+        return this.ApiBadRequest("Invalid moderation status.");
     }
 }
 

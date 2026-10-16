@@ -101,21 +101,70 @@ public class CustomerController : ControllerBase
     }
 
     [HttpGet("appointments")]
-    public async Task<IActionResult> GetAppointments(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAppointments(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTimeOffset? fromUtc = null,
+        [FromQuery] DateTimeOffset? toUtc = null,
+        [FromQuery] string? sort = "date",
+        [FromQuery] string? direction = "desc",
+        CancellationToken cancellationToken = default)
     {
         var customerId = GetCustomerId();
         if (!customerId.HasValue) return Unauthorized();
+
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        if (fromUtc.HasValue && toUtc.HasValue && toUtc.Value < fromUtc.Value)
+        {
+            return BadRequest(new Bookline.Application.Common.Models.ApiErrorResponse(
+                "INVALID_DATE_RANGE",
+                "End date must be greater than or equal to start date.",
+                HttpContext.TraceIdentifier,
+                400
+            ));
+        }
 
         var localCustomerIds = await _dbContext.Customers.IgnoreQueryFilters()
             .Where(c => c.UserId == customerId.Value || c.Id == customerId.Value)
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
 
-        var bookings = await _dbContext.Bookings.IgnoreQueryFilters()
-            .Where(b => b.CustomerId == customerId.Value || localCustomerIds.Contains(b.CustomerId))
+        var query = _dbContext.Bookings.IgnoreQueryFilters()
+            .Where(b => b.CustomerId == customerId.Value || localCustomerIds.Contains(b.CustomerId));
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, true, out var bookingStatus))
+        {
+            query = query.Where(b => b.Status == bookingStatus);
+        }
+
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(b => b.StartUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(b => b.EndUtc <= toUtc.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        bool isAsc = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.ToLowerInvariant()) switch
+        {
+            "price" or "amount" => isAsc ? query.OrderBy(b => b.TotalPrice).ThenBy(b => b.Id) : query.OrderByDescending(b => b.TotalPrice).ThenBy(b => b.Id),
+            "status" => isAsc ? query.OrderBy(b => b.Status).ThenBy(b => b.Id) : query.OrderByDescending(b => b.Status).ThenBy(b => b.Id),
+            _ => isAsc ? query.OrderBy(b => b.StartUtc).ThenBy(b => b.Id) : query.OrderByDescending(b => b.StartUtc).ThenBy(b => b.Id)
+        };
+
+        var bookings = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Include(b => b.Staff)
             .Include(b => b.Service)
-            .OrderByDescending(b => b.StartUtc)
             .ToListAsync(cancellationToken);
 
         var tenantIds = bookings.Select(b => b.TenantId).Distinct().ToList();
@@ -158,7 +207,7 @@ public class CustomerController : ControllerBase
             };
         }).ToList();
 
-        return Ok(result);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<object>(result, totalCount, page, pageSize));
     }
 
     [HttpPost("appointments/{id:guid}/reschedule")]
@@ -322,10 +371,17 @@ public class CustomerController : ControllerBase
     }
 
     [HttpGet("notifications")]
-    public async Task<IActionResult> GetNotifications(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetNotifications(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] bool? unreadOnly = null,
+        CancellationToken cancellationToken = default)
     {
         var customerId = GetCustomerId();
         if (!customerId.HasValue) return Unauthorized();
+
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
 
         var user = await _dbContext.Users.IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Id == customerId.Value, cancellationToken);
@@ -338,9 +394,18 @@ public class CustomerController : ControllerBase
         var query = _dbContext.NotificationLogs.IgnoreQueryFilters()
             .Where(n => n.CustomerId == customerId.Value || (n.CustomerId.HasValue && localCustomerIds.Contains(n.CustomerId.Value)) || (user != null && n.RecipientEmail == user.Email));
 
+        if (unreadOnly == true)
+        {
+            query = query.Where(n => !n.IsRead);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
         var dbLogs = await query
             .OrderByDescending(n => n.CreatedAtUtc)
-            .Take(30)
+            .ThenBy(n => n.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         if (dbLogs.Any())
@@ -355,10 +420,10 @@ public class CustomerController : ControllerBase
                 Link = n.DeepLinkUrl ?? (n.BookingId.HasValue ? "/appointments" : "/dashboard")
             }).ToList();
 
-            return Ok(list);
+            return Ok(new Bookline.Application.Common.Models.PagedResult<object>(list, totalCount, page, pageSize));
         }
 
-        var notifications = new[]
+        var notifications = new object[]
         {
             new
             {
@@ -380,7 +445,7 @@ public class CustomerController : ControllerBase
             }
         };
 
-        return Ok(notifications);
+        return Ok(new Bookline.Application.Common.Models.PagedResult<object>(notifications, notifications.Length, page, pageSize));
     }
 }
 

@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using NodaTime;
 using NodaTime.Text;
@@ -39,6 +40,28 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new InstantJsonConverter());
     });
+
+// Section 82: Centralized validation error response factory
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var traceId = context.HttpContext.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+            ? cStr
+            : context.HttpContext.TraceIdentifier;
+
+        var errors = context.ModelState
+            .Where(e => e.Value != null && e.Value.Errors.Count > 0)
+            .ToDictionary(
+                kvp => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(kvp.Key),
+                kvp => kvp.Value!.Errors.Select(err => string.IsNullOrWhiteSpace(err.ErrorMessage) ? "Invalid value." : err.ErrorMessage).ToArray()
+            );
+
+        var errorResponse = ApiErrorResponse.Validation(traceId, errors);
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(errorResponse);
+    };
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -54,6 +77,7 @@ builder.Services.AddHealthChecks();
 // MediatR & FluentValidation Pipeline
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CreateServiceCommand>());
 builder.Services.AddValidatorsFromAssemblyContaining<Bookline.Application.Bookings.Commands.CreateBookingCommandValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<Bookline.Api.Validators.CreateOrderRequestValidator>();
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
 // Multi-Tenancy & Infrastructure DI
@@ -133,12 +157,17 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, token) =>
     {
         context.HttpContext.Response.ContentType = "application/json";
-        var response = new ApiErrorResponse(
-            "RATE_LIMIT_EXCEEDED",
-            "Rate limit exceeded. Please wait a moment before trying again.",
-            context.HttpContext.TraceIdentifier,
-            429);
-        await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken: token);
+        var traceId = context.HttpContext.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+            ? cStr
+            : context.HttpContext.TraceIdentifier;
+
+        var response = ApiErrorResponse.RateLimited(traceId);
+        var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        });
+        await context.HttpContext.Response.WriteAsync(json, cancellationToken: token);
     };
 
     options.AddFixedWindowLimiter("auth-limit", opt =>
@@ -258,6 +287,46 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+
+    // Section 82: Standard error response contract for unauthenticated and forbidden requests
+    options.Events = new JwtBearerEvents
+    {
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.ContentType = "application/json";
+
+            var traceId = context.HttpContext.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+                ? cStr
+                : context.HttpContext.TraceIdentifier;
+
+            var errorResponse = ApiErrorResponse.Unauthenticated(traceId);
+            var json = JsonSerializer.Serialize(errorResponse, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            });
+            await context.Response.WriteAsync(json);
+        },
+        OnForbidden = async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+
+            var traceId = context.HttpContext.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+                ? cStr
+                : context.HttpContext.TraceIdentifier;
+
+            var errorResponse = ApiErrorResponse.Forbidden(traceId);
+            var json = JsonSerializer.Serialize(errorResponse, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            });
+            await context.Response.WriteAsync(json);
+        }
+    };
 });
 
 // Configure RBAC Policies
@@ -279,6 +348,36 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var httpContext = statusCodeContext.HttpContext;
+    if (httpContext.Request.Path.StartsWithSegments("/api") && !httpContext.Response.HasStarted)
+    {
+        var traceId = httpContext.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+            ? cStr
+            : httpContext.TraceIdentifier;
+
+        httpContext.Response.ContentType = "application/json";
+        var (code, message) = httpContext.Response.StatusCode switch
+        {
+            StatusCodes.Status401Unauthorized => ("UNAUTHENTICATED", "Authentication is required to access this resource."),
+            StatusCodes.Status403Forbidden => ("FORBIDDEN", "You do not have permission to access this resource."),
+            StatusCodes.Status404NotFound => ("NOT_FOUND", "The requested API endpoint was not found."),
+            StatusCodes.Status405MethodNotAllowed => ("METHOD_NOT_ALLOWED", "HTTP method not allowed for this endpoint."),
+            StatusCodes.Status415UnsupportedMediaType => ("UNSUPPORTED_MEDIA_TYPE", "The request media type is not supported."),
+            StatusCodes.Status429TooManyRequests => ("RATE_LIMITED", "Too many requests. Please wait a moment before trying again."),
+            _ => ("HTTP_ERROR", "An error occurred while processing your request.")
+        };
+
+        var error = new ApiErrorResponse(code, message, traceId, httpContext.Response.StatusCode);
+        var json = JsonSerializer.Serialize(error, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        });
+        await httpContext.Response.WriteAsync(json);
+    }
+});
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseRateLimiter();
@@ -294,6 +393,14 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/ready");
+app.Map("/api/{**slug}", (HttpContext context) =>
+{
+    var traceId = context.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+        ? cStr
+        : context.TraceIdentifier;
+
+    return Results.NotFound(ApiErrorResponse.NotFound("The requested API endpoint was not found.", traceId));
+});
 app.MapFallbackToFile("index.html");
 
 try

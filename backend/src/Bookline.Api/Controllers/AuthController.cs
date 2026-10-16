@@ -1,5 +1,6 @@
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
+using Bookline.Api.Extensions;
 using Bookline.Domain.Entities;
 using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -38,7 +39,7 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.OwnerEmail) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return BadRequest(new { Message = "Email and password are required." });
+            return this.ApiBadRequest("Email and password are required.", "VALIDATION_FAILED");
         }
 
         var existingUser = await _dbContext.Users.IgnoreQueryFilters()
@@ -46,7 +47,7 @@ public class AuthController : ControllerBase
 
         if (existingUser != null)
         {
-            return BadRequest(new { Message = "User with this email already exists." });
+            return this.ApiConflict("USER_EXISTS", "User with this email already exists.");
         }
 
         var tenant = new Tenant
@@ -124,7 +125,7 @@ public class AuthController : ControllerBase
 
         if (user == null || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
         {
-            return Unauthorized(new { Message = "Invalid credentials." });
+            return this.ApiUnauthorized("Invalid credentials.");
         }
 
         var tokenResult = _tokenGenerator.GenerateAccessToken(user);
@@ -165,7 +166,7 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.RefreshToken))
         {
-            return BadRequest(new { Message = "Refresh token is required." });
+            return this.ApiBadRequest("Refresh token is required.", "VALIDATION_FAILED");
         }
 
         var hashedInputToken = _tokenGenerator.HashRefreshToken(request.RefreshToken);
@@ -175,7 +176,7 @@ public class AuthController : ControllerBase
 
         if (existingToken == null || existingToken.IsRevoked || existingToken.IsUsed || existingToken.ExpiryUtc < DateTime.UtcNow)
         {
-            return Unauthorized(new { Message = "Invalid, expired, or reused refresh token." });
+            return this.ApiUnauthorized("Invalid, expired, or reused refresh token.");
         }
 
         existingToken.IsUsed = true;
@@ -185,7 +186,7 @@ public class AuthController : ControllerBase
 
         if (user == null)
         {
-            return Unauthorized(new { Message = "User associated with token not found." });
+            return this.ApiUnauthorized("User associated with token not found.");
         }
 
         var tokenResult = _tokenGenerator.GenerateAccessToken(user);
@@ -227,7 +228,7 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Email))
         {
-            return BadRequest(new { Message = "Email address is required." });
+            return this.ApiBadRequest("Email address is required.", "VALIDATION_FAILED");
         }
 
         var user = await _dbContext.Users.IgnoreQueryFilters()
@@ -254,7 +255,7 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.NewPassword))
         {
-            return BadRequest(new { Message = "Email and new password are required." });
+            return this.ApiBadRequest("Email and new password are required.", "VALIDATION_FAILED");
         }
 
         var user = await _dbContext.Users.IgnoreQueryFilters()
@@ -262,7 +263,7 @@ public class AuthController : ControllerBase
 
         if (user == null)
         {
-            return BadRequest(new { Message = "Invalid password reset request." });
+            return this.ApiBadRequest("Invalid password reset request.", "INVALID_RESET_REQUEST");
         }
 
         user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
@@ -282,7 +283,7 @@ public class AuthController : ControllerBase
 
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
-            return Unauthorized(new { Message = "Invalid user token claims." });
+            return this.ApiUnauthorized("Invalid user token claims.");
         }
 
         var user = await _dbContext.Users.IgnoreQueryFilters()
@@ -290,7 +291,7 @@ public class AuthController : ControllerBase
 
         if (user == null)
         {
-            return NotFound(new { Message = "User profile not found." });
+            return this.ApiNotFound("User profile not found.");
         }
 
         return Ok(new UserDto(
@@ -309,7 +310,7 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return BadRequest(new { Message = "Email and password are required." });
+            return this.ApiBadRequest("Email and password are required.", "VALIDATION_FAILED");
         }
 
         var existingUser = await _dbContext.Users.IgnoreQueryFilters()
@@ -317,7 +318,7 @@ public class AuthController : ControllerBase
 
         if (existingUser != null)
         {
-            return BadRequest(new { Message = "User with this email already exists." });
+            return this.ApiConflict("USER_EXISTS", "User with this email already exists.");
         }
 
         var user = new AppUser
@@ -374,7 +375,7 @@ public class AuthController : ControllerBase
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
-            return Unauthorized();
+            return this.ApiUnauthorized("User token is invalid.");
         }
 
         var memberships = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
@@ -414,14 +415,14 @@ public class AuthController : ControllerBase
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
-            return Unauthorized();
+            return this.ApiUnauthorized("User token is invalid.");
         }
 
         var user = await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId);
-        if (user == null) return NotFound(new { Message = "User not found." });
+        if (user == null) return this.ApiNotFound("User not found.");
 
         var targetTenant = await _dbContext.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == request.TenantId && t.IsActive);
-        if (targetTenant == null) return NotFound(new { Message = "Business not found." });
+        if (targetTenant == null) return this.ApiNotFound("Business not found.");
 
         // Authorization check: User must be an active member, business owner, or PlatformAdmin
         var membership = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
@@ -433,7 +434,7 @@ public class AuthController : ControllerBase
 
         if (!isOwnerOrAdmin)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new { Message = "Forbidden: You are not an active member or owner of this business." });
+            return this.ApiForbidden("You are not an active member or owner of this business.");
         }
 
         var roleInTenant = membership?.Role ?? (user.TenantId == request.TenantId ? user.Role : "Staff");

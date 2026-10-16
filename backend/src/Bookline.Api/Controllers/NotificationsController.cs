@@ -67,7 +67,12 @@ public class NotificationsController : ControllerBase
     /// Customer Notification Center: retrieves live notifications, unread count, timestamps, deep links (Section 93).
     /// </summary>
     [HttpGet("my")]
-    public async Task<IActionResult> GetMyNotifications(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMyNotifications(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? type = null,
+        [FromQuery] bool? unreadOnly = null,
+        CancellationToken cancellationToken = default)
     {
         Guid? customerId = null;
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -88,9 +93,28 @@ public class NotificationsController : ControllerBase
             query = query.Where(n => n.RecipientEmail == userEmail);
         }
 
+        if (unreadOnly == true)
+        {
+            query = query.Where(n => !n.IsRead);
+        }
+
+        if (!string.IsNullOrWhiteSpace(type) && !type.Equals("all", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(n => n.NotificationType.ToString().ToLower() == type.Trim().ToLower());
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var unreadCount = await query.CountAsync(n => !n.IsRead, cancellationToken);
+
+        var safePage = Math.Max(1, page);
+        var safePageSize = Math.Clamp(pageSize, 1, 100);
+        var totalPages = safePageSize <= 0 ? 0 : (int)Math.Ceiling(totalCount / (double)safePageSize);
+
         var dbLogs = await query
             .OrderByDescending(n => n.CreatedAtUtc)
-            .Take(30)
+            .ThenBy(n => n.Id)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
             .ToListAsync(cancellationToken);
 
         if (dbLogs.Any())
@@ -107,12 +131,15 @@ public class NotificationsController : ControllerBase
                 Type = n.NotificationType.ToString().ToLowerInvariant()
             }).ToList();
 
-            var unreadCount = results.Count(r => !r.Read);
-
             return Ok(new
             {
+                Items = results,
+                Notifications = results,
                 UnreadCount = unreadCount,
-                Notifications = results
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages
             });
         }
 
@@ -156,8 +183,13 @@ public class NotificationsController : ControllerBase
 
         return Ok(new
         {
+            Items = fallback,
+            Notifications = fallback,
             UnreadCount = fallback.Count(f => !f.Read),
-            Notifications = fallback
+            Page = safePage,
+            PageSize = safePageSize,
+            TotalCount = fallback.Length,
+            TotalPages = 1
         });
     }
 

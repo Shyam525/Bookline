@@ -60,8 +60,21 @@ export const customerApi = {
     return res.json();
   },
 
-  async getAppointments(token: string): Promise<CustomerAppointmentDto[]> {
-    const res = await fetch(`${API_BASE}/appointments`, {
+  async getAppointments(
+    token: string,
+    params?: { page?: number; pageSize?: number; status?: string; sort?: string; direction?: string }
+  ): Promise<any> {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.pageSize) query.append('pageSize', params.pageSize.toString());
+    if (params?.status) query.append('status', params.status);
+    if (params?.sort) query.append('sort', params.sort);
+    if (params?.direction) query.append('direction', params.direction);
+
+    const queryString = query.toString();
+    const url = queryString ? `${API_BASE}/appointments?${queryString}` : `${API_BASE}/appointments`;
+
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];

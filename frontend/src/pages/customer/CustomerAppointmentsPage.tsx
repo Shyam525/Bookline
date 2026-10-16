@@ -130,10 +130,11 @@ export const CustomerAppointmentsPage: React.FC = () => {
     customerApi
       .getAppointments(token)
       .then((data) => {
-        if (data.length > 0) {
-          const apiIds = new Set(data.map((d) => d.id));
+        const items: CustomerAppointmentDto[] = Array.isArray(data) ? data : (data?.items ?? []);
+        if (items.length > 0) {
+          const apiIds = new Set(items.map((d) => d.id));
           const uniqueLocals = localBookings.filter((b) => !apiIds.has(b.id));
-          setAppointments([...uniqueLocals, ...data]);
+          setAppointments([...uniqueLocals, ...items]);
         } else {
           const existingIds = new Set(localBookings.map((b) => b.id));
           const filteredSeeds = defaultSeeds.filter((s) => !existingIds.has(s.id));

@@ -65,13 +65,30 @@ export interface CustomerNotificationItem {
 export interface MyNotificationsResponse {
   unreadCount: number;
   notifications: CustomerNotificationItem[];
+  items?: CustomerNotificationItem[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  totalPages?: number;
 }
 
 const API_BASE = '/api/v1/notifications';
 
 export const notificationsApi = {
-  async getMyNotifications(token: string): Promise<MyNotificationsResponse> {
-    const res = await fetch(`${API_BASE}/my`, {
+  async getMyNotifications(
+    token: string,
+    params?: { page?: number; pageSize?: number; type?: string; unreadOnly?: boolean }
+  ): Promise<MyNotificationsResponse> {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.pageSize) query.append('pageSize', params.pageSize.toString());
+    if (params?.type && params.type !== 'all') query.append('type', params.type);
+    if (params?.unreadOnly !== undefined) query.append('unreadOnly', String(params.unreadOnly));
+
+    const qs = query.toString();
+    const url = qs ? `${API_BASE}/my?${qs}` : `${API_BASE}/my`;
+
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Failed to load notifications');

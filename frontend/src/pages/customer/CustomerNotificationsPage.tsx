@@ -17,11 +17,17 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { notificationsApi, CustomerNotificationItem } from '../../services/api/notifications';
+import { Pagination } from '../../components/data-display/TableComponents';
 
 export const CustomerNotificationsPage: React.FC = () => {
   const { token, isAuthenticated } = useAuth();
   const [filter, setFilter] = useState<'all' | 'unread' | 'booking' | 'order' | 'reminder'>('all');
   const [notifications, setNotifications] = useState<CustomerNotificationItem[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -34,8 +40,18 @@ export const CustomerNotificationsPage: React.FC = () => {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await notificationsApi.getMyNotifications(token);
-      setNotifications(res.notifications || []);
+      const res = await notificationsApi.getMyNotifications(token, {
+        page,
+        pageSize,
+        type: filter === 'all' || filter === 'unread' ? undefined : filter,
+        unreadOnly: filter === 'unread' ? true : undefined,
+      });
+
+      const list = res.items || res.notifications || [];
+      setNotifications(list);
+      setUnreadCount(res.unreadCount ?? 0);
+      setTotalCount(res.totalCount ?? list.length);
+      setTotalPages(res.totalPages ?? Math.max(1, Math.ceil((res.totalCount ?? list.length) / pageSize)));
     } catch (err: any) {
       console.error('Failed to load notifications:', err);
       setErrorMsg(err.message || 'Unable to load notifications.');
@@ -50,7 +66,7 @@ export const CustomerNotificationsPage: React.FC = () => {
     } else {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, page, pageSize, filter]);
 
   const markAllAsRead = async () => {
     if (!token) return;
@@ -74,15 +90,6 @@ export const CustomerNotificationsPage: React.FC = () => {
     }
   };
 
-  const filteredNotifications = notifications.filter((item) => {
-    if (filter === 'unread') return !item.read;
-    if (filter === 'booking') return item.type === 'booking';
-    if (filter === 'order') return item.type === 'order';
-    if (filter === 'reminder') return item.type === 'reminder';
-    return true;
-  });
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -128,7 +135,7 @@ export const CustomerNotificationsPage: React.FC = () => {
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {[
-          { key: 'all', label: `All (${notifications.length})` },
+          { key: 'all', label: `All (${totalCount || notifications.length})` },
           { key: 'unread', label: `Unread (${unreadCount})` },
           { key: 'booking', label: 'Bookings' },
           { key: 'order', label: 'Orders' },
@@ -136,7 +143,10 @@ export const CustomerNotificationsPage: React.FC = () => {
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setFilter(tab.key as any)}
+            onClick={() => {
+              setFilter(tab.key as any);
+              setPage(1); // Section 84: Reset page to 1 on filter changes
+            }}
             className={`px-3.5 py-1.5 rounded-[8px] text-xs font-semibold whitespace-nowrap transition-colors ${
               filter === tab.key
                 ? 'bg-[#E8546A] text-white shadow-sm'
@@ -191,7 +201,7 @@ export const CustomerNotificationsPage: React.FC = () => {
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-        ) : filteredNotifications.length === 0 ? (
+        ) : notifications.length === 0 ? (
           <div className="bg-[#111620] border border-[#273142] rounded-[16px] p-12 text-center space-y-4">
             <div className="w-12 h-12 rounded-[12px] bg-[#1A2130] border border-[#273142] text-[#8F9AAF] mx-auto flex items-center justify-center">
               <Bell className="w-6 h-6" />
@@ -211,7 +221,7 @@ export const CustomerNotificationsPage: React.FC = () => {
             </Link>
           </div>
         ) : (
-          filteredNotifications.map((notif) => {
+          notifications.map((notif) => {
             const isBooking = notif.type === 'booking';
             const isOrder = notif.type === 'order';
             const isReminder = notif.type === 'reminder';
@@ -279,6 +289,22 @@ export const CustomerNotificationsPage: React.FC = () => {
               </div>
             );
           })
+        )}
+
+        {notifications.length > 0 && totalPages > 1 && (
+          <div className="pt-4 border-t border-[#273142]">
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

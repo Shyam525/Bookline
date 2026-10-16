@@ -40,8 +40,15 @@ public class GlobalExceptionMiddleware
 
     private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        if (context.Response.HasStarted)
+        {
+            return;
+        }
+
         context.Response.ContentType = "application/json";
-        var traceId = context.TraceIdentifier;
+        var traceId = context.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
+            ? cStr
+            : context.TraceIdentifier;
 
         var errorResponse = new ApiErrorResponse
         {
@@ -53,12 +60,12 @@ public class GlobalExceptionMiddleware
             case ValidationException valEx:
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 errorResponse.Status = (int)HttpStatusCode.BadRequest;
-                errorResponse.Code = "VALIDATION_ERROR";
+                errorResponse.Code = "VALIDATION_FAILED";
                 errorResponse.Message = "One or more validation errors occurred.";
                 errorResponse.Errors = valEx.Errors
                     .GroupBy(e => e.PropertyName)
                     .ToDictionary(
-                        g => g.Key,
+                        g => JsonNamingPolicy.CamelCase.ConvertName(g.Key),
                         g => g.Select(e => e.ErrorMessage).ToArray()
                     );
                 break;
@@ -66,14 +73,14 @@ public class GlobalExceptionMiddleware
             case NotFoundException notFoundEx:
                 context.Response.StatusCode = (int)HttpStatusCode.NotFound;
                 errorResponse.Status = (int)HttpStatusCode.NotFound;
-                errorResponse.Code = "RESOURCE_NOT_FOUND";
+                errorResponse.Code = "NOT_FOUND";
                 errorResponse.Message = notFoundEx.Message;
                 break;
 
             case KeyNotFoundException:
                 context.Response.StatusCode = (int)HttpStatusCode.NotFound;
                 errorResponse.Status = (int)HttpStatusCode.NotFound;
-                errorResponse.Code = "RESOURCE_NOT_FOUND";
+                errorResponse.Code = "NOT_FOUND";
                 errorResponse.Message = "The requested resource was not found.";
                 break;
 
@@ -81,11 +88,19 @@ public class GlobalExceptionMiddleware
                 context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                 errorResponse.Status = (int)HttpStatusCode.Conflict;
                 errorResponse.Code = "SLOT_UNAVAILABLE";
-                errorResponse.Message = "That time was just booked. Please choose another time.";
+                errorResponse.Message = "This time is no longer available.";
                 errorResponse.Extensions = new Dictionary<string, object?>
                 {
                     ["nearestFreeSlots"] = conflictEx.NearestFreeSlots
                 };
+                break;
+
+            case ConflictException confEx:
+                context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+                errorResponse.Status = (int)HttpStatusCode.Conflict;
+                errorResponse.Code = confEx.Code;
+                errorResponse.Message = confEx.Message;
+                errorResponse.Extensions = confEx.Extensions;
                 break;
 
             case IdempotencyConflictException idempEx:
@@ -99,17 +114,17 @@ public class GlobalExceptionMiddleware
                 };
                 break;
 
-            case Bookline.Domain.Exceptions.DomainException domainEx:
-                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                errorResponse.Status = (int)HttpStatusCode.BadRequest;
-                errorResponse.Code = "DOMAIN_ERROR";
-                errorResponse.Message = domainEx.Message;
+            case UnauthenticatedException unauthEx:
+                context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                errorResponse.Status = (int)HttpStatusCode.Unauthorized;
+                errorResponse.Code = unauthEx.Code;
+                errorResponse.Message = unauthEx.Message;
                 break;
 
             case UnauthorizedAccessException:
                 context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
                 errorResponse.Status = (int)HttpStatusCode.Unauthorized;
-                errorResponse.Code = "UNAUTHORIZED";
+                errorResponse.Code = "UNAUTHENTICATED";
                 errorResponse.Message = "Authentication is required to access this resource.";
                 break;
 
@@ -120,10 +135,24 @@ public class GlobalExceptionMiddleware
                 errorResponse.Message = forbEx.Message;
                 break;
 
+            case ServiceUnavailableException srvEx:
+                context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                errorResponse.Status = (int)HttpStatusCode.ServiceUnavailable;
+                errorResponse.Code = srvEx.Code;
+                errorResponse.Message = srvEx.Message;
+                break;
+
+            case Bookline.Domain.Exceptions.DomainException domainEx:
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                errorResponse.Status = (int)HttpStatusCode.BadRequest;
+                errorResponse.Code = "BAD_REQUEST";
+                errorResponse.Message = domainEx.Message;
+                break;
+
             case InvalidOperationException invEx when !invEx.Message.Contains("PipeWriter"):
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 errorResponse.Status = (int)HttpStatusCode.BadRequest;
-                errorResponse.Code = "INVALID_OPERATION";
+                errorResponse.Code = "BAD_REQUEST";
                 errorResponse.Message = invEx.Message;
                 break;
 
@@ -131,7 +160,7 @@ public class GlobalExceptionMiddleware
                 context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 errorResponse.Status = (int)HttpStatusCode.InternalServerError;
                 errorResponse.Code = "INTERNAL_SERVER_ERROR";
-                errorResponse.Message = "An unexpected server error occurred.";
+                errorResponse.Message = "An unexpected application error occurred.";
                 break;
         }
 

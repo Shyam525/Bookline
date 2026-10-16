@@ -1,3 +1,5 @@
+import { parseApiResponse, apiClient } from '../../utils/apiErrors';
+
 export interface AuthUser {
   id: string;
   tenantId: string;
@@ -43,11 +45,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Invalid credentials' }));
-      throw new Error(err.message || err.Message || 'Authentication failed');
-    }
-    return res.json();
+    return parseApiResponse<AuthResponse>(res);
   },
 
   async registerCustomer(data: {
@@ -62,11 +60,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Registration failed' }));
-      throw new Error(err.message || err.Message || 'Registration failed');
-    }
-    return res.json();
+    return parseApiResponse<AuthResponse>(res);
   },
 
   async registerTenant(data: {
@@ -82,11 +76,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Registration failed' }));
-      throw new Error(err.message || err.Message || 'Registration failed');
-    }
-    return res.json();
+    return parseApiResponse<AuthResponse>(res);
   },
 
   async getMyBusinesses(token: string): Promise<BusinessSummary[]> {
@@ -106,10 +96,7 @@ export const authApi = {
       },
       body: JSON.stringify({ tenantId }),
     });
-    if (!res.ok) {
-      throw new Error('Failed to switch business');
-    }
-    return res.json();
+    return parseApiResponse<AuthResponse>(res);
   },
 
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
@@ -118,10 +105,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
-    if (!res.ok) {
-      throw new Error('Refresh token expired or invalid');
-    }
-    return res.json();
+    return parseApiResponse<AuthResponse>(res);
   },
 
   async forgotPassword(email: string): Promise<{ message: string }> {
@@ -130,7 +114,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
-    return res.json();
+    return parseApiResponse<{ message: string }>(res);
   },
 
   async resetPassword(email: string, resetToken: string, newPassword: string): Promise<{ message: string }> {
@@ -139,11 +123,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, resetToken, newPassword }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Password reset failed' }));
-      throw new Error(err.message || err.Message || 'Reset failed');
-    }
-    return res.json();
+    return parseApiResponse<{ message: string }>(res);
   },
 
   async getCurrentUser(token: string): Promise<AuthUser> {
@@ -152,9 +132,6 @@ export const authApi = {
         Authorization: `Bearer ${token}`,
       },
     });
-    if (!res.ok) {
-      throw new Error('Unauthorized');
-    }
-    return res.json();
+    return parseApiResponse<AuthUser>(res);
   },
 };

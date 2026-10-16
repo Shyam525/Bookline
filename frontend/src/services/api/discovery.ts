@@ -1,3 +1,5 @@
+import { parseApiResponse } from '../../utils/apiErrors';
+
 export interface ProviderCard {
   id: string;
   name: string;
@@ -209,8 +211,7 @@ export const discoveryApi = {
     if (!res.ok) {
       res = await fetch(`${API_BASE}/providers/${slug}`);
     }
-    if (!res.ok) throw new Error('Provider storefront not found');
-    return res.json();
+    return parseApiResponse<ProviderStorefrontData>(res);
   },
 
   async getCategories(): Promise<CategoryCard[]> {
@@ -252,11 +253,7 @@ export const discoveryApi = {
     if (params.slug) searchParams.set('slug', params.slug);
 
     const res = await fetch(`/api/v1/public/availability?${searchParams.toString()}`);
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.message || 'Could not load availability for the selected date.');
-    }
-    return res.json();
+    return parseApiResponse<Array<{ start: string; end: string }>>(res);
   },
 
   async holdSlot(payload: {
@@ -269,11 +266,7 @@ export const discoveryApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.message || 'Selected time slot is no longer available.');
-    }
-    return res.json();
+    return parseApiResponse<{ holdId: string; expiresAtUtc: string; slot?: string; status: string }>(res);
   },
 
   async createBooking(payload: {
@@ -306,10 +299,17 @@ export const discoveryApi = {
       },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.message || 'Booking confirmation failed. Your hold may have expired.');
-    }
-    return res.json();
+    return parseApiResponse<{
+      id: string;
+      tenantId: string;
+      staffId: string;
+      serviceId: string;
+      customerId: string;
+      startUtc: string;
+      endUtc: string;
+      status: string;
+      createdAtUtc: string;
+      bookingReference?: string;
+    }>(res);
   },
 };

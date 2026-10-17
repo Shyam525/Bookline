@@ -28,17 +28,24 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
     private readonly ISlotHoldService _slotHoldService;
     private readonly ITenantContext _tenantContext;
     private readonly IApplicationDbContext _context;
+    private readonly NodaTime.IClock _clock;
 
-    public HoldSlotCommandHandler(ISlotHoldService slotHoldService, ITenantContext tenantContext, IApplicationDbContext context)
+    public HoldSlotCommandHandler(
+        ISlotHoldService slotHoldService,
+        ITenantContext tenantContext,
+        IApplicationDbContext context,
+        NodaTime.IClock? clock = null)
     {
         _slotHoldService = slotHoldService;
         _tenantContext = tenantContext;
         _context = context;
+        _clock = clock ?? NodaTime.SystemClock.Instance;
     }
 
     public async Task<HoldSlotResultDto> Handle(HoldSlotCommand request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : Guid.Empty;
+        var holdDurationMinutes = 5;
 
         if (_context != null)
         {
@@ -52,13 +59,24 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
             {
                 tenantId = service.TenantId;
             }
+
+            if (tenantId != Guid.Empty)
+            {
+                var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+                if (tenant != null && tenant.HoldDurationMinutes > 0)
+                {
+                    holdDurationMinutes = tenant.HoldDurationMinutes;
+                }
+            }
         }
+
+        var holdDuration = NodaTime.Duration.FromMinutes(holdDurationMinutes);
 
         var holdId = await _slotHoldService.AcquireHoldAsync(
             tenantId,
             request.StaffId,
             request.StartUtc,
-            TimeSpan.FromMinutes(5),
+            holdDuration.ToTimeSpan(),
             cancellationToken);
 
         if (holdId == null)
@@ -66,10 +84,10 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
             throw new ValidationException("SLOT_UNAVAILABLE: This slot is currently held by another user or unavailable.");
         }
 
-        var expiresAt = DateTimeOffset.UtcNow.AddSeconds(300);
+        var expiresInstant = _clock.GetCurrentInstant() + holdDuration;
         return new HoldSlotResultDto(
             HoldId: holdId.Value,
-            ExpiresAtUtc: expiresAt,
+            ExpiresAtUtc: expiresInstant.ToDateTimeOffset(),
             Slot: request.StartUtc.ToString("o"),
             Status: "HELD"
         );

@@ -20,11 +20,13 @@ public class AvailabilityHandlers :
 {
     private readonly IApplicationDbContext _context;
     private readonly ISlotEngine _slotEngine;
+    private readonly IClock _clock;
 
-    public AvailabilityHandlers(IApplicationDbContext context, ISlotEngine slotEngine)
+    public AvailabilityHandlers(IApplicationDbContext context, ISlotEngine slotEngine, IClock? clock = null)
     {
         _context = context;
         _slotEngine = slotEngine;
+        _clock = clock ?? SystemClock.Instance;
     }
 
     public async Task<List<TimeSlotDto>> Handle(GetAvailabilitySlotsQuery request, CancellationToken cancellationToken)
@@ -42,7 +44,20 @@ public class AvailabilityHandlers :
         }
         var localDate = parseResult.Value;
 
-        var tz = DateTimeZoneProviders.Tzdb.GetZoneOrNull(request.Timezone) ?? DateTimeZone.Utc;
+        var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == service.TenantId, cancellationToken);
+
+        DateTimeZone tz;
+        if (!string.IsNullOrWhiteSpace(request.Timezone))
+        {
+            var resolved = DateTimeZoneProviders.Tzdb.GetZoneOrNull(request.Timezone.Trim());
+            if (resolved == null)
+            {
+                throw new ValidationException($"INVALID_TIMEZONE: '{request.Timezone}' is not a valid IANA timezone identifier.");
+            }
+            tz = resolved;
+        }
+        else
+            tz = (!string.IsNullOrWhiteSpace(tenant?.TimeZoneId) ? DateTimeZoneProviders.Tzdb.GetZoneOrNull(tenant.TimeZoneId) : null) ?? DateTimeZone.Utc;
 
         // Query eligible staff
         var staffQuery = _context.Staff
@@ -71,9 +86,9 @@ public class AvailabilityHandlers :
         );
 
         var targetDayOfWeek = (DayOfWeek)(((int)localDate.DayOfWeek) % 7);
-        var nowInstant = SystemClock.Instance.GetCurrentInstant();
+        var nowInstant = _clock.GetCurrentInstant();
         var slotStep = Duration.FromMinutes(15);
-        var minNotice = Duration.FromHours(1);
+        var minNotice = Duration.FromHours(tenant?.MinimumNoticeHours ?? 2);
 
         foreach (var staff in staffList)
         {

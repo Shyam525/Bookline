@@ -6,19 +6,25 @@ using Bookline.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
+using FluentValidation;
+using NodaTime;
+
 public record CancelBookingCommand(
     Guid BookingId,
     string? Reason = null,
-    string? Actor = null
+    string? Actor = null,
+    bool EnforceCancellationPolicy = true
 ) : IRequest;
 
 public class CancelBookingCommandHandler : IRequestHandler<CancelBookingCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IClock _clock;
 
-    public CancelBookingCommandHandler(IApplicationDbContext context)
+    public CancelBookingCommandHandler(IApplicationDbContext context, IClock? clock = null)
     {
         _context = context;
+        _clock = clock ?? SystemClock.Instance;
     }
 
     public async Task Handle(CancelBookingCommand request, CancellationToken cancellationToken)
@@ -31,8 +37,24 @@ public class CancelBookingCommandHandler : IRequestHandler<CancelBookingCommand>
             throw new NotFoundException(nameof(Booking), request.BookingId);
         }
 
+        var tenant = await _context.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == booking.TenantId, cancellationToken);
+
+        if (request.EnforceCancellationPolicy && tenant != null && tenant.MinimumNoticeHours > 0)
+        {
+            var currentInstant = _clock.GetCurrentInstant();
+            var bookingStartInstant = Instant.FromDateTimeOffset(booking.StartUtc);
+            var cutoffDuration = Duration.FromHours(tenant.MinimumNoticeHours);
+
+            if (bookingStartInstant < currentInstant + cutoffDuration)
+            {
+                throw new ValidationException($"CANCELLATION_CUTOFF_EXCEEDED: Cancellations must be made at least {tenant.MinimumNoticeHours} hours prior to appointment.");
+            }
+        }
+
         var actor = request.Actor ?? "Customer";
         var reason = request.Reason ?? "Customer requested cancellation";
+        var cancelledInstant = _clock.GetCurrentInstant();
 
         booking.Cancel(reason, actor);
 
@@ -47,7 +69,7 @@ public class CancelBookingCommandHandler : IRequestHandler<CancelBookingCommand>
             {
                 BookingReference = booking.BookingReference,
                 Reason = reason,
-                CancelledAtUtc = DateTimeOffset.UtcNow
+                CancelledAtUtc = cancelledInstant.ToDateTimeOffset()
             })
         });
 

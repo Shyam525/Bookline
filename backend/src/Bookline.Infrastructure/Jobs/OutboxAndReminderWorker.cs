@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using NodaTime;
 
 namespace Bookline.Infrastructure.Jobs;
 
@@ -19,14 +20,16 @@ public class OutboxAndReminderWorker : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OutboxAndReminderWorker> _logger;
+    private readonly NodaTime.IClock _clock;
     private DateTime _lastReminderRunUtc = DateTime.MinValue;
     private DateTime _lastCleanupRunUtc = DateTime.MinValue;
     private DateTime _lastReportRunUtc = DateTime.MinValue;
 
-    public OutboxAndReminderWorker(IServiceProvider serviceProvider, ILogger<OutboxAndReminderWorker> logger)
+    public OutboxAndReminderWorker(IServiceProvider serviceProvider, ILogger<OutboxAndReminderWorker> logger, NodaTime.IClock? clock = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _clock = clock ?? NodaTime.SystemClock.Instance;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -287,15 +290,15 @@ public class OutboxAndReminderWorker : BackgroundService
 
     private async Task ProcessRemindersAsync(BooklineDbContext dbContext, CancellationToken cancellationToken)
     {
-        var nowUtc = DateTime.UtcNow;
+        var nowInstant = _clock.GetCurrentInstant();
 
         // 24-hour reminder window: bookings between [23.5h, 24.5h] ahead
-        var window24hStart = nowUtc.AddHours(23.5);
-        var window24hEnd = nowUtc.AddHours(24.5);
+        var window24hStart = (nowInstant + Duration.FromMinutes(23 * 60 + 30)).ToDateTimeOffset();
+        var window24hEnd = (nowInstant + Duration.FromMinutes(24 * 60 + 30)).ToDateTimeOffset();
 
         // 2-hour reminder window: bookings between [1.75h, 2.25h] ahead
-        var window2hStart = nowUtc.AddHours(1.75);
-        var window2hEnd = nowUtc.AddHours(2.25);
+        var window2hStart = (nowInstant + Duration.FromMinutes(105)).ToDateTimeOffset();
+        var window2hEnd = (nowInstant + Duration.FromMinutes(135)).ToDateTimeOffset();
 
         var upcomingBookings = await dbContext.Bookings.IgnoreQueryFilters()
             .Where(b => b.Status == BookingStatus.Confirmed
@@ -314,9 +317,11 @@ public class OutboxAndReminderWorker : BackgroundService
         {
             tenants.TryGetValue(booking.TenantId, out var tenant);
             var tzId = tenant?.TimeZoneId ?? "Asia/Kolkata";
-            var timeZone = ResolveTimeZone(tzId);
+            var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(tzId) ?? DateTimeZoneProviders.Tzdb["Asia/Kolkata"];
 
-            var localTime = TimeZoneInfo.ConvertTimeFromUtc(booking.StartUtc.UtcDateTime, timeZone);
+            var startInstant = Instant.FromDateTimeOffset(booking.StartUtc);
+            var zonedDateTime = startInstant.InZone(zone);
+            var localTime = zonedDateTime.ToDateTimeUnspecified();
             var is24hWindow = booking.StartUtc >= window24hStart && booking.StartUtc <= window24hEnd;
             var windowLabel = is24hWindow ? "24h" : "2h";
             var targetNotifType = is24hWindow ? NotificationType.Reminder24h : NotificationType.Reminder2h;
@@ -368,33 +373,9 @@ public class OutboxAndReminderWorker : BackgroundService
                 })
             });
 
-            booking.MarkReminderSent(DateTimeOffset.UtcNow);
+            booking.MarkReminderSent(nowInstant.ToDateTimeOffset());
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    private static TimeZoneInfo ResolveTimeZone(string timeZoneId)
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
-        }
-        catch
-        {
-            try
-            {
-                // Fallback for Windows ID mappings
-                if (timeZoneId.Contains("Kolkata") || timeZoneId.Contains("Calcutta"))
-                {
-                    return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
-                }
-                return TimeZoneInfo.Utc;
-            }
-            catch
-            {
-                return TimeZoneInfo.Utc;
-            }
-        }
     }
 }

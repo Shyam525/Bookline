@@ -108,6 +108,12 @@ public class StaffCommandHandler :
         if (string.IsNullOrWhiteSpace(req.Email))
             throw new ValidationException("Email address is required.");
 
+        var timeZoneId = string.IsNullOrWhiteSpace(req.TimeZoneId) ? "UTC" : req.TimeZoneId.Trim();
+        if (NodaTime.DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZoneId) == null)
+        {
+            throw new ValidationException($"INVALID_TIMEZONE: '{timeZoneId}' is not a valid IANA timezone identifier.");
+        }
+
         var staff = new DomainStaff
         {
             Id = Guid.NewGuid(),
@@ -118,7 +124,7 @@ public class StaffCommandHandler :
             Title = string.IsNullOrWhiteSpace(req.Title) ? "Staff Member" : req.Title.Trim(),
             Bio = req.Bio,
             AvatarUrl = req.AvatarUrl,
-            TimeZoneId = string.IsNullOrWhiteSpace(req.TimeZoneId) ? "UTC" : req.TimeZoneId,
+            TimeZoneId = timeZoneId,
             IsActive = true,
             IsArchived = false,
             CreatedAtUtc = DateTime.UtcNow
@@ -163,13 +169,21 @@ public class StaffCommandHandler :
         if (string.IsNullOrWhiteSpace(req.Email))
             throw new ValidationException("Email address is required.");
 
+        if (!string.IsNullOrWhiteSpace(req.TimeZoneId))
+        {
+            if (NodaTime.DateTimeZoneProviders.Tzdb.GetZoneOrNull(req.TimeZoneId.Trim()) == null)
+            {
+                throw new ValidationException($"INVALID_TIMEZONE: '{req.TimeZoneId}' is not a valid IANA timezone identifier.");
+            }
+            staff.TimeZoneId = req.TimeZoneId.Trim();
+        }
+
         staff.Name = req.Name.Trim();
         staff.Email = req.Email.Trim();
         staff.Phone = req.Phone?.Trim();
         staff.Title = string.IsNullOrWhiteSpace(req.Title) ? "Staff Member" : req.Title.Trim();
         staff.Bio = req.Bio;
         staff.AvatarUrl = req.AvatarUrl;
-        staff.TimeZoneId = string.IsNullOrWhiteSpace(req.TimeZoneId) ? "UTC" : req.TimeZoneId;
         staff.IsActive = req.IsActive;
         staff.UpdatedAtUtc = DateTime.UtcNow;
 

@@ -15,11 +15,13 @@ public class CustomerController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly ISlotEngine _slotEngine;
+    private readonly NodaTime.IClock _clock;
 
-    public CustomerController(IApplicationDbContext dbContext, ISlotEngine slotEngine)
+    public CustomerController(IApplicationDbContext dbContext, ISlotEngine slotEngine, NodaTime.IClock? clock = null)
     {
         _dbContext = dbContext;
         _slotEngine = slotEngine;
+        _clock = clock ?? NodaTime.SystemClock.Instance;
     }
 
     private Guid? GetCustomerId()
@@ -313,9 +315,11 @@ public class CustomerController : ControllerBase
         var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.Id == booking.TenantId, cancellationToken);
 
-        // Section 67: Configurable cancellation window policy check
+        // Section 67 & 87: Configurable cancellation window policy check using authoritative clock
         var minHours = tenant?.MinimumNoticeHours ?? 2;
-        var hoursUntilStart = (booking.StartUtc - DateTimeOffset.UtcNow).TotalHours;
+        var nowInstant = _clock.GetCurrentInstant();
+        var bookingStartInstant = NodaTime.Instant.FromDateTimeOffset(booking.StartUtc);
+        var hoursUntilStart = (bookingStartInstant - nowInstant).TotalHours;
 
         if (hoursUntilStart < minHours)
         {
@@ -326,7 +330,7 @@ public class CustomerController : ControllerBase
         var reason = request.Reason ?? "Cancelled by customer";
         booking.Cancel(reason, actor);
 
-        // Section 67: Capture reason, actor, and timestamp in audit and outbox
+        // Section 67 & 87: Capture reason, actor, and timestamp in audit and outbox
         _dbContext.AuditLogs.Add(new AuditLog
         {
             TenantId = booking.TenantId,
@@ -338,7 +342,7 @@ public class CustomerController : ControllerBase
                 BookingReference = booking.BookingReference,
                 Reason = reason,
                 Actor = actor,
-                CancelledAtUtc = DateTimeOffset.UtcNow
+                CancelledAtUtc = nowInstant.ToDateTimeOffset()
             })
         });
 

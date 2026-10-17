@@ -47,6 +47,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
     private readonly ISlotEngine _slotEngine;
     private readonly IEmailSender? _emailSender;
     private readonly IBookingActionTokenService? _tokenService;
+    private readonly NodaTime.IClock _clock;
 
     public CreateBookingCommandHandler(
         IApplicationDbContext context,
@@ -54,7 +55,8 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         ISlotHoldService slotHoldService,
         ISlotEngine slotEngine,
         IEmailSender? emailSender = null,
-        IBookingActionTokenService? tokenService = null)
+        IBookingActionTokenService? tokenService = null,
+        NodaTime.IClock? clock = null)
     {
         _context = context;
         _tenantContext = tenantContext;
@@ -62,6 +64,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         _slotEngine = slotEngine;
         _emailSender = emailSender;
         _tokenService = tokenService;
+        _clock = clock ?? NodaTime.SystemClock.Instance;
     }
 
     public async Task<BookingDto> Handle(CreateBookingCommand request, CancellationToken cancellationToken)
@@ -224,6 +227,27 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
         if (tenant != null)
         {
+            var currentInstant = _clock.GetCurrentInstant();
+            var requestedStartInstant = NodaTime.Instant.FromDateTimeOffset(request.StartUtc);
+
+            if (tenant.MinimumNoticeHours > 0)
+            {
+                var minNoticeDuration = NodaTime.Duration.FromHours(tenant.MinimumNoticeHours);
+                if (requestedStartInstant < currentInstant + minNoticeDuration)
+                {
+                    throw new ValidationException($"MINIMUM_NOTICE_REQUIRED: Appointments must be booked at least {tenant.MinimumNoticeHours} hours in advance.");
+                }
+            }
+
+            if (tenant.BookingHorizonDays > 0)
+            {
+                var maxHorizonDuration = NodaTime.Duration.FromDays(tenant.BookingHorizonDays);
+                if (requestedStartInstant > currentInstant + maxHorizonDuration)
+                {
+                    throw new ValidationException($"BOOKING_HORIZON_EXCEEDED: Appointments cannot be booked more than {tenant.BookingHorizonDays} days in advance.");
+                }
+            }
+
             booking.DepositPolicy = tenant.DepositType;
             booking.DepositRequiredAmount = tenant.DepositType switch
             {
@@ -505,7 +529,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
                 timeOffIntervals,
                 localDate,
                 zone,
-                NodaTime.SystemClock.Instance.GetCurrentInstant(),
+                _clock.GetCurrentInstant(),
                 NodaTime.Duration.FromMinutes(15),
                 NodaTime.Duration.Zero);
 

@@ -5,6 +5,7 @@ using Bookline.Application.Common.Interfaces;
 using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 public record GetAnalyticsSummaryQuery(DateTime? StartDate = null, DateTime? EndDate = null);
 public record GetRevenueChartQuery(string Period = "30days");
@@ -16,11 +17,37 @@ public class AnalyticsHandlers
 {
     private readonly IApplicationDbContext _context;
     private readonly ITenantContext _tenantContext;
+    private readonly IClock _clock;
 
-    public AnalyticsHandlers(IApplicationDbContext context, ITenantContext tenantContext)
+    public AnalyticsHandlers(IApplicationDbContext context, ITenantContext tenantContext, IClock? clock = null)
     {
         _context = context;
         _tenantContext = tenantContext;
+        _clock = clock ?? SystemClock.Instance;
+    }
+
+    private (DateTimeOffset Start, DateTimeOffset End, DateTimeZone Zone) DeriveReportingBoundaries(
+        DateTime? startDate,
+        DateTime? endDate,
+        Tenant? tenant,
+        int defaultDays = 30)
+    {
+        var zone = (!string.IsNullOrWhiteSpace(tenant?.TimeZoneId) ? DateTimeZoneProviders.Tzdb.GetZoneOrNull(tenant.TimeZoneId) : null) ?? DateTimeZoneProviders.Tzdb["Asia/Kolkata"];
+        var nowInstant = _clock.GetCurrentInstant();
+        var todayLocal = nowInstant.InZone(zone).Date;
+
+        LocalDate startLocal = startDate.HasValue
+            ? new LocalDate(startDate.Value.Year, startDate.Value.Month, startDate.Value.Day)
+            : todayLocal.PlusDays(-defaultDays);
+
+        LocalDate endLocal = endDate.HasValue
+            ? new LocalDate(endDate.Value.Year, endDate.Value.Month, endDate.Value.Day)
+            : todayLocal;
+
+        var startInstant = startLocal.AtStartOfDayInZone(zone).ToInstant();
+        var endInstant = endLocal.PlusDays(1).AtStartOfDayInZone(zone).ToInstant();
+
+        return (startInstant.ToDateTimeOffset(), endInstant.ToDateTimeOffset(), zone);
     }
 
     public async Task<AnalyticsSummaryDto> Handle(GetAnalyticsSummaryQuery query, CancellationToken cancellationToken = default)
@@ -30,16 +57,16 @@ public class AnalyticsHandlers
             throw new UnauthorizedAccessException("Tenant context is missing.");
         }
         var tenantId = _tenantContext.TenantId;
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
-        var start = query.StartDate ?? DateTime.UtcNow.AddDays(-30);
-        var end = query.EndDate ?? DateTime.UtcNow;
+        var (start, end, _) = DeriveReportingBoundaries(query.StartDate, query.EndDate, tenant, 30);
 
         var bookings = await _context.Bookings
-            .Where(b => b.TenantId == tenantId && b.StartUtc >= start && b.StartUtc <= end)
+            .Where(b => b.TenantId == tenantId && b.StartUtc >= start && b.StartUtc < end)
             .ToListAsync(cancellationToken);
 
         var payments = await _context.Payments
-            .Where(p => p.TenantId == tenantId && p.CreatedAtUtc >= start && p.CreatedAtUtc <= end && p.Status == PaymentStatus.Completed)
+            .Where(p => p.TenantId == tenantId && p.CreatedAtUtc >= start && p.CreatedAtUtc < end && p.Status == PaymentStatus.Completed)
             .ToListAsync(cancellationToken);
 
         var totalRevenue = payments.Where(p => p.PaymentType != PaymentType.Refund).Sum(p => p.Amount);
@@ -100,6 +127,7 @@ public class AnalyticsHandlers
             throw new UnauthorizedAccessException("Tenant context is missing.");
         }
         var tenantId = _tenantContext.TenantId;
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
         var days = query.Period.ToLower() switch
         {
@@ -108,25 +136,27 @@ public class AnalyticsHandlers
             _ => 30
         };
 
-        var start = DateTime.UtcNow.Date.AddDays(-days);
+        var (startDto, endDto, zone) = DeriveReportingBoundaries(null, null, tenant, defaultDays: days);
 
         var payments = await _context.Payments
-            .Where(p => p.TenantId == tenantId && p.CreatedAtUtc >= start && p.Status == PaymentStatus.Completed)
+            .Where(p => p.TenantId == tenantId && p.CreatedAtUtc >= startDto && p.CreatedAtUtc < endDto && p.Status == PaymentStatus.Completed)
             .ToListAsync(cancellationToken);
 
         var bookings = await _context.Bookings
-            .Where(b => b.TenantId == tenantId && b.StartUtc >= start)
+            .Where(b => b.TenantId == tenantId && b.StartUtc >= startDto && b.StartUtc < endDto)
             .ToListAsync(cancellationToken);
 
         var chartData = new List<RevenueChartDataPoint>();
+        var nowInstant = _clock.GetCurrentInstant();
+        var todayLocal = nowInstant.InZone(zone).Date;
 
         for (int i = days; i >= 0; i--)
         {
-            var date = DateTime.UtcNow.Date.AddDays(-i);
-            var dateStr = date.ToString("MMM dd");
+            var dayLocal = todayLocal.PlusDays(-i);
+            var dateStr = dayLocal.ToString("MMM dd", System.Globalization.CultureInfo.InvariantCulture);
 
-            var dayPayments = payments.Where(p => p.CreatedAtUtc.Date == date).ToList();
-            var dayBookings = bookings.Where(b => b.StartUtc.Date == date).ToList();
+            var dayPayments = payments.Where(p => Instant.FromDateTimeOffset(p.CreatedAtUtc).InZone(zone).Date == dayLocal).ToList();
+            var dayBookings = bookings.Where(b => Instant.FromDateTimeOffset(b.StartUtc).InZone(zone).Date == dayLocal).ToList();
 
             var rev = dayPayments.Where(p => p.PaymentType != PaymentType.Refund).Sum(p => p.Amount);
             var dep = dayPayments.Where(p => p.PaymentType == PaymentType.Deposit).Sum(p => p.Amount);
@@ -149,20 +179,20 @@ public class AnalyticsHandlers
             throw new UnauthorizedAccessException("Tenant context is missing.");
         }
         var tenantId = _tenantContext.TenantId;
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
-        var start = query.StartDate ?? DateTime.UtcNow.AddDays(-30);
-        var end = query.EndDate ?? DateTime.UtcNow;
+        var (start, end, _) = DeriveReportingBoundaries(query.StartDate, query.EndDate, tenant, 30);
 
         var staffMembers = await _context.Staff
             .Where(s => s.TenantId == tenantId && s.IsActive)
             .ToListAsync(cancellationToken);
 
         var bookings = await _context.Bookings
-            .Where(b => b.TenantId == tenantId && b.StartUtc >= start && b.StartUtc <= end)
+            .Where(b => b.TenantId == tenantId && b.StartUtc >= start && b.StartUtc < end)
             .ToListAsync(cancellationToken);
 
         var payments = await _context.Payments
-            .Where(p => p.TenantId == tenantId && p.CreatedAtUtc >= start && p.CreatedAtUtc <= end && p.Status == PaymentStatus.Completed)
+            .Where(p => p.TenantId == tenantId && p.CreatedAtUtc >= start && p.CreatedAtUtc < end && p.Status == PaymentStatus.Completed)
             .ToListAsync(cancellationToken);
 
         var result = new List<StaffUtilizationDto>();
@@ -201,16 +231,16 @@ public class AnalyticsHandlers
             throw new UnauthorizedAccessException("Tenant context is missing.");
         }
         var tenantId = _tenantContext.TenantId;
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
-        var start = query.StartDate ?? DateTime.UtcNow.AddDays(-30);
-        var end = query.EndDate ?? DateTime.UtcNow;
+        var (start, end, _) = DeriveReportingBoundaries(query.StartDate, query.EndDate, tenant, 30);
 
         var services = await _context.Services
             .Where(s => s.TenantId == tenantId)
             .ToListAsync(cancellationToken);
 
         var bookings = await _context.Bookings
-            .Where(b => b.TenantId == tenantId && b.StartUtc >= start && b.StartUtc <= end)
+            .Where(b => b.TenantId == tenantId && b.StartUtc >= start && b.StartUtc < end)
             .ToListAsync(cancellationToken);
 
         var totalBookingsCount = bookings.Count;

@@ -31,11 +31,13 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
 {
     private readonly IApplicationDbContext _context;
     private readonly ISlotEngine _slotEngine;
+    private readonly IClock _clock;
 
-    public GetPublicAvailabilityQueryHandler(IApplicationDbContext context, ISlotEngine slotEngine)
+    public GetPublicAvailabilityQueryHandler(IApplicationDbContext context, ISlotEngine slotEngine, IClock? clock = null)
     {
         _context = context;
         _slotEngine = slotEngine;
+        _clock = clock ?? SystemClock.Instance;
     }
 
     public async Task<IReadOnlyList<Slot>> Handle(GetPublicAvailabilityQuery request, CancellationToken cancellationToken)
@@ -86,9 +88,10 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             }
         }
 
+        Tenant? tenant = null;
         if (!string.IsNullOrWhiteSpace(request.Slug))
         {
-            var tenant = await _context.Tenants
+            tenant = await _context.Tenants
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Slug.ToLower() == request.Slug.ToLower() && t.IsActive, cancellationToken);
@@ -98,10 +101,30 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
                 throw new NotFoundException("Service or Staff does not belong to the specified tenant.");
             }
         }
+        else
+        {
+            tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == service.TenantId, cancellationToken);
+        }
 
-        var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(request.TimeZoneId)
-            ?? DateTimeZoneProviders.Tzdb.GetZoneOrNull(staff.TimeZoneId)
-            ?? DateTimeZoneProviders.Tzdb["UTC"];
+        DateTimeZone zone;
+        if (!string.IsNullOrWhiteSpace(request.TimeZoneId))
+        {
+            var resolved = DateTimeZoneProviders.Tzdb.GetZoneOrNull(request.TimeZoneId.Trim());
+            if (resolved == null)
+            {
+                throw new ValidationException($"INVALID_TIMEZONE: '{request.TimeZoneId}' is not a valid IANA timezone identifier.");
+            }
+            zone = resolved;
+        }
+        else
+        {
+            zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(staff.TimeZoneId)
+                ?? (!string.IsNullOrWhiteSpace(tenant?.TimeZoneId) ? DateTimeZoneProviders.Tzdb.GetZoneOrNull(tenant.TimeZoneId) : null)
+                ?? DateTimeZoneProviders.Tzdb["UTC"];
+        }
 
         var workingHours = await _context.WorkingHours
             .IgnoreQueryFilters()
@@ -143,6 +166,8 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             Instant.FromDateTimeOffset(t.EndUtc)
         )).ToList();
 
+        var minNotice = Duration.FromHours(tenant?.MinimumNoticeHours ?? 2);
+
         return _slotEngine.Compute(
             serviceInfo,
             schedule,
@@ -150,8 +175,8 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             timeOffIntervals,
             request.Date,
             zone,
-            SystemClock.Instance.GetCurrentInstant(),
+            _clock.GetCurrentInstant(),
             Duration.FromMinutes(15),
-            Duration.FromMinutes(30));
+            minNotice);
     }
 }

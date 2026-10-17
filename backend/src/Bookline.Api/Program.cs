@@ -110,8 +110,10 @@ if (redisMultiplexer != null)
     builder.Services.AddSingleton<IConnectionMultiplexer>(redisMultiplexer);
 }
 
+// Temporal Core: NodaTime Clock Abstraction (Section 87)
+builder.Services.AddSingleton<NodaTime.IClock>(NodaTime.SystemClock.Instance);
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISlotHoldService>(sp =>
-    new Bookline.Infrastructure.Services.SlotHoldService(sp.GetService<IConnectionMultiplexer>()));
+    new Bookline.Infrastructure.Services.SlotHoldService(sp.GetService<IConnectionMultiplexer>(), sp.GetRequiredService<NodaTime.IClock>()));
 
 // Phase 5 Services & DataProtection
 builder.Services.AddDataProtection();

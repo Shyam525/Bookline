@@ -1,5 +1,4 @@
 using Bookline.Application.Tenants.Commands;
-using Bookline.Application.Tenants.DTOs;
 using FluentValidation;
 using NodaTime;
 
@@ -38,38 +37,30 @@ public class SaveOnboardingStepCommandValidator : AbstractValidator<SaveOnboardi
                     .WithMessage("Currency must be a supported 3-letter currency code (e.g., USD, EUR, GBP, INR, AED).");
             });
 
-            When(x => x.Request.HoldDurationMinutes.HasValue, () =>
-            {
-                RuleFor(x => x.Request.HoldDurationMinutes!.Value)
-                    .InclusiveBetween(1, 60)
-                    .WithMessage("HoldDurationMinutes must be between 1 and 60 minutes.");
-            });
+            RuleFor(x => x.Request.HoldDurationMinutes)
+                .InclusiveBetween(1, 60)
+                .When(x => x.Request.HoldDurationMinutes.HasValue)
+                .WithMessage("HoldDurationMinutes must be between 1 and 60 minutes.");
 
-            When(x => x.Request.MinimumNoticeHours.HasValue, () =>
-            {
-                RuleFor(x => x.Request.MinimumNoticeHours!.Value)
-                    .InclusiveBetween(0, 168)
-                    .WithMessage("MinimumNoticeHours must be between 0 and 168 hours.");
-            });
+            RuleFor(x => x.Request.MinimumNoticeHours)
+                .InclusiveBetween(0, 168)
+                .When(x => x.Request.MinimumNoticeHours.HasValue)
+                .WithMessage("MinimumNoticeHours must be between 0 and 168 hours.");
 
-            When(x => x.Request.BookingHorizonDays.HasValue, () =>
-            {
-                RuleFor(x => x.Request.BookingHorizonDays!.Value)
-                    .InclusiveBetween(1, 365)
-                    .WithMessage("BookingHorizonDays must be between 1 and 365 days.");
-            });
+            RuleFor(x => x.Request.BookingHorizonDays)
+                .InclusiveBetween(1, 365)
+                .When(x => x.Request.BookingHorizonDays.HasValue)
+                .WithMessage("BookingHorizonDays must be between 1 and 365 days.");
 
-            When(x => x.Request.CancellationWindowHours.HasValue, () =>
-            {
-                RuleFor(x => x.Request.CancellationWindowHours!.Value)
-                    .InclusiveBetween(0, 168)
-                    .WithMessage("CancellationWindowHours must be between 0 and 168 hours.");
-            });
+            RuleFor(x => x.Request.CancellationWindowHours)
+                .InclusiveBetween(0, 168)
+                .When(x => x.Request.CancellationWindowHours.HasValue)
+                .WithMessage("CancellationWindowHours must be between 0 and 168 hours.");
 
             When(x => x.Request.StartTime.HasValue && x.Request.EndTime.HasValue, () =>
             {
-                RuleFor(x => x.Request.EndTime!.Value)
-                    .GreaterThan(x => x.Request.StartTime!.Value)
+                RuleFor(x => x.Request.EndTime)
+                    .GreaterThan(x => x.Request.StartTime)
                     .WithMessage("Operating hours EndTime must be after StartTime.");
             });
         });

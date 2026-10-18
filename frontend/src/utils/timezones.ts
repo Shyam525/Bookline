@@ -6,10 +6,28 @@
  * - Validate IANA timezone identifiers via Intl runtime API.
  * - Format temporal instants in provider or customer local timezones without machine-local drift.
  * - Detect user timezones safely.
- * - Guard against date-bleeding across day boundaries.
+/**
+ * Safely parses any date representation into a valid Date object.
+ * Returns null if the date is invalid (guarding against NaN, undefined, 'null', etc.).
  */
-
-import { parseDateSafe } from './timeFormatters';
+export function parseDateSafe(input: string | Date | number | null | undefined): Date | null {
+  if (input === null || input === undefined) return null;
+  if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+  if (typeof input === 'number') {
+    if (isNaN(input)) return null;
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+    if (lower === 'null' || lower === 'undefined' || lower === 'nan' || lower === 'invalid date') return null;
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
 
 /**
  * Validates whether a given string is a valid, recognized IANA timezone identifier.

@@ -44,6 +44,9 @@ public class SlotEngine : ISlotEngine
             return Array.Empty<Slot>();
         }
 
+        // Merge contiguous or overlapping working windows while preserving split-shift gaps
+        var mergedWindows = MergeIntervals(windowIntervals.OrderBy(w => w.Start).ToList());
+
         // 2. Build expanded busy intervals (Bookings expanded by buffers + TimeOff)
         var busyIntervals = new List<Interval>();
 
@@ -70,7 +73,7 @@ public class SlotEngine : ISlotEngine
 
         // 4. Subtract merged busy intervals from working windows to produce free intervals
         var freeIntervals = new List<Interval>();
-        foreach (var window in windowIntervals)
+        foreach (var window in mergedWindows)
         {
             freeIntervals.AddRange(SubtractIntervals(window, mergedBusy));
         }

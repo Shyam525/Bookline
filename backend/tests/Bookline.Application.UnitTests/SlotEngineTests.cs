@@ -352,4 +352,62 @@ public class SlotEngineTests
         Assert.Equal(slotAt1700, lastSlot.Start);
         Assert.Equal(day.At(new LocalTime(17, 45)).InZoneLeniently(_zoneNy).ToInstant(), lastSlot.End);
     }
+
+    [Fact]
+    public void Compute_SplitWorkingWindows_NeverGeneratesSlotsStraddlingGap()
+    {
+        // Shift 1: 09:00–13:00, Shift 2: 14:00–18:00 (1 hour lunch break)
+        var day = new LocalDate(2025, 7, 15);
+        var schedule = new StaffSchedule(new[]
+        {
+            new WorkingWindow(new LocalTime(9, 0), new LocalTime(13, 0)),
+            new WorkingWindow(new LocalTime(14, 0), new LocalTime(18, 0))
+        });
+        var service = new ServiceInfo(Duration.FromMinutes(45), Duration.FromMinutes(15)); // Required = 60m
+        var step = Duration.FromMinutes(15);
+        var now = Instant.FromUtc(2025, 7, 1, 0, 0);
+
+        var slots = _engine.Compute(service, schedule, Array.Empty<Interval>(), Array.Empty<Interval>(), day, _zoneNy, now, step, Duration.Zero);
+
+        // Slot at 12:00 is valid (12:00 + 45m = 12:45, + 15m buffer = 13:00)
+        var slotAt1200 = day.At(new LocalTime(12, 0)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.Contains(slots, s => s.Start == slotAt1200);
+
+        // Slots starting after 12:00 in morning shift (e.g. 12:15, 12:30) must NOT exist
+        var slotAt1215 = day.At(new LocalTime(12, 15)).InZoneLeniently(_zoneNy).ToInstant();
+        var slotAt1230 = day.At(new LocalTime(12, 30)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.DoesNotContain(slots, s => s.Start == slotAt1215);
+        Assert.DoesNotContain(slots, s => s.Start == slotAt1230);
+
+        // No slot may start during the lunch break 13:00–14:00
+        var lunchStart = day.At(new LocalTime(13, 0)).InZoneLeniently(_zoneNy).ToInstant();
+        var lunchEnd = day.At(new LocalTime(14, 0)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.DoesNotContain(slots, s => s.Start >= lunchStart && s.Start < lunchEnd);
+
+        // First afternoon slot starts at 14:00
+        var slotAt1400 = day.At(new LocalTime(14, 0)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.Contains(slots, s => s.Start == slotAt1400);
+    }
+
+    [Fact]
+    public void Compute_ContiguousWorkingWindows_MergesSeamlessly()
+    {
+        // Window 1: 09:00–13:00, Window 2: 13:00–17:00 (continuous, no gap)
+        var day = new LocalDate(2025, 7, 15);
+        var schedule = new StaffSchedule(new[]
+        {
+            new WorkingWindow(new LocalTime(9, 0), new LocalTime(13, 0)),
+            new WorkingWindow(new LocalTime(13, 0), new LocalTime(17, 0))
+        });
+        var service = new ServiceInfo(Duration.FromMinutes(60), Duration.Zero);
+        var step = Duration.FromMinutes(30);
+        var now = Instant.FromUtc(2025, 7, 1, 0, 0);
+
+        var slots = _engine.Compute(service, schedule, Array.Empty<Interval>(), Array.Empty<Interval>(), day, _zoneNy, now, step, Duration.Zero);
+
+        // Slot at 12:30 (12:30–13:30) should be generated because windows are contiguous
+        var slotAt1230 = day.At(new LocalTime(12, 30)).InZoneLeniently(_zoneNy).ToInstant();
+        Assert.Contains(slots, s => s.Start == slotAt1230);
+    }
 }
+

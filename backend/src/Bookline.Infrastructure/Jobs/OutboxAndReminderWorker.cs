@@ -21,9 +21,9 @@ public class OutboxAndReminderWorker : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OutboxAndReminderWorker> _logger;
     private readonly NodaTime.IClock _clock;
-    private DateTime _lastReminderRunUtc = DateTime.MinValue;
-    private DateTime _lastCleanupRunUtc = DateTime.MinValue;
-    private DateTime _lastReportRunUtc = DateTime.MinValue;
+    private Instant _lastReminderRunInstant = Instant.MinValue;
+    private Instant _lastCleanupRunInstant = Instant.MinValue;
+    private Instant _lastReportRunInstant = Instant.MinValue;
 
     public OutboxAndReminderWorker(IServiceProvider serviceProvider, ILogger<OutboxAndReminderWorker> logger, NodaTime.IClock? clock = null)
     {
@@ -55,11 +55,13 @@ public class OutboxAndReminderWorker : BackgroundService
                 var holdsJob = new ExpiredHoldsCleanupJob(dbContext, holdsLogger);
                 await holdsJob.ExecuteAsync(stoppingToken);
 
+                var currentCycleInstant = _clock.GetCurrentInstant();
+
                 // 3. Timezone-Aware 24h & 2h Reminders (Section 92 & 122, every 60s)
-                if (DateTime.UtcNow - _lastReminderRunUtc >= TimeSpan.FromSeconds(60))
+                if (currentCycleInstant - _lastReminderRunInstant >= Duration.FromSeconds(60))
                 {
                     await ProcessRemindersAsync(dbContext, stoppingToken);
-                    _lastReminderRunUtc = DateTime.UtcNow;
+                    _lastReminderRunInstant = currentCycleInstant;
                 }
 
                 // 4. Notifications delivery (Section 93 & 122)
@@ -69,7 +71,7 @@ public class OutboxAndReminderWorker : BackgroundService
                 await notifJob.ExecuteAsync(stoppingToken);
 
                 // 5 & 7. Invitations & Inventory cleanup (Section 119 & 122, every 5 mins)
-                if (DateTime.UtcNow - _lastCleanupRunUtc >= TimeSpan.FromMinutes(5))
+                if (currentCycleInstant - _lastCleanupRunInstant >= Duration.FromMinutes(5))
                 {
                     var invLogger = scope.ServiceProvider.GetService<ILogger<InvitationCleanupJob>>()
                         ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<InvitationCleanupJob>();
@@ -81,17 +83,17 @@ public class OutboxAndReminderWorker : BackgroundService
                     var inventoryJob = new InventoryCleanupJob(dbContext, inventoryLogger);
                     await inventoryJob.ExecuteAsync(stoppingToken);
 
-                    _lastCleanupRunUtc = DateTime.UtcNow;
+                    _lastCleanupRunInstant = currentCycleInstant;
                 }
 
                 // 6. Report aggregation jobs (Section 122, every 1 hour)
-                if (DateTime.UtcNow - _lastReportRunUtc >= TimeSpan.FromHours(1))
+                if (currentCycleInstant - _lastReportRunInstant >= Duration.FromHours(1))
                 {
                     var reportLogger = scope.ServiceProvider.GetService<ILogger<ReportAggregationJob>>()
                         ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ReportAggregationJob>();
                     var reportJob = new ReportAggregationJob(dbContext, reportLogger);
                     await reportJob.ExecuteAsync(stoppingToken);
-                    _lastReportRunUtc = DateTime.UtcNow;
+                    _lastReportRunInstant = currentCycleInstant;
                 }
             }
             catch (Exception ex)
@@ -103,7 +105,7 @@ public class OutboxAndReminderWorker : BackgroundService
         }
     }
 
-    private async Task ProcessOutboxBatchAsync(BooklineDbContext dbContext, IEmailSender? emailSender, CancellationToken cancellationToken)
+    public async Task<int> ProcessOutboxBatchAsync(BooklineDbContext dbContext, IEmailSender? emailSender, CancellationToken cancellationToken = default)
     {
         var pendingMessages = await dbContext.OutboxMessages.IgnoreQueryFilters()
             .Where(m => m.Status == "Pending" && m.RetryCount < 5)
@@ -111,7 +113,8 @@ public class OutboxAndReminderWorker : BackgroundService
             .Take(25)
             .ToListAsync(cancellationToken);
 
-        if (!pendingMessages.Any()) return;
+        if (!pendingMessages.Any()) return 0;
+        var processedCount = 0;
 
         foreach (var msg in pendingMessages)
         {
@@ -125,6 +128,7 @@ public class OutboxAndReminderWorker : BackgroundService
                 msg.Status = "Processed";
                 msg.ProcessedAtUtc = DateTimeOffset.UtcNow;
                 msg.Error = null;
+                processedCount++;
             }
             catch (Exception ex)
             {
@@ -139,6 +143,7 @@ public class OutboxAndReminderWorker : BackgroundService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        return processedCount;
     }
 
     private async Task DispatchOutboxNotificationAsync(
@@ -288,7 +293,7 @@ public class OutboxAndReminderWorker : BackgroundService
         }
     }
 
-    private async Task ProcessRemindersAsync(BooklineDbContext dbContext, CancellationToken cancellationToken)
+    public async Task<int> ProcessRemindersAsync(BooklineDbContext dbContext, CancellationToken cancellationToken = default)
     {
         var nowInstant = _clock.GetCurrentInstant();
 
@@ -308,16 +313,17 @@ public class OutboxAndReminderWorker : BackgroundService
             .Include(b => b.Service)
             .ToListAsync(cancellationToken);
 
-        if (!upcomingBookings.Any()) return;
+        if (!upcomingBookings.Any()) return 0;
 
         var tenants = await dbContext.Tenants.IgnoreQueryFilters()
             .ToDictionaryAsync(t => t.Id, cancellationToken);
 
+        var scheduledCount = 0;
         foreach (var booking in upcomingBookings)
         {
             tenants.TryGetValue(booking.TenantId, out var tenant);
-            var tzId = tenant?.TimeZoneId ?? "Asia/Kolkata";
-            var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(tzId) ?? DateTimeZoneProviders.Tzdb["Asia/Kolkata"];
+            var tzId = tenant?.TimeZoneId ?? "UTC";
+            var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(tzId) ?? DateTimeZone.Utc;
 
             var startInstant = Instant.FromDateTimeOffset(booking.StartUtc);
             var zonedDateTime = startInstant.InZone(zone);
@@ -374,8 +380,10 @@ public class OutboxAndReminderWorker : BackgroundService
             });
 
             booking.MarkReminderSent(nowInstant.ToDateTimeOffset());
+            scheduledCount++;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        return scheduledCount;
     }
 }

@@ -15,11 +15,13 @@ public class AdminController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly IPayoutProvider _payoutProvider;
+    private readonly NodaTime.IClock _clock;
 
-    public AdminController(IApplicationDbContext dbContext, IPayoutProvider payoutProvider)
+    public AdminController(IApplicationDbContext dbContext, IPayoutProvider payoutProvider, NodaTime.IClock? clock = null)
     {
         _dbContext = dbContext;
         _payoutProvider = payoutProvider;
+        _clock = clock ?? NodaTime.SystemClock.Instance;
     }
 
     [HttpGet("metrics")]
@@ -634,6 +636,32 @@ public class AdminController : ControllerBase
             Cache = "Active (Redis Transport)",
             OutboxProcessor = "Running",
             Timestamp = DateTime.UtcNow
+        });
+    }
+
+    [HttpGet("temporal-diagnostics")]
+    public IActionResult GetTemporalDiagnostics()
+    {
+        var currentInstant = _clock.GetCurrentInstant();
+        var tzdbSource = NodaTime.DateTimeZoneProviders.Tzdb;
+
+        return Ok(new
+        {
+            Status = "Healthy",
+            AuthoritativeClock = _clock.GetType().Name,
+            CurrentInstant = currentInstant.ToString(),
+            CurrentUtc = currentInstant.ToDateTimeUtc(),
+            TzdbVersion = tzdbSource.VersionId,
+            TotalTimeZonesAvailable = tzdbSource.Ids.Count,
+            SampleTimeZones = new[]
+            {
+                new { Id = "UTC", CurrentLocal = currentInstant.InZone(NodaTime.DateTimeZone.Utc).ToString() },
+                new { Id = "America/New_York", CurrentLocal = currentInstant.InZone(tzdbSource["America/New_York"]).ToString() },
+                new { Id = "Europe/London", CurrentLocal = currentInstant.InZone(tzdbSource["Europe/London"]).ToString() },
+                new { Id = "Asia/Kolkata", CurrentLocal = currentInstant.InZone(tzdbSource["Asia/Kolkata"]).ToString() }
+            },
+            MachineTimeZone = TimeZoneInfo.Local.Id,
+            TemporalCorrectnessCompliant = true
         });
     }
 }

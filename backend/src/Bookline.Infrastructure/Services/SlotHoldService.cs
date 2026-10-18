@@ -11,7 +11,7 @@ public class SlotHoldService : ISlotHoldService
 
     private readonly IConnectionMultiplexer? _redis;
     private readonly IClock _clock;
-    private static readonly ConcurrentDictionary<string, HoldEntry> _inMemoryHolds = new();
+    private readonly ConcurrentDictionary<string, HoldEntry> _inMemoryHolds = new();
 
     public SlotHoldService(IConnectionMultiplexer? redis = null, IClock? clock = null)
     {

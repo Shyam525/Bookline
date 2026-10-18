@@ -12,3 +12,9 @@
 - `POST /api/v1/payments/checkout-session`: Generate online Stripe checkout deposit session.
 - `POST /api/v1/payments/refund`: Process full/partial transaction refund.
 - `POST /api/v1/payments/pos`: Record in-store terminal/cash POS transaction.
+
+## Admin & System Diagnostics API (`/api/v1/admin`)
+- `GET /api/v1/admin/metrics`: Platform aggregated KPIs (providers, bookings, GMV, commission).
+- `GET /api/v1/admin/health`: System health status (relational DB, cache transport, outbox worker).
+- `GET /api/v1/admin/temporal-diagnostics`: Server clock, Tzdb provider version, and multi-timezone instant evaluations (Section 87).
+

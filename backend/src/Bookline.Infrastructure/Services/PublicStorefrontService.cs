@@ -1,5 +1,7 @@
+using System.Text.RegularExpressions;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Discovery.Dtos;
+using Bookline.Domain.Entities;
 using Bookline.Domain.Enums;
 using Bookline.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +10,18 @@ namespace Bookline.Infrastructure.Services;
 
 public class PublicStorefrontService : IPublicStorefrontService
 {
+    private static readonly Regex SlugRegex = new(@"^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.Compiled);
+    private static readonly DayOfWeek[] DaysOfWeekOrder =
+    [
+        DayOfWeek.Monday,
+        DayOfWeek.Tuesday,
+        DayOfWeek.Wednesday,
+        DayOfWeek.Thursday,
+        DayOfWeek.Friday,
+        DayOfWeek.Saturday,
+        DayOfWeek.Sunday
+    ];
+
     private readonly BooklineDbContext _dbContext;
 
     public PublicStorefrontService(BooklineDbContext dbContext)
@@ -15,15 +29,31 @@ public class PublicStorefrontService : IPublicStorefrontService
         _dbContext = dbContext;
     }
 
+    private static bool IsValidSlug(string? slug, out string normalizedSlug)
+    {
+        normalizedSlug = string.Empty;
+        if (string.IsNullOrWhiteSpace(slug)) return false;
+        normalizedSlug = slug.Trim().ToLowerInvariant();
+        return SlugRegex.IsMatch(normalizedSlug);
+    }
+
+    private async Task<Tenant?> GetEligibleTenantBySlugAsync(string slug, CancellationToken cancellationToken)
+    {
+        if (!IsValidSlug(slug, out var normalizedSlug)) return null;
+
+        return await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Slug == normalizedSlug
+                && t.IsActive
+                && t.IsPublished
+                && t.VerificationStatus != VerificationStatus.Suspended
+                && t.ModerationStatus != ModerationStatus.Rejected
+                && t.ModerationStatus != ModerationStatus.Suspended,
+                cancellationToken);
+    }
+
     public async Task<PublicStorefrontResponse?> GetStorefrontBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug)) return null;
-
-        var normalizedSlug = slug.Trim().ToLowerInvariant();
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == normalizedSlug && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(slug, cancellationToken);
         if (tenant == null) return null;
 
         var locations = await _dbContext.Locations.IgnoreQueryFilters()
@@ -133,21 +163,27 @@ public class PublicStorefrontService : IPublicStorefrontService
             r.CustomerName,
             r.Rating,
             r.Comment,
-            r.CreatedAtUtc
+            r.CreatedAtUtc,
+            r.Title,
+            r.ProviderResponse
         )).ToList();
 
-        var hoursDtos = workingHours
+        var hoursByDay = workingHours
             .GroupBy(wh => wh.DayOfWeek)
-            .Select(g =>
-            {
-                var first = g.First();
-                return new PublicBusinessHoursDto(
+            .ToDictionary(
+                g => g.Key,
+                g => new PublicBusinessHoursDto(
                     g.Key.ToString(),
-                    first.StartTime.ToString("HH:mm"),
-                    first.EndTime.ToString("HH:mm"),
+                    g.Min(wh => wh.StartTime).ToString("HH:mm"),
+                    g.Max(wh => wh.EndTime).ToString("HH:mm"),
                     false
-                );
-            })
+                )
+            );
+
+        var hoursDtos = DaysOfWeekOrder
+            .Select(d => hoursByDay.TryGetValue(d, out var dto)
+                ? dto
+                : new PublicBusinessHoursDto(d.ToString(), "00:00", "00:00", true))
             .ToList();
 
         var providerDto = new PublicProviderProfileDto(
@@ -194,11 +230,7 @@ public class PublicStorefrontService : IPublicStorefrontService
 
     public async Task<IReadOnlyList<PublicServiceDto>?> GetServicesBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug)) return null;
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(slug, cancellationToken);
         if (tenant == null) return null;
 
         return await _dbContext.Services.IgnoreQueryFilters()
@@ -226,17 +258,16 @@ public class PublicStorefrontService : IPublicStorefrontService
 
     public async Task<PublicServiceDto?> GetServiceBySlugAsync(string businessSlug, string serviceSlug, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(businessSlug) || string.IsNullOrWhiteSpace(serviceSlug)) return null;
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == businessSlug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(businessSlug, cancellationToken);
         if (tenant == null) return null;
+
+        if (string.IsNullOrWhiteSpace(serviceSlug)) return null;
+        var normalizedServiceSlug = serviceSlug.Trim().ToLowerInvariant();
 
         var service = await _dbContext.Services.IgnoreQueryFilters()
             .Include(s => s.StaffServices)
             .Include(s => s.ServiceLocations)
-            .FirstOrDefaultAsync(s => s.TenantId == tenant.Id && s.Slug == serviceSlug.ToLowerInvariant() && s.IsActive && !s.IsArchived && s.IsPublished, cancellationToken);
+            .FirstOrDefaultAsync(s => s.TenantId == tenant.Id && s.Slug == normalizedServiceSlug && s.IsActive && !s.IsArchived && s.IsPublished, cancellationToken);
 
         if (service == null) return null;
 
@@ -260,11 +291,7 @@ public class PublicStorefrontService : IPublicStorefrontService
 
     public async Task<IReadOnlyList<PublicProductDto>?> GetProductsBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug)) return null;
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(slug, cancellationToken);
         if (tenant == null) return null;
 
         return await _dbContext.Products.IgnoreQueryFilters()
@@ -291,11 +318,7 @@ public class PublicStorefrontService : IPublicStorefrontService
 
     public async Task<IReadOnlyList<PublicLocationDto>?> GetLocationsBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug)) return null;
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(slug, cancellationToken);
         if (tenant == null) return null;
 
         return await _dbContext.Locations.IgnoreQueryFilters()
@@ -317,11 +340,7 @@ public class PublicStorefrontService : IPublicStorefrontService
 
     public async Task<(IReadOnlyList<PublicReviewDto> Items, int TotalCount)?> GetReviewsBySlugAsync(string slug, int page = 1, int pageSize = 10, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug)) return null;
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(slug, cancellationToken);
         if (tenant == null) return null;
 
         var query = _dbContext.Reviews.IgnoreQueryFilters()
@@ -340,7 +359,9 @@ public class PublicStorefrontService : IPublicStorefrontService
                 r.CustomerName,
                 r.Rating,
                 r.Comment,
-                r.CreatedAtUtc
+                r.CreatedAtUtc,
+                r.Title,
+                r.ProviderResponse
             ))
             .ToListAsync(cancellationToken);
 
@@ -349,29 +370,29 @@ public class PublicStorefrontService : IPublicStorefrontService
 
     public async Task<IReadOnlyList<PublicBusinessHoursDto>?> GetHoursBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug)) return null;
-
-        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant() && t.IsActive && t.IsPublished && t.VerificationStatus != VerificationStatus.Suspended, cancellationToken);
-
+        var tenant = await GetEligibleTenantBySlugAsync(slug, cancellationToken);
         if (tenant == null) return null;
 
         var workingHours = await _dbContext.WorkingHours.IgnoreQueryFilters()
             .Where(wh => wh.TenantId == tenant.Id)
             .ToListAsync(cancellationToken);
 
-        return workingHours
+        var hoursByDay = workingHours
             .GroupBy(wh => wh.DayOfWeek)
-            .Select(g =>
-            {
-                var first = g.First();
-                return new PublicBusinessHoursDto(
+            .ToDictionary(
+                g => g.Key,
+                g => new PublicBusinessHoursDto(
                     g.Key.ToString(),
-                    first.StartTime.ToString("HH:mm"),
-                    first.EndTime.ToString("HH:mm"),
+                    g.Min(wh => wh.StartTime).ToString("HH:mm"),
+                    g.Max(wh => wh.EndTime).ToString("HH:mm"),
                     false
-                );
-            })
+                )
+            );
+
+        return DaysOfWeekOrder
+            .Select(d => hoursByDay.TryGetValue(d, out var dto)
+                ? dto
+                : new PublicBusinessHoursDto(d.ToString(), "00:00", "00:00", true))
             .ToList();
     }
 }

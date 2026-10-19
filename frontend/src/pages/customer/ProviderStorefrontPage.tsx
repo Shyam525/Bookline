@@ -44,6 +44,30 @@ import {
   ScheduleErrorDefense,
 } from '../../utils/timeFormatters';
 
+const formatHourTime = (timeStr?: string) => {
+  if (!timeStr) return '';
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours)) return timeStr;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  const displayMinutes = minutes !== undefined ? minutes.toString().padStart(2, '0') : '00';
+  return `${displayHours}:${displayMinutes} ${ampm}`;
+};
+
+const getTodayOperatingHours = (hoursList?: Array<{ dayOfWeek: string; openTime: string; closeTime: string; isClosed: boolean }>) => {
+  if (!hoursList || hoursList.length === 0) return null;
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayName = days[new Date().getDay()];
+  const todayHours = hoursList.find((h) => h.dayOfWeek.toLowerCase() === todayName.toLowerCase());
+  if (!todayHours || todayHours.isClosed) {
+    return { isOpenToday: false, text: 'Closed Today' };
+  }
+  return {
+    isOpenToday: true,
+    text: `Open Today • ${formatHourTime(todayHours.openTime)} - ${formatHourTime(todayHours.closeTime)}`
+  };
+};
+
 export const ProviderStorefrontPage: React.FC = () => {
   const { slug, businessSlug } = useParams<{ slug?: string; businessSlug?: string }>();
   const effectiveSlug = businessSlug || slug;
@@ -56,6 +80,8 @@ export const ProviderStorefrontPage: React.FC = () => {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const todayStatus = getTodayOperatingHours(storefront?.hours);
   const [activeTab, setActiveTab] = useState<
     'overview' | 'services' | 'products' | 'gallery' | 'team' | 'reviews' | 'about' | 'locations' | 'hours' | 'booking'
   >(() => {
@@ -149,18 +175,24 @@ export const ProviderStorefrontPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [effectiveSlug]);
 
-  // Phase 15 SEO: Set document title and meta description
+  // Phase 15 SEO: Set document title, meta description, and canonical link
   useEffect(() => {
     if (storefront?.provider) {
       document.title = `${storefront.provider.name} | Bookline`;
       const metaDescription = document.querySelector('meta[name="description"]');
+      const safeDesc = storefront.provider.description
+        ? storefront.provider.description.substring(0, 155)
+        : `Book appointments online with ${storefront.provider.name} in ${storefront.provider.city} on Bookline.`;
       if (metaDescription) {
-        metaDescription.setAttribute(
-          'content',
-          storefront.provider.description ||
-            `Book appointments online with ${storefront.provider.name} in ${storefront.provider.city} on Bookline.`
-        );
+        metaDescription.setAttribute('content', safeDesc);
       }
+      let canonicalLink = document.querySelector('link[rel="canonical"]');
+      if (!canonicalLink) {
+        canonicalLink = document.createElement('link');
+        canonicalLink.setAttribute('rel', 'canonical');
+        document.head.appendChild(canonicalLink);
+      }
+      canonicalLink.setAttribute('href', `${window.location.origin}/business/${storefront.provider.slug}`);
     }
   }, [storefront]);
 
@@ -642,10 +674,17 @@ END:VCALENDAR`;
                       <span>{passedDistanceKm < 1 ? `${Math.round(passedDistanceKm * 1000)} m away` : `${passedDistanceKm.toFixed(1)} km away`}</span>
                     </span>
                   )}
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-[#34D399]" />
-                    <span>Open Today &bull; 09:00 AM - 08:00 PM</span>
-                  </span>
+                  {todayStatus ? (
+                    <span className="flex items-center gap-1">
+                      <Clock className={`w-3.5 h-3.5 ${todayStatus.isOpenToday ? 'text-[#34D399]' : 'text-amber-400'}`} />
+                      <span>{todayStatus.text}</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-[#7E88A8]" />
+                      <span>Hours on Request</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -911,23 +950,27 @@ END:VCALENDAR`;
               <div className="p-6 rounded-2xl bg-[#111520] border border-[#212638] space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-heading font-bold text-base text-white">Operating Hours</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-[#34D399]/15 text-[#34D399] text-[10px] font-bold">
-                    Open Now
-                  </span>
+                  {todayStatus && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      todayStatus.isOpenToday ? 'bg-[#34D399]/15 text-[#34D399]' : 'bg-amber-500/15 text-amber-400'
+                    }`}>
+                      {todayStatus.isOpenToday ? 'Open Today' : 'Closed Today'}
+                    </span>
+                  )}
                 </div>
                 <div className="space-y-1.5 text-xs text-[#7E88A8]">
-                  <div className="flex justify-between">
-                    <span>Monday - Friday</span>
-                    <span className="font-mono text-white">09:00 AM - 08:00 PM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Saturday</span>
-                    <span className="font-mono text-white">10:00 AM - 07:00 PM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Sunday</span>
-                    <span className="font-mono text-[#34D399]">11:00 AM - 05:00 PM</span>
-                  </div>
+                  {storefront.hours && storefront.hours.length > 0 ? (
+                    storefront.hours.map((h) => (
+                      <div key={h.dayOfWeek} className="flex justify-between">
+                        <span>{h.dayOfWeek}</span>
+                        <span className={`font-mono ${h.isClosed ? 'text-[#7E88A8]' : 'text-white'}`}>
+                          {h.isClosed ? 'Closed' : `${formatHourTime(h.openTime)} - ${formatHourTime(h.closeTime)}`}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-[#7E88A8]">Operating hours have not been configured for this venue.</p>
+                  )}
                 </div>
                 <button
                   onClick={() => setActiveTab('hours')}
@@ -1371,6 +1414,11 @@ END:VCALENDAR`;
                     <span className="px-2.5 py-0.5 rounded-full bg-[#E8546A]/15 text-[#E8546A] text-[10px] font-bold uppercase tracking-wider">
                       Flagship Studio
                     </span>
+                    {(!selectedLocation || selectedLocation.id === (locations[0]?.id || 'primary')) && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#34D399]/15 border border-[#34D399]/30 text-[#34D399] text-[10px] font-bold flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Selected Branch
+                      </span>
+                    )}
                     {passedDistanceKm != null && (
                       <span className="text-[11px] text-[#34D399] font-semibold flex items-center gap-1">
                         <Navigation className="w-3.5 h-3.5" />
@@ -1404,7 +1452,7 @@ END:VCALENDAR`;
                     <span>Get directions</span>
                   </a>
                   <button
-                    onClick={() => handleStartBooking()}
+                    onClick={() => handleStartBooking(undefined, undefined, locations[0] || null)}
                     className="px-4 py-2 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-md shadow-[#E8546A]/20"
                   >
                     Book at this location
@@ -1421,6 +1469,11 @@ END:VCALENDAR`;
                         <span className="px-2.5 py-0.5 rounded-full bg-[#181D2C] text-[#C3CAD6] text-[10px] font-bold uppercase tracking-wider">
                           Branch
                         </span>
+                        {selectedLocation?.id === loc.id && (
+                          <span className="px-2 py-0.5 rounded-full bg-[#34D399]/15 border border-[#34D399]/30 text-[#34D399] text-[10px] font-bold flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" /> Selected Branch
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-heading font-bold text-lg text-white">{loc.name}</h3>
                       <div className="text-xs text-[#7E88A8] space-y-1">
@@ -1429,18 +1482,20 @@ END:VCALENDAR`;
                         {loc.phone && <p className="font-mono text-[#34D399] pt-1">{loc.phone}</p>}
                       </div>
                     </div>
-                    <div className="pt-4 border-t border-[#212638] flex items-center justify-between">
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${loc.name} ${loc.address} ${loc.city}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 rounded-xl bg-[#181D2C] hover:bg-[#212638] border border-[#212638] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                      >
-                        <Navigation className="w-3.5 h-3.5 text-[#34D399]" />
-                        <span>Get directions</span>
-                      </a>
+                    <div className="pt-4 border-t border-[#212638] flex items-center justify-between gap-2">
                       <button
-                        onClick={() => handleStartBooking()}
+                        type="button"
+                        onClick={() => setSelectedLocation(loc)}
+                        className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                          selectedLocation?.id === loc.id
+                            ? 'bg-[#34D399]/15 text-[#34D399] border border-[#34D399]/30'
+                            : 'bg-[#181D2C] text-white hover:bg-[#212638] border border-[#212638]'
+                        }`}
+                      >
+                        {selectedLocation?.id === loc.id ? 'Active Branch' : 'Select Branch'}
+                      </button>
+                      <button
+                        onClick={() => handleStartBooking(undefined, undefined, loc)}
                         className="px-4 py-2 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-md shadow-[#E8546A]/20"
                       >
                         Book here
@@ -1470,32 +1525,33 @@ END:VCALENDAR`;
             </div>
 
             <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 sm:p-8 space-y-6">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-[#181D2C] border border-[#212638]">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-[#34D399] animate-pulse" />
-                  <span className="text-xs font-bold text-white">Currently Open</span>
+              {todayStatus && (
+                <div className="flex items-center justify-between p-4 rounded-xl bg-[#181D2C] border border-[#212638]">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${todayStatus.isOpenToday ? 'bg-[#34D399] animate-pulse' : 'bg-amber-400'}`} />
+                    <span className="text-xs font-bold text-white">{todayStatus.isOpenToday ? 'Currently Open' : 'Currently Closed'}</span>
+                  </div>
+                  <span className={`text-xs font-mono font-semibold ${todayStatus.isOpenToday ? 'text-[#34D399]' : 'text-amber-400'}`}>
+                    {todayStatus.text}
+                  </span>
                 </div>
-                <span className="text-xs font-mono text-[#34D399]">Today: 09:00 AM - 08:00 PM</span>
-              </div>
+              )}
 
               <div className="divide-y divide-[#212638] text-xs">
-                {[
-                  { day: 'Monday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
-                  { day: 'Tuesday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
-                  { day: 'Wednesday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
-                  { day: 'Thursday', hours: '09:00 AM - 08:00 PM', status: 'Regular' },
-                  { day: 'Friday', hours: '09:00 AM - 08:30 PM', status: 'Extended' },
-                  { day: 'Saturday', hours: '10:00 AM - 07:00 PM', status: 'Weekend' },
-                  { day: 'Sunday', hours: '11:00 AM - 05:00 PM', status: 'Short Hours' },
-                ].map((sched) => (
-                  <div key={sched.day} className="py-3 flex items-center justify-between">
-                    <span className="font-medium text-white">{sched.day}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-[#7E88A8] hidden sm:inline">({sched.status})</span>
-                      <span className="font-mono text-[#ECEFFE] font-semibold">{sched.hours}</span>
+                {storefront.hours && storefront.hours.length > 0 ? (
+                  storefront.hours.map((sched) => (
+                    <div key={sched.dayOfWeek} className="py-3 flex items-center justify-between">
+                      <span className="font-medium text-white">{sched.dayOfWeek}</span>
+                      <div className="flex items-center gap-3">
+                        <span className={`font-mono ${sched.isClosed ? 'text-[#7E88A8]' : 'text-[#ECEFFE] font-semibold'}`}>
+                          {sched.isClosed ? 'Closed' : `${formatHourTime(sched.openTime)} - ${formatHourTime(sched.closeTime)}`}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="py-4 text-[#7E88A8] text-center">Standard operating hours have not been published for this business.</p>
+                )}
               </div>
 
               <div className="p-4 rounded-xl bg-[#181D2C] space-y-2 text-xs text-[#7E88A8]">

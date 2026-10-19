@@ -98,7 +98,9 @@ public record PublicReviewDto(
     string CustomerName,
     int Rating,
     string? Comment,
-    DateTimeOffset CreatedAtUtc
+    DateTimeOffset CreatedAtUtc,
+    string? Title = null,
+    string? ProviderResponse = null
 );
 
 public record PublicBusinessHoursDto(

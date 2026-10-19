@@ -158,6 +158,144 @@ public class PublicStorefrontApiTests
         Assert.Equal("Facial Glow", services[0].Name);
     }
 
+    [Theory]
+    [InlineData("invalid slug with spaces")]
+    [InlineData("slug_with_underscores")]
+    [InlineData("slug--with--double-hyphens")]
+    [InlineData("-leading-hyphen")]
+    [InlineData("trailing-hyphen-")]
+    [InlineData("../path-traversal")]
+    public async Task GetStorefrontBySlugAsync_WhenSlugFormatIsInvalid_ReturnsNull(string invalidSlug)
+    {
+        using var db = CreateInMemoryDbContext();
+        var serviceInstance = new PublicStorefrontService(db);
+        var result = await serviceInstance.GetStorefrontBySlugAsync(invalidSlug);
+        Assert.Null(result);
+    }
+
+    [Theory]
+    [InlineData(ModerationStatus.Rejected)]
+    [InlineData(ModerationStatus.Suspended)]
+    public async Task GetStorefrontBySlugAsync_WhenModerationStatusRejectedOrSuspended_ReturnsNull(ModerationStatus status)
+    {
+        using var db = CreateInMemoryDbContext();
+        var tenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            Name = "Restricted Venue",
+            Slug = "restricted-venue",
+            IsActive = true,
+            IsPublished = true,
+            VerificationStatus = VerificationStatus.Verified,
+            ModerationStatus = status
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+
+        var serviceInstance = new PublicStorefrontService(db);
+        var result = await serviceInstance.GetStorefrontBySlugAsync("restricted-venue");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetStorefrontBySlugAsync_IncludesApprovedReviewTitleAndProviderResponse()
+    {
+        using var db = CreateInMemoryDbContext();
+        var tenantId = Guid.NewGuid();
+        var tenant = new Tenant
+        {
+            Id = tenantId,
+            Name = "Glow Studio",
+            Slug = "glow-studio",
+            IsActive = true,
+            IsPublished = true,
+            VerificationStatus = VerificationStatus.Verified,
+            ModerationStatus = ModerationStatus.Approved
+        };
+        db.Tenants.Add(tenant);
+
+        var review = new Review
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            CustomerName = "Alice Morgan",
+            Rating = 5,
+            Title = "Incredible Experience",
+            Comment = "Best service in town! Super professional.",
+            ProviderResponse = "Thank you Alice, we loved having you!",
+            ModerationStatus = ModerationStatus.Approved,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.Reviews.Add(review);
+        await db.SaveChangesAsync();
+
+        var serviceInstance = new PublicStorefrontService(db);
+        var result = await serviceInstance.GetStorefrontBySlugAsync("glow-studio");
+
+        Assert.NotNull(result);
+        Assert.Single(result.Reviews);
+        Assert.Equal("Incredible Experience", result.Reviews[0].Title);
+        Assert.Equal("Thank you Alice, we loved having you!", result.Reviews[0].ProviderResponse);
+    }
+
+    [Fact]
+    public async Task GetHoursBySlugAsync_CalculatesVenueMinMaxAndMarksClosedDays()
+    {
+        using var db = CreateInMemoryDbContext();
+        var tenantId = Guid.NewGuid();
+        var tenant = new Tenant
+        {
+            Id = tenantId,
+            Name = "Time Master",
+            Slug = "time-master",
+            IsActive = true,
+            IsPublished = true,
+            VerificationStatus = VerificationStatus.Verified,
+            ModerationStatus = ModerationStatus.Approved
+        };
+        db.Tenants.Add(tenant);
+
+        var staff1Id = Guid.NewGuid();
+        var staff2Id = Guid.NewGuid();
+
+        // Staff 1 works Monday 09:00 - 15:00
+        var wh1 = new WorkingHours
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            StaffId = staff1Id,
+            DayOfWeek = DayOfWeek.Monday,
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(15, 0)
+        };
+        // Staff 2 works Monday 12:00 - 19:30
+        var wh2 = new WorkingHours
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            StaffId = staff2Id,
+            DayOfWeek = DayOfWeek.Monday,
+            StartTime = new TimeOnly(12, 0),
+            EndTime = new TimeOnly(19, 30)
+        };
+        db.WorkingHours.AddRange(wh1, wh2);
+        await db.SaveChangesAsync();
+
+        var serviceInstance = new PublicStorefrontService(db);
+        var hours = await serviceInstance.GetHoursBySlugAsync("time-master");
+
+        Assert.NotNull(hours);
+        Assert.Equal(7, hours.Count);
+
+        var monday = hours.First(h => h.DayOfWeek == DayOfWeek.Monday.ToString());
+        Assert.False(monday.IsClosed);
+        Assert.Equal("09:00", monday.OpenTime);
+        Assert.Equal("19:30", monday.CloseTime);
+
+        var tuesday = hours.First(h => h.DayOfWeek == DayOfWeek.Tuesday.ToString());
+        Assert.True(tuesday.IsClosed);
+    }
+
     [Fact]
     public void PublicStorefrontDtos_NeverLeakSensitiveInternalFields()
     {

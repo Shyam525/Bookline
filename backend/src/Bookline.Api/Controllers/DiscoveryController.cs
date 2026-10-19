@@ -419,7 +419,9 @@ public class DiscoveryController : ControllerBase
             r.CustomerName,
             r.Rating,
             r.Comment,
-            r.CreatedAtUtc
+            r.CreatedAtUtc,
+            r.Title,
+            r.ProviderResponse
         )).ToList();
 
         var providerDto = new PublicProviderProfileDto(

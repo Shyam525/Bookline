@@ -126,6 +126,12 @@ export interface ProviderStorefrontData {
     providerResponse?: string;
     createdAtUtc: string;
   }>;
+  hours?: Array<{
+    dayOfWeek: string;
+    openTime: string;
+    closeTime: string;
+    isClosed: boolean;
+  }>;
 }
 
 export interface CategoryCard {

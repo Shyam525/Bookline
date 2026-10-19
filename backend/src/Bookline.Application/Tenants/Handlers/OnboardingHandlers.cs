@@ -417,7 +417,7 @@ public class OnboardingHandlers :
                 2,
                 hasBusinessInfo,
                 true,
-                "/onboarding?step=2"
+                "/provider/onboarding?step=2"
             ),
             new OnboardingReadinessRequirement(
                 "business_profile",
@@ -426,7 +426,7 @@ public class OnboardingHandlers :
                 4,
                 hasProfile,
                 true,
-                "/onboarding?step=4"
+                "/provider/onboarding?step=4"
             ),
             new OnboardingReadinessRequirement(
                 "primary_location",
@@ -435,7 +435,7 @@ public class OnboardingHandlers :
                 5,
                 hasLocation,
                 true,
-                "/onboarding?step=5"
+                "/provider/onboarding?step=5"
             ),
             new OnboardingReadinessRequirement(
                 "timezone_currency",
@@ -444,7 +444,7 @@ public class OnboardingHandlers :
                 6,
                 hasTimezoneAndCurrency,
                 true,
-                "/onboarding?step=6"
+                "/provider/onboarding?step=6"
             ),
             new OnboardingReadinessRequirement(
                 "active_service",
@@ -453,7 +453,7 @@ public class OnboardingHandlers :
                 7,
                 hasServices,
                 true,
-                "/onboarding?step=7"
+                "/provider/onboarding?step=7"
             ),
             new OnboardingReadinessRequirement(
                 "retail_products",
@@ -462,7 +462,7 @@ public class OnboardingHandlers :
                 8,
                 hasProducts,
                 false, // Optional
-                "/onboarding?step=8"
+                "/provider/onboarding?step=8"
             ),
             new OnboardingReadinessRequirement(
                 "active_staff",
@@ -471,7 +471,7 @@ public class OnboardingHandlers :
                 9,
                 hasStaff,
                 true,
-                "/onboarding?step=9"
+                "/provider/onboarding?step=9"
             ),
             new OnboardingReadinessRequirement(
                 "working_hours",
@@ -480,7 +480,7 @@ public class OnboardingHandlers :
                 10,
                 hasWorkingHours,
                 true,
-                "/onboarding?step=10"
+                "/provider/onboarding?step=10"
             ),
             new OnboardingReadinessRequirement(
                 "booking_rules",
@@ -489,7 +489,7 @@ public class OnboardingHandlers :
                 11,
                 hasBookingRules,
                 true,
-                "/onboarding?step=11"
+                "/provider/onboarding?step=11"
             )
         };
 
@@ -568,7 +568,7 @@ public class OnboardingHandlers :
         return new PublishStorefrontResultDto(
             Success: true,
             IsPublished: true,
-            StorefrontUrl: $"/store/{tenant.Slug}",
+            StorefrontUrl: $"/business/{tenant.Slug}",
             Message: "Provider storefront published successfully! Your business is now discoverable on Bookline marketplace."
         );
     }

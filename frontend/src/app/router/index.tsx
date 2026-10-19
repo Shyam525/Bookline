@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CustomerLayout } from '../../layouts/CustomerLayout';
 import { ProviderLayout } from '../../layouts/ProviderLayout';
 import { AdminLayout } from '../../layouts/AdminLayout';
@@ -58,10 +58,17 @@ import { AdminReportsPage } from '../../pages/admin/AdminReportsPage';
 import { AdminAuditPage } from '../../pages/admin/AdminAuditPage';
 import { AdminHealthPage } from '../../pages/admin/AdminHealthPage';
 
+const OnboardingRedirect: React.FC = () => {
+  const location = useLocation();
+  return <Navigate to={`/provider/onboarding${location.search}`} replace />;
+};
+
 export const AppRouter: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Persistent Onboarding Redirect (Preserves query search parameters) */}
+        <Route path="/onboarding" element={<OnboardingRedirect />} />
         {/* ========================================================= */}
         {/* 1. CUSTOMER MARKETPLACE (CustomerLayout - Section 22)     */}
         {/* ========================================================= */}

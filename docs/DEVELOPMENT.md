@@ -23,8 +23,20 @@
    dotnet test -c Release
    ```
 
-## Demo Tenant Credentials
+## Standard Development Demo Accounts (Section 116)
 
-- **Public Slug**: `acme-salon`
-- **Demo Owner Email**: `demo@bookline.local`
-- **Demo Owner Password**: `BooklineDemo123!`
+The local demo environment is pre-seeded with synthetic personas for each product area (see [DEMO_ENVIRONMENT.md](file:///c:/z-projects/Bookline/docs/DEMO_ENVIRONMENT.md) for complete details):
+
+- **Platform Admin**:
+  - Email: `admin@bookline.local`
+  - Password: `Admin123!`
+  - Area: `/admin/*`
+- **Provider Owner**:
+  - Email: `provider@bookline.local`
+  - Password: `Provider123!`
+  - Area: `/provider/*` (Tenant: `aura-wellness`)
+- **Customer**:
+  - Email: `customer@bookline.local`
+  - Password: `Customer123!`
+  - Area: `/account/*`
+

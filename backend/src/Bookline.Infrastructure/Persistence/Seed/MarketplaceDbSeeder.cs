@@ -8,14 +8,25 @@ namespace Bookline.Infrastructure.Persistence.Seed;
 
 public static class MarketplaceDbSeeder
 {
-    public static async Task SeedAsync(BooklineDbContext db, IPasswordHasher passwordHasher, ILogger logger)
+    public static async Task SeedAsync(BooklineDbContext db, IPasswordHasher passwordHasher, ILogger logger, string environmentName = "Development")
     {
+        // Section 116 & 117: Strictly refuse and guard against demo account seeding in Production
+        if (string.Equals(environmentName, "Production", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("Demo seeding was requested but is strictly prohibited in the Production environment.");
+            throw new InvalidOperationException("Demo seeding is prohibited in the Production environment.");
+        }
+
         try
         {
-            // 1. Seed Demo Accounts
+            // 1. Seed Demo Accounts (Section 116: customer@bookline.local, provider@bookline.local, admin@bookline.local)
             var adminEmail = "admin@bookline.local";
             var providerEmail = "provider@bookline.local";
             var customerEmail = "customer@bookline.local";
+
+            var demoAdminPassword = Environment.GetEnvironmentVariable("BOOKLINE_DEMO_ADMIN_PASSWORD") ?? "Admin123!";
+            var demoProviderPassword = Environment.GetEnvironmentVariable("BOOKLINE_DEMO_PROVIDER_PASSWORD") ?? "Provider123!";
+            var demoCustomerPassword = Environment.GetEnvironmentVariable("BOOKLINE_DEMO_CUSTOMER_PASSWORD") ?? "Customer123!";
 
             var adminUser = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email.ToLower() == adminEmail);
             if (adminUser == null)
@@ -25,7 +36,7 @@ public static class MarketplaceDbSeeder
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000001"),
                     TenantId = Guid.Empty,
                     Email = adminEmail,
-                    PasswordHash = passwordHasher.HashPassword("Admin123!"),
+                    PasswordHash = passwordHasher.HashPassword(demoAdminPassword),
                     FirstName = "Platform",
                     LastName = "Administrator",
                     Role = "PlatformAdmin",
@@ -42,7 +53,7 @@ public static class MarketplaceDbSeeder
                     Id = Guid.Parse("20000000-0000-0000-0000-000000000001"),
                     TenantId = Guid.Empty,
                     Email = customerEmail,
-                    PasswordHash = passwordHasher.HashPassword("Customer123!"),
+                    PasswordHash = passwordHasher.HashPassword(demoCustomerPassword),
                     FirstName = "Jane",
                     LastName = "Customer",
                     Phone = "+91 98765 43210",
@@ -351,9 +362,46 @@ public static class MarketplaceDbSeeder
                 db.Tenants.Add(urbanFixTenant);
             }
 
+            // Section 115: 9th Vendor in Mumbai across deliberate geographic coordinates
+            var mumbaiId = Guid.Parse("30000000-0000-0000-0000-000000000009");
+            var mumbaiTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == mumbaiId);
+            if (mumbaiTenant == null)
+            {
+                mumbaiTenant = new Tenant
+                {
+                    Id = mumbaiId,
+                    Name = "Verdant Sanctuary & Longevity Suite",
+                    Slug = "verdant-sanctuary",
+                    Category = "Wellness",
+                    BusinessType = "Longevity & Wellness Suite",
+                    Description = "Advanced hyperbaric oxygen therapy, cryotherapy chambers, and integrative functional medicine.",
+                    Address = "28 Waterfield Road, Bandra West",
+                    City = "Mumbai",
+                    State = "Maharashtra",
+                    Country = "India",
+                    PostalCode = "400050",
+                    Latitude = 19.0596,
+                    Longitude = 72.8295,
+                    Phone = "+91 22 4901 8899",
+                    Website = "https://verdant-sanctuary.bookline.local",
+                    AverageRating = 4.96,
+                    ReviewCount = 48,
+                    VerificationStatus = VerificationStatus.Verified,
+                    Currency = "INR",
+                    DepositType = DepositType.Fixed,
+                    DepositAmount = 500.00m,
+                    CommissionRatePercentage = 10.00m,
+                    AvailablePayoutBalance = 3200.00m,
+                    IsPublished = true,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
+                };
+                db.Tenants.Add(mumbaiTenant);
+            }
+
             await db.SaveChangesAsync();
 
-            // 3. Provider User with Multi-Business Ownership (Point 30)
+            // 3. Provider User with Multi-Business Ownership (Section 116: provider@bookline.local)
             var providerUser = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email.ToLower() == providerEmail);
             if (providerUser == null)
             {
@@ -362,7 +410,7 @@ public static class MarketplaceDbSeeder
                     Id = Guid.Parse("30000000-0000-0000-0000-000000000099"),
                     TenantId = auraId, // Primary active business
                     Email = providerEmail,
-                    PasswordHash = passwordHasher.HashPassword("Provider123!"),
+                    PasswordHash = passwordHasher.HashPassword(demoProviderPassword),
                     FirstName = "Aarav",
                     LastName = "Singhania",
                     Phone = "+91 98250 11223",
@@ -371,30 +419,39 @@ public static class MarketplaceDbSeeder
                 };
                 db.Users.Add(providerUser);
                 await db.SaveChangesAsync();
+            }
 
-                // Memberships in both Aura and Glow
+            // Memberships in both Aura and Glow (Deterministic GUIDs & Idempotency: Section 117)
+            var memAuraId = Guid.Parse("31000000-0000-0000-0000-000000000001");
+            var memGlowId = Guid.Parse("31000000-0000-0000-0000-000000000002");
+            if (!await db.OrganizationMemberships.IgnoreQueryFilters().AnyAsync(m => m.Id == memAuraId))
+            {
                 db.OrganizationMemberships.Add(new OrganizationMembership
                 {
-                    Id = Guid.NewGuid(),
+                    Id = memAuraId,
                     TenantId = auraId,
                     UserId = providerUser.Id,
                     Role = "Owner",
                     JoinedAtUtc = DateTime.UtcNow
                 });
+            }
+            if (!await db.OrganizationMemberships.IgnoreQueryFilters().AnyAsync(m => m.Id == memGlowId))
+            {
                 db.OrganizationMemberships.Add(new OrganizationMembership
                 {
-                    Id = Guid.NewGuid(),
+                    Id = memGlowId,
                     TenantId = glowId,
                     UserId = providerUser.Id,
                     Role = "Owner",
                     JoinedAtUtc = DateTime.UtcNow
                 });
-                await db.SaveChangesAsync();
             }
+            await db.SaveChangesAsync();
 
-            // 4. Seed Locations for Aura Wellness (Multi-Location: Point 31)
+            // 4. Seed Locations for Multi-Location Businesses across Ahmedabad, Mumbai, Rajkot, Surat, Bangalore (Section 115)
             var auraLoc1Id = Guid.Parse("40000000-0000-0000-0000-000000000001");
             var auraLoc2Id = Guid.Parse("40000000-0000-0000-0000-000000000002");
+            var auraLoc3Id = Guid.Parse("40000000-0000-0000-0000-000000000003");
             if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == auraLoc1Id))
             {
                 db.Locations.Add(new Location
@@ -415,6 +472,10 @@ public static class MarketplaceDbSeeder
                     IsActive = true,
                     CreatedAtUtc = DateTime.UtcNow
                 });
+            }
+
+            if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == auraLoc2Id))
+            {
                 db.Locations.Add(new Location
                 {
                     Id = auraLoc2Id,
@@ -433,8 +494,123 @@ public static class MarketplaceDbSeeder
                     IsActive = true,
                     CreatedAtUtc = DateTime.UtcNow
                 });
-                await db.SaveChangesAsync();
             }
+
+            if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == auraLoc3Id))
+            {
+                db.Locations.Add(new Location
+                {
+                    Id = auraLoc3Id,
+                    TenantId = auraId,
+                    Name = "Aura BKC Executive Sanctuary",
+                    Address = "G Block, Bandra Kurla Complex",
+                    City = "Mumbai",
+                    State = "Maharashtra",
+                    Country = "India",
+                    PostalCode = "400051",
+                    Latitude = 19.0660,
+                    Longitude = 72.8680,
+                    Phone = "+91 22 6601 8800",
+                    Timezone = "Asia/Kolkata",
+                    Currency = "USD",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            var mumbaiLoc1Id = Guid.Parse("40000000-0000-0000-0000-000000000031");
+            if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == mumbaiLoc1Id))
+            {
+                db.Locations.Add(new Location
+                {
+                    Id = mumbaiLoc1Id,
+                    TenantId = mumbaiId,
+                    Name = "Verdant Bandra West Sanctuary",
+                    Address = "28 Waterfield Road, Bandra West",
+                    City = "Mumbai",
+                    State = "Maharashtra",
+                    Country = "India",
+                    PostalCode = "400050",
+                    Latitude = 19.0596,
+                    Longitude = 72.8295,
+                    Phone = "+91 22 4901 8899",
+                    Timezone = "Asia/Kolkata",
+                    Currency = "INR",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            var vanguardLocId = Guid.Parse("40000000-0000-0000-0000-000000000041");
+            if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == vanguardLocId))
+            {
+                db.Locations.Add(new Location
+                {
+                    Id = vanguardLocId,
+                    TenantId = vanguardId,
+                    Name = "Vanguard Imperial Chambers",
+                    Address = "502 Imperial Heights, Yagnik Road",
+                    City = "Rajkot",
+                    State = "Gujarat",
+                    Country = "India",
+                    PostalCode = "360001",
+                    Latitude = 22.2980,
+                    Longitude = 70.7960,
+                    Phone = "+91 281 245 7711",
+                    Timezone = "Asia/Kolkata",
+                    Currency = "USD",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            var zenithLocBangaloreId = Guid.Parse("40000000-0000-0000-0000-000000000051");
+            if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == zenithLocBangaloreId))
+            {
+                db.Locations.Add(new Location
+                {
+                    Id = zenithLocBangaloreId,
+                    TenantId = zenithId,
+                    Name = "Zenith Indiranagar Flagship",
+                    Address = "88 100 Feet Road, Indiranagar",
+                    City = "Bangalore",
+                    State = "Karnataka",
+                    Country = "India",
+                    PostalCode = "560038",
+                    Latitude = 12.9784,
+                    Longitude = 77.6408,
+                    Phone = "+91 80 4123 9900",
+                    Timezone = "Asia/Kolkata",
+                    Currency = "USD",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            var zenithLocMumbaiId = Guid.Parse("40000000-0000-0000-0000-000000000052");
+            if (!await db.Locations.IgnoreQueryFilters().AnyAsync(l => l.Id == zenithLocMumbaiId))
+            {
+                db.Locations.Add(new Location
+                {
+                    Id = zenithLocMumbaiId,
+                    TenantId = zenithId,
+                    Name = "Zenith Bandra Reformer Sanctuary",
+                    Address = "14 Linking Road, Bandra West",
+                    City = "Mumbai",
+                    State = "Maharashtra",
+                    Country = "India",
+                    PostalCode = "400050",
+                    Latitude = 19.0596,
+                    Longitude = 72.8295,
+                    Phone = "+91 22 2640 1199",
+                    Timezone = "Asia/Kolkata",
+                    Currency = "USD",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            await db.SaveChangesAsync();
 
             // 5. Seed Services for Aura Wellness
             var auraCatId = Guid.Parse("50000000-0000-0000-0000-000000000001");
@@ -577,9 +753,12 @@ public static class MarketplaceDbSeeder
             // 7. Seed Product Categories & Products for Aura Wellness (Section 26)
             if (!await db.Products.IgnoreQueryFilters().AnyAsync(p => p.TenantId == auraId))
             {
+                var catSkincareId = Guid.Parse("60000000-0000-0000-0000-000000000001");
+                var catEquipmentId = Guid.Parse("60000000-0000-0000-0000-000000000002");
+
                 var catSkincare = new ProductCategory
                 {
-                    Id = Guid.NewGuid(),
+                    Id = catSkincareId,
                     TenantId = auraId,
                     Name = "Skincare & Aromatherapy",
                     Slug = "skincare-aromatherapy",
@@ -590,7 +769,7 @@ public static class MarketplaceDbSeeder
 
                 var catEquipment = new ProductCategory
                 {
-                    Id = Guid.NewGuid(),
+                    Id = catEquipmentId,
                     TenantId = auraId,
                     Name = "Wellness Equipment & Accessories",
                     Slug = "wellness-equipment-accessories",
@@ -602,9 +781,10 @@ public static class MarketplaceDbSeeder
                 db.ProductCategories.AddRange(catSkincare, catEquipment);
                 await db.SaveChangesAsync();
 
+                var prod1Id = Guid.Parse("70000000-0000-0000-0000-000000000001");
                 var prod1 = new Product
                 {
-                    Id = Guid.NewGuid(),
+                    Id = prod1Id,
                     TenantId = auraId,
                     CategoryId = catSkincare.Id,
                     Name = "Botanical Rosewater Facial Mist",
@@ -625,7 +805,7 @@ public static class MarketplaceDbSeeder
                 };
                 prod1.Images.Add(new ProductImage
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("71000000-0000-0000-0000-000000000001"),
                     TenantId = auraId,
                     ProductId = prod1.Id,
                     Url = "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80",
@@ -636,7 +816,7 @@ public static class MarketplaceDbSeeder
 
                 var prod2 = new Product
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("70000000-0000-0000-0000-000000000002"),
                     TenantId = auraId,
                     CategoryId = catSkincare.Id,
                     Name = "Organic French Lavender Essential Oil",
@@ -659,7 +839,7 @@ public static class MarketplaceDbSeeder
                 // State 2: Active but out of stock
                 var prodOutOfStock = new Product
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("70000000-0000-0000-0000-000000000003"),
                     TenantId = auraId,
                     CategoryId = catEquipment.Id,
                     Name = "Silk Acoustic Recovery Eye Pillow",
@@ -682,7 +862,7 @@ public static class MarketplaceDbSeeder
                 // State 3: Inactive / Archived
                 var prodInactive = new Product
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("70000000-0000-0000-0000-000000000004"),
                     TenantId = auraId,
                     CategoryId = catSkincare.Id,
                     Name = "Discontinued Eucalyptus Bath Salts",
@@ -703,7 +883,7 @@ public static class MarketplaceDbSeeder
                 // State 4: Not available for online purchase (In-Store Only)
                 var prodStoreOnly = new Product
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("70000000-0000-0000-0000-000000000005"),
                     TenantId = auraId,
                     CategoryId = catEquipment.Id,
                     Name = "Professional Basalt Hot Stone Therapy Set",
@@ -726,7 +906,7 @@ public static class MarketplaceDbSeeder
                 // State 5: Unpublished (Draft)
                 var prodDraft = new Product
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("70000000-0000-0000-0000-000000000006"),
                     TenantId = auraId,
                     CategoryId = catSkincare.Id,
                     Name = "Upcoming Peptide Radiance Firming Serum",
@@ -760,10 +940,11 @@ public static class MarketplaceDbSeeder
                 {
                     var s1Id = Guid.Parse("60000000-0000-0000-0000-000000000001");
 
-                    // 1 upcoming confirmed booking
+                    // 1 upcoming confirmed booking (Deterministic GUID: Section 117)
+                    var bUpcomingId = Guid.Parse("80000000-0000-0000-0000-000000000001");
                     var upcoming = new Booking
                     {
-                        Id = Guid.NewGuid(),
+                        Id = bUpcomingId,
                         TenantId = auraId,
                         StaffId = auraStaff1Id,
                         ServiceId = s1Id,
@@ -780,9 +961,10 @@ public static class MarketplaceDbSeeder
                     db.Bookings.Add(upcoming);
 
                     // 1 past completed booking
+                    var bPastId = Guid.Parse("80000000-0000-0000-0000-000000000002");
                     var past = new Booking
                     {
-                        Id = Guid.NewGuid(),
+                        Id = bPastId,
                         TenantId = auraId,
                         StaffId = auraStaff1Id,
                         ServiceId = s1Id,
@@ -799,9 +981,10 @@ public static class MarketplaceDbSeeder
                     db.Bookings.Add(past);
 
                     // 1 pending booking (Section 125: mixed states)
+                    var bPendingId = Guid.Parse("80000000-0000-0000-0000-000000000003");
                     var pendingBooking = new Booking
                     {
-                        Id = Guid.NewGuid(),
+                        Id = bPendingId,
                         TenantId = auraId,
                         StaffId = auraStaff1Id,
                         ServiceId = s1Id,
@@ -817,9 +1000,10 @@ public static class MarketplaceDbSeeder
                     db.Bookings.Add(pendingBooking);
 
                     // 1 cancelled booking (Section 125: mixed states)
+                    var bCancelledId = Guid.Parse("80000000-0000-0000-0000-000000000004");
                     var cancelledBooking = new Booking
                     {
-                        Id = Guid.NewGuid(),
+                        Id = bCancelledId,
                         TenantId = auraId,
                         StaffId = auraStaff1Id,
                         ServiceId = s1Id,
@@ -837,7 +1021,7 @@ public static class MarketplaceDbSeeder
                     // Favorite provider
                     db.Favorites.Add(new Favorite
                     {
-                        Id = Guid.NewGuid(),
+                        Id = Guid.Parse("81000000-0000-0000-0000-000000000001"),
                         CustomerId = customerUser.Id,
                         TenantId = auraId,
                         CreatedAtUtc = DateTime.UtcNow
@@ -846,7 +1030,7 @@ public static class MarketplaceDbSeeder
                     // Customer review (Clearly marked as demo seeded record: Section 125)
                     db.Reviews.Add(new Review
                     {
-                        Id = Guid.NewGuid(),
+                        Id = Guid.Parse("82000000-0000-0000-0000-000000000001"),
                         TenantId = auraId,
                         CustomerId = customerUser.Id,
                         BookingId = past.Id,
@@ -864,7 +1048,7 @@ public static class MarketplaceDbSeeder
                     // 1. Processing order
                     var orderProcessing = new Order
                     {
-                        Id = Guid.NewGuid(),
+                        Id = Guid.Parse("83000000-0000-0000-0000-000000000001"),
                         TenantId = auraId,
                         CustomerId = customerUser.Id,
                         OrderNumber = "ORD-839210",
@@ -885,7 +1069,7 @@ public static class MarketplaceDbSeeder
                     // 2. Delivered order
                     var orderDelivered = new Order
                     {
-                        Id = Guid.NewGuid(),
+                        Id = Guid.Parse("83000000-0000-0000-0000-000000000002"),
                         TenantId = auraId,
                         CustomerId = customerUser.Id,
                         OrderNumber = "ORD-771234",
@@ -906,7 +1090,7 @@ public static class MarketplaceDbSeeder
                     // 3. Cancelled order
                     var orderCancelled = new Order
                     {
-                        Id = Guid.NewGuid(),
+                        Id = Guid.Parse("83000000-0000-0000-0000-000000000003"),
                         TenantId = auraId,
                         CustomerId = customerUser.Id,
                         OrderNumber = "ORD-112233",
@@ -997,7 +1181,7 @@ public static class MarketplaceDbSeeder
         {
             db.OrganizationMemberships.Add(new OrganizationMembership
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.Parse("31000000-0000-0000-0000-000000000003"),
                 TenantId = glowId,
                 UserId = demoUser.Id,
                 Role = "Owner",
@@ -1144,11 +1328,11 @@ public static class MarketplaceDbSeeder
             }
             await db.SaveChangesAsync();
 
-            // 5. Time Off (Phase 42)
+            // 5. Time Off (Deterministic GUIDs: Section 117)
             db.TimeOffs.AddRange(
                 new TimeOff
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("84000000-0000-0000-0000-000000000001"),
                     TenantId = glowId,
                     StaffId = staffDiyaId,
                     StartUtc = DateTimeOffset.UtcNow.AddDays(7).Date.AddHours(9),
@@ -1158,7 +1342,7 @@ public static class MarketplaceDbSeeder
                 },
                 new TimeOff
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("84000000-0000-0000-0000-000000000002"),
                     TenantId = glowId,
                     StaffId = staffAaravId,
                     StartUtc = DateTimeOffset.UtcNow.AddDays(3).Date.AddHours(9),
@@ -1183,14 +1367,14 @@ public static class MarketplaceDbSeeder
         {
             var catHair = new ServiceCategory
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.Parse("50000000-0000-0000-0000-000000000011"),
                 TenantId = glowId,
                 Name = "Hair Artistry & Barbering",
                 Description = "Custom haircuts, precision fades, and styling services"
             };
             var catWellness = new ServiceCategory
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.Parse("50000000-0000-0000-0000-000000000012"),
                 TenantId = glowId,
                 Name = "Skin, Scalp & Wellness",
                 Description = "Clinical facials, therapeutic massage, and hair treatments"
@@ -1414,9 +1598,10 @@ public static class MarketplaceDbSeeder
             var baseDate = DateTimeOffset.UtcNow.Date;
 
             // State A: Booked / Confirmed
+            var bConfirmedId = Guid.Parse("85000000-0000-0000-0000-000000000001");
             var bConfirmed = new Booking
             {
-                Id = Guid.NewGuid(),
+                Id = bConfirmedId,
                 TenantId = glowId,
                 StaffId = staffPriyaId,
                 ServiceId = srvHaircutId,
@@ -1433,9 +1618,10 @@ public static class MarketplaceDbSeeder
             db.Bookings.Add(bConfirmed);
 
             // State B: Completed
+            var bCompletedId = Guid.Parse("85000000-0000-0000-0000-000000000002");
             var bCompleted = new Booking
             {
-                Id = Guid.NewGuid(),
+                Id = bCompletedId,
                 TenantId = glowId,
                 StaffId = staffAaravId,
                 ServiceId = srvHaircutStyleId,
@@ -1453,9 +1639,10 @@ public static class MarketplaceDbSeeder
             db.Bookings.Add(bCompleted);
 
             // State C: Cancelled
+            var bCancelledId = Guid.Parse("85000000-0000-0000-0000-000000000003");
             var bCancelled = new Booking
             {
-                Id = Guid.NewGuid(),
+                Id = bCancelledId,
                 TenantId = glowId,
                 StaffId = staffPriyaId,
                 ServiceId = srvFullColourId,
@@ -1471,9 +1658,10 @@ public static class MarketplaceDbSeeder
             db.Bookings.Add(bCancelled);
 
             // State D: No-Show
+            var bNoShowId = Guid.Parse("85000000-0000-0000-0000-000000000004");
             var bNoShow = new Booking
             {
-                Id = Guid.NewGuid(),
+                Id = bNoShowId,
                 TenantId = glowId,
                 StaffId = staffPriyaId,
                 ServiceId = srvKeratinId,
@@ -1492,7 +1680,7 @@ public static class MarketplaceDbSeeder
             // State E: Held (BookingHold)
             db.BookingHolds.Add(new BookingHold
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.Parse("86000000-0000-0000-0000-000000000001"),
                 TenantId = glowId,
                 LocationId = locAhmedabadId,
                 StaffId = staffPriyaId,
@@ -1506,11 +1694,11 @@ public static class MarketplaceDbSeeder
 
             // State F: Free slots are determined by the slot engine based on working hours minus bookings & holds.
 
-            // 9. Notifications (Phase 42)
+            // 9. Notifications (Phase 42 - Deterministic GUIDs)
             db.NotificationLogs.AddRange(
                 new NotificationLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("87000000-0000-0000-0000-000000000001"),
                     TenantId = glowId,
                     BookingId = bConfirmed.Id,
                     CustomerId = custNehaId,
@@ -1526,7 +1714,7 @@ public static class MarketplaceDbSeeder
                 },
                 new NotificationLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("87000000-0000-0000-0000-000000000002"),
                     TenantId = glowId,
                     BookingId = bConfirmed.Id,
                     CustomerId = custNehaId,
@@ -1542,7 +1730,7 @@ public static class MarketplaceDbSeeder
                 },
                 new NotificationLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("87000000-0000-0000-0000-000000000003"),
                     TenantId = glowId,
                     BookingId = bCancelled.Id,
                     CustomerId = custSunitaId,
@@ -1557,11 +1745,11 @@ public static class MarketplaceDbSeeder
                 }
             );
 
-            // 10. Audit Events (Phase 42)
+            // 10. Audit Events (Phase 42 - Deterministic GUIDs)
             db.AuditLogs.AddRange(
                 new AuditLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("88000000-0000-0000-0000-000000000001"),
                     TenantId = glowId,
                     Actor = "demo@bookline.local",
                     Action = "TenantCreated",
@@ -1571,7 +1759,7 @@ public static class MarketplaceDbSeeder
                 },
                 new AuditLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("88000000-0000-0000-0000-000000000002"),
                     TenantId = glowId,
                     Actor = "demo@bookline.local",
                     Action = "LocationAdded",
@@ -1581,7 +1769,7 @@ public static class MarketplaceDbSeeder
                 },
                 new AuditLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("88000000-0000-0000-0000-000000000003"),
                     TenantId = glowId,
                     Actor = "demo@bookline.local",
                     Action = "StaffOnboarded",
@@ -1591,7 +1779,7 @@ public static class MarketplaceDbSeeder
                 },
                 new AuditLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("88000000-0000-0000-0000-000000000004"),
                     TenantId = glowId,
                     Actor = "demo@bookline.local",
                     Action = "ServiceCatalogUpdated",
@@ -1601,7 +1789,7 @@ public static class MarketplaceDbSeeder
                 },
                 new AuditLog
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.Parse("88000000-0000-0000-0000-000000000005"),
                     TenantId = glowId,
                     Actor = "demo@bookline.local",
                     Action = "BookingStatusChanged",

@@ -172,7 +172,7 @@ export const OnboardingWizardPage: React.FC = () => {
         setCompletedSteps(status.completedSteps && status.completedSteps.length > 0 ? status.completedSteps : [1]);
         setIsPublished(status.isPublished);
         if (status.isPublished && status.businessSlug) {
-          setPublishedStorefrontUrl(`/store/${status.businessSlug}`);
+          setPublishedStorefrontUrl(`/business/${status.businessSlug}`);
         }
 
         // Check if query param specifies step (e.g. ?step=5)
@@ -452,7 +452,7 @@ export const OnboardingWizardPage: React.FC = () => {
               required
             />
             <p className="text-[11px] text-[#7E88A8]">
-              Your public storefront will be discoverable at: <code className="text-[#34D399] font-mono">/store/{form.businessSlug}</code>
+              Your public storefront will be discoverable at: <code className="text-[#34D399] font-mono">/business/{form.businessSlug}</code>
             </p>
           </div>
         )}
@@ -856,7 +856,7 @@ export const OnboardingWizardPage: React.FC = () => {
                 </p>
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Link
-                    to={publishedStorefrontUrl || `/store/${form.businessSlug}`}
+                    to={publishedStorefrontUrl || `/business/${form.businessSlug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold shadow-lg shadow-[#E8546A]/20 flex items-center justify-center gap-2 transition-all"
@@ -888,7 +888,7 @@ export const OnboardingWizardPage: React.FC = () => {
                     <p><strong className="text-white">Specialist:</strong> {form.firstStaffName} ({form.firstStaffTitle})</p>
                     <p><strong className="text-white">Working Hours:</strong> {form.startTime} &ndash; {form.endTime}</p>
                     <p><strong className="text-white">Hold &amp; Notice:</strong> {form.holdDurationMinutes}m Hold &bull; {form.minimumNoticeHours}h Notice</p>
-                    <p><strong className="text-white">Public URL:</strong> /store/{form.businessSlug}</p>
+                    <p><strong className="text-white">Public URL:</strong> /business/{form.businessSlug}</p>
                   </div>
                 </div>
 

@@ -545,10 +545,18 @@ try
                 Log.Information("Demo owner account seeded for tenant '{Slug}'.", demoTenant.Slug);
             }
 
-            // Seed comprehensive marketplace data (Multi-vendor, products, orders, reviews, demo accounts)
-            var marketplaceHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, marketplaceHasher, logger);
+            // Section 116 & 117: Demo seeding strictly disabled in Production
+            if (app.Environment.IsProduction())
+            {
+                Log.Information("Running in Production environment. Demo seeding is disabled.");
+            }
+            else
+            {
+                // Seed comprehensive marketplace data (Multi-vendor, products, orders, reviews, demo accounts)
+                var marketplaceHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, marketplaceHasher, logger, app.Environment.EnvironmentName);
+            }
         }
         catch (Exception ex)
         {

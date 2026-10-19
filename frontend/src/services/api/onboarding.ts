@@ -105,7 +105,10 @@ export const onboardingApi = {
     const res = await fetch(`${API_BASE}/status`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Failed to load onboarding status');
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || err?.detail || 'Failed to load onboarding status');
+    }
     return res.json();
   },
 
@@ -118,7 +121,11 @@ export const onboardingApi = {
       },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to save onboarding progress');
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      const msg = err?.message || err?.detail || err?.title || 'Failed to save onboarding progress';
+      throw new Error(msg);
+    }
     return res.json();
   },
 
@@ -126,7 +133,10 @@ export const onboardingApi = {
     const res = await fetch(`${API_BASE}/readiness`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Failed to evaluate publication readiness');
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || err?.detail || 'Failed to evaluate publication readiness');
+    }
     return res.json();
   },
 
@@ -135,10 +145,10 @@ export const onboardingApi = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
       const msg = data.missingRequirements?.length
-        ? `${data.message} Missing: ${data.missingRequirements.join(', ')}`
+        ? `${data.message || 'Readiness requirements unsatisfied.'} Missing: ${data.missingRequirements.join(', ')}`
         : data.message || 'Failed to publish storefront.';
       throw new Error(msg);
     }
@@ -150,7 +160,10 @@ export const onboardingApi = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Failed to complete onboarding');
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || err?.detail || 'Failed to complete onboarding');
+    }
     return res.json();
   },
 };

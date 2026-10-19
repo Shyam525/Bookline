@@ -413,4 +413,113 @@ public class MarketplaceInfrastructureTests
         Assert.NotNull(demoMembership);
         Assert.Equal("Owner", demoMembership.Role);
     }
+
+    [Fact]
+    public async Task MarketplaceDbSeeder_WhenEnvironmentIsProduction_ThrowsInvalidOperationException()
+    {
+        // Section 116 & 117: Environment-gated — Demo seeding must be refused in Production
+        var db = CreateInMemoryContext();
+        var hasher = new Bookline.Infrastructure.Authentication.PasswordHasher();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, hasher, logger, "Production"));
+
+        Assert.Contains("prohibited in the Production environment", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MarketplaceDbSeeder_WhenRunTwice_IsIdempotentAndProducesNoDuplicates()
+    {
+        // Section 117: Idempotency guarantee — Running seed twice must not duplicate records
+        var db = CreateInMemoryContext();
+        var hasher = new Bookline.Infrastructure.Authentication.PasswordHasher();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+        // Run 1
+        await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, hasher, logger, "Development");
+        var tenantCount1 = await db.Tenants.IgnoreQueryFilters().CountAsync();
+        var userCount1 = await db.Users.IgnoreQueryFilters().CountAsync();
+        var locationCount1 = await db.Locations.IgnoreQueryFilters().CountAsync();
+        var serviceCount1 = await db.Services.IgnoreQueryFilters().CountAsync();
+        var bookingCount1 = await db.Bookings.IgnoreQueryFilters().CountAsync();
+
+        // Run 2
+        await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, hasher, logger, "Development");
+        var tenantCount2 = await db.Tenants.IgnoreQueryFilters().CountAsync();
+        var userCount2 = await db.Users.IgnoreQueryFilters().CountAsync();
+        var locationCount2 = await db.Locations.IgnoreQueryFilters().CountAsync();
+        var serviceCount2 = await db.Services.IgnoreQueryFilters().CountAsync();
+        var bookingCount2 = await db.Bookings.IgnoreQueryFilters().CountAsync();
+
+        Assert.Equal(tenantCount1, tenantCount2);
+        Assert.Equal(userCount1, userCount2);
+        Assert.Equal(locationCount1, locationCount2);
+        Assert.Equal(serviceCount1, serviceCount2);
+        Assert.Equal(bookingCount1, bookingCount2);
+    }
+
+    [Fact]
+    public async Task MarketplaceDbSeeder_ContainsAllFiveRequiredCities_WithDeliberateCoordinates()
+    {
+        // Section 115: Required example cities: Ahmedabad, Rajkot, Surat, Mumbai, Bangalore
+        var db = CreateInMemoryContext();
+        var hasher = new Bookline.Infrastructure.Authentication.PasswordHasher();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+        await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, hasher, logger, "Development");
+
+        var cities = await db.Locations.IgnoreQueryFilters()
+            .Select(l => l.City)
+            .Distinct()
+            .ToListAsync();
+
+        Assert.Contains("Ahmedabad", cities);
+        Assert.Contains("Rajkot", cities);
+        Assert.Contains("Surat", cities);
+        Assert.Contains("Mumbai", cities);
+        Assert.Contains("Bangalore", cities);
+
+        // Verify all locations have valid, deliberate coordinates
+        var locations = await db.Locations.IgnoreQueryFilters().ToListAsync();
+        foreach (var loc in locations)
+        {
+            Assert.True(loc.Latitude > 0, $"Location {loc.Name} has invalid latitude {loc.Latitude}");
+            Assert.True(loc.Longitude > 0, $"Location {loc.Name} has invalid longitude {loc.Longitude}");
+        }
+    }
+
+    [Fact]
+    public async Task MarketplaceDbSeeder_SeedsAllThreeDemoIdentities_WithCorrectRolesAndAccess()
+    {
+        // Section 116: customer@bookline.local, provider@bookline.local, admin@bookline.local
+        var db = CreateInMemoryContext();
+        var hasher = new Bookline.Infrastructure.Authentication.PasswordHasher();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+        await Bookline.Infrastructure.Persistence.Seed.MarketplaceDbSeeder.SeedAsync(db, hasher, logger, "Development");
+
+        // 1. Customer Persona
+        var customer = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "customer@bookline.local");
+        Assert.NotNull(customer);
+        Assert.Equal("Customer", customer.Role);
+        Assert.True(hasher.VerifyPassword("Customer123!", customer.PasswordHash));
+
+        // 2. Provider Persona with business membership
+        var provider = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "provider@bookline.local");
+        Assert.NotNull(provider);
+        Assert.Equal("Owner", provider.Role);
+        Assert.True(hasher.VerifyPassword("Provider123!", provider.PasswordHash));
+        var memberships = await db.OrganizationMemberships.IgnoreQueryFilters()
+            .Where(m => m.UserId == provider.Id)
+            .ToListAsync();
+        Assert.NotEmpty(memberships);
+        Assert.All(memberships, m => Assert.Equal("Owner", m.Role));
+
+        // 3. Admin Persona
+        var admin = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "admin@bookline.local");
+        Assert.NotNull(admin);
+        Assert.Equal("PlatformAdmin", admin.Role);
+        Assert.True(hasher.VerifyPassword("Admin123!", admin.PasswordHash));
+    }
 }

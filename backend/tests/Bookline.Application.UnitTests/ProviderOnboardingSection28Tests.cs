@@ -359,7 +359,7 @@ public class ProviderOnboardingSection28Tests
 
         Assert.True(publishResult.Success);
         Assert.True(publishResult.IsPublished);
-        Assert.Equal("/store/ready-studio", publishResult.StorefrontUrl);
+        Assert.Equal("/business/ready-studio", publishResult.StorefrontUrl);
 
         // Database verified
         var publishedTenant = await db.Tenants.FirstAsync(t => t.Id == tenantId);
@@ -373,5 +373,100 @@ public class ProviderOnboardingSection28Tests
 
         // Audit log created
         Assert.True(await db.AuditLogs.AnyAsync(a => a.TenantId == tenantId && a.Action == "Storefront.Published"));
+    }
+
+    [Fact]
+    public async Task Onboarding_WhenLaterStepFailsValidation_PreservesValidEarlierData()
+    {
+        // Section 110: Preserve valid earlier data if a later step fails
+        var (db, context) = CreateContext();
+        var tenantId = Guid.NewGuid();
+        context.SetTenantId(tenantId);
+
+        var tenant = new Tenant
+        {
+            Id = tenantId,
+            Name = "Valid Studio",
+            Slug = "valid-studio",
+            OnboardingStep = 2
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+
+        var handler = new OnboardingHandlers(db, context);
+
+        // Step 7: Save a valid service
+        await handler.Handle(new SaveOnboardingStepCommand(new SaveOnboardingStepRequest(
+            Step: 7,
+            FirstServiceName: "Signature Massage",
+            FirstServiceDurationMinutes: 60,
+            FirstServicePrice: 120.00m
+        )), CancellationToken.None);
+
+        var savedService = await db.Services.FirstOrDefaultAsync(s => s.TenantId == tenantId);
+        Assert.NotNull(savedService);
+        Assert.Equal("Signature Massage", savedService.Name);
+
+        // Step 10: Attempt to save invalid working hours (EndTime <= StartTime)
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
+            handler.Handle(new SaveOnboardingStepCommand(new SaveOnboardingStepRequest(
+                Step: 10,
+                StartTime: new TimeOnly(18, 0),
+                EndTime: new TimeOnly(9, 0) // Invalid: end before start
+            )), CancellationToken.None));
+
+        // Verify valid earlier data is completely preserved
+        var reloadedService = await db.Services.FirstOrDefaultAsync(s => s.TenantId == tenantId);
+        Assert.NotNull(reloadedService);
+        Assert.Equal("Signature Massage", reloadedService.Name);
+        Assert.Equal(120.00m, reloadedService.Price);
+
+        var reloadedTenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId);
+        Assert.NotNull(reloadedTenant);
+        Assert.Equal("Valid Studio", reloadedTenant.Name);
+    }
+
+    [Fact]
+    public async Task Onboarding_ReadinessChecks_PreventPublicationWhenMandatoryRequirementsMissing_AndReturnActionableNavigation()
+    {
+        // Section 110: Backend-owned readiness logic. Check real mandatory prerequisites and return actionable navigation.
+        var (db, context) = CreateContext();
+        var tenantId = Guid.NewGuid();
+        context.SetTenantId(tenantId);
+
+        // Tenant with business name but missing location, services, staff, working hours
+        var tenant = new Tenant
+        {
+            Id = tenantId,
+            Name = "Incomplete Studio",
+            Slug = "incomplete-studio",
+            BusinessType = "Wellness",
+            OnboardingStep = 3
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+
+        var handler = new OnboardingHandlers(db, context);
+
+        // 1. Evaluate readiness
+        var readiness = await handler.Handle(new GetOnboardingReadinessQuery(), CancellationToken.None);
+        Assert.False(readiness.IsReady);
+        Assert.False(readiness.AllMandatorySatisfied);
+
+        // Verify actionable navigation links are provided
+        var missingReqs = readiness.Requirements.Where(r => r.IsMandatory && !r.IsSatisfied).ToList();
+        Assert.NotEmpty(missingReqs);
+        Assert.All(missingReqs, r => Assert.StartsWith("/provider/onboarding?step=", r.ActionRoute));
+
+        // 2. Publication attempt MUST be rejected
+        var publishResult = await handler.Handle(new PublishStorefrontCommand(), CancellationToken.None);
+        Assert.False(publishResult.Success);
+        Assert.False(publishResult.IsPublished);
+        Assert.NotNull(publishResult.MissingRequirements);
+        Assert.NotEmpty(publishResult.MissingRequirements);
+
+        // Tenant is NOT published
+        var reloadedTenant = await db.Tenants.FirstAsync(t => t.Id == tenantId);
+        Assert.False(reloadedTenant.IsPublished);
     }
 }

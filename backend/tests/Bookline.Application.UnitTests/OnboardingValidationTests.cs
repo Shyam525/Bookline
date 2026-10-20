@@ -131,7 +131,8 @@ public class OnboardingValidationTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(9)]
+    [InlineData(14)]
+    [InlineData(-1)]
     public void Validator_StepOutOfRange_FailsValidation(int invalidStep)
     {
         var request = new SaveOnboardingStepRequest(Step: invalidStep);
@@ -139,5 +140,54 @@ public class OnboardingValidationTests
         var result = _validator.TestValidate(command);
 
         result.ShouldHaveValidationErrorFor(x => x.Request.Step);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    [InlineData(13)]
+    public void Validator_ValidSteps_PassesStepValidation(int validStep)
+    {
+        var request = new SaveOnboardingStepRequest(Step: validStep);
+        var command = new SaveOnboardingStepCommand(request);
+        var result = _validator.TestValidate(command);
+
+        result.ShouldNotHaveValidationErrorFor(x => x.Request.Step);
+    }
+
+    [Fact]
+    public void Validator_InvalidServiceDurationOrPrice_FailsValidation()
+    {
+        var request = new SaveOnboardingStepRequest(
+            Step: 7,
+            FirstServiceDurationMinutes: 0,
+            FirstServicePrice: -10m
+        );
+        var command = new SaveOnboardingStepCommand(request);
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.Request.FirstServiceDurationMinutes);
+        result.ShouldHaveValidationErrorFor(x => x.Request.FirstServicePrice);
+    }
+
+    [Fact]
+    public void Validator_InvalidProductPriceOrStock_FailsValidation()
+    {
+        var request = new SaveOnboardingStepRequest(
+            Step: 8,
+            FirstProductPrice: -5m,
+            FirstProductStock: -1
+        );
+        var command = new SaveOnboardingStepCommand(request);
+        var result = _validator.TestValidate(command);
+
+        result.ShouldHaveValidationErrorFor(x => x.Request.FirstProductPrice);
+        result.ShouldHaveValidationErrorFor(x => x.Request.FirstProductStock);
     }
 }

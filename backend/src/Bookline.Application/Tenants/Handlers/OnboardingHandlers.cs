@@ -46,6 +46,49 @@ public class OnboardingHandlers :
 
         if (tenant == null) throw new NotFoundException("Tenant", _tenantContext.TenantId);
 
+        // Step 1: Account & Membership
+        if (req.Step == 1 || !string.IsNullOrWhiteSpace(req.OwnerName) || !string.IsNullOrWhiteSpace(req.OwnerPhone))
+        {
+            var ownerUser = await _context.Users.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && (u.Role == "Owner" || u.Role == "Provider"), cancellationToken);
+
+            if (ownerUser != null)
+            {
+                if (!string.IsNullOrWhiteSpace(req.OwnerName))
+                {
+                    var parts = req.OwnerName.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                    ownerUser.FirstName = parts[0];
+                    ownerUser.LastName = parts.Length > 1 ? parts[1] : string.Empty;
+                }
+                if (!string.IsNullOrWhiteSpace(req.OwnerPhone))
+                {
+                    ownerUser.Phone = req.OwnerPhone.Trim();
+                }
+                ownerUser.UpdatedAtUtc = DateTime.UtcNow;
+
+                var membership = await _context.OrganizationMemberships.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(m => m.TenantId == tenant.Id && m.UserId == ownerUser.Id, cancellationToken);
+
+                if (membership == null)
+                {
+                    _context.OrganizationMemberships.Add(new OrganizationMembership
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = tenant.Id,
+                        UserId = ownerUser.Id,
+                        Role = "Owner",
+                        IsActive = true,
+                        JoinedAtUtc = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    membership.Role = "Owner";
+                    membership.IsActive = true;
+                }
+            }
+        }
+
         // Step 2: Business Creation
         if (req.Step == 2 || !string.IsNullOrWhiteSpace(req.BusinessName))
         {

@@ -589,6 +589,17 @@ public class OnboardingHandlers :
             );
         }
 
+        if (!tenant.IsActive || tenant.ModerationStatus == ModerationStatus.Rejected)
+        {
+            return new PublishStorefrontResultDto(
+                Success: false,
+                IsPublished: false,
+                StorefrontUrl: string.Empty,
+                Message: "Storefront publication rejected. The organization is inactive or rejected by platform administration.",
+                MissingRequirements: new List<string> { "Platform account status must be active and approved before publication." }
+            );
+        }
+
         if (!readiness.IsReady)
         {
             var missing = readiness.Requirements
@@ -669,6 +680,14 @@ public class OnboardingHandlers :
             .Where(w => w.TenantId == tenant.Id)
             .ToListAsync(cancellationToken);
 
+        var ownerUser = await _context.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.TenantId == tenant.Id && (u.Role == "Owner" || u.Role == "Provider"), cancellationToken);
+
+        var membership = ownerUser != null
+            ? await _context.OrganizationMemberships.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(m => m.TenantId == tenant.Id && m.UserId == ownerUser.Id && m.IsActive, cancellationToken)
+            : null;
+
         // Dynamically compute completed steps from saved records
         var completedSteps = new List<int> { 1 }; // Account is authenticated
 
@@ -682,6 +701,8 @@ public class OnboardingHandlers :
         if (staff != null && staff.IsActive) completedSteps.Add(9);
         if (workingHours.Any()) completedSteps.Add(10);
         if (tenant.HoldDurationMinutes > 0 && tenant.BookingHorizonDays > 0) completedSteps.Add(11);
+        if (tenant.IsOnboardingCompleted) completedSteps.Add(12);
+        if (tenant.IsPublished) completedSteps.Add(13);
 
         var firstHours = workingHours.FirstOrDefault();
 
@@ -721,7 +742,11 @@ public class OnboardingHandlers :
             MinimumNoticeHours: tenant.MinimumNoticeHours,
             BookingHorizonDays: tenant.BookingHorizonDays,
             CancellationWindowHours: 4,
-            CompletedSteps: completedSteps
+            CompletedSteps: completedSteps,
+            OwnerName: ownerUser?.FullName,
+            OwnerEmail: ownerUser?.Email,
+            OwnerPhone: ownerUser?.Phone,
+            MembershipRole: membership?.Role ?? (ownerUser != null ? "Owner" : null)
         );
     }
 

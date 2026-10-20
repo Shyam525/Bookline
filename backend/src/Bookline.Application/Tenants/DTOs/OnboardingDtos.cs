@@ -36,7 +36,11 @@ public record OnboardingStatusDto(
     int MinimumNoticeHours,
     int BookingHorizonDays,
     int CancellationWindowHours,
-    List<int> CompletedSteps
+    List<int> CompletedSteps,
+    string? OwnerName = null,
+    string? OwnerEmail = null,
+    string? OwnerPhone = null,
+    string? MembershipRole = null
 );
 
 public record SaveOnboardingStepRequest(
@@ -72,7 +76,9 @@ public record SaveOnboardingStepRequest(
     int? HoldDurationMinutes = null,
     int? MinimumNoticeHours = null,
     int? BookingHorizonDays = null,
-    int? CancellationWindowHours = null
+    int? CancellationWindowHours = null,
+    string? OwnerName = null,
+    string? OwnerPhone = null
 );
 
 public record OnboardingReadinessRequirement(

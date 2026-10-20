@@ -35,6 +35,10 @@ export interface OnboardingStatus {
   bookingHorizonDays: number;
   cancellationWindowHours: number;
   completedSteps: number[];
+  ownerName?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
+  membershipRole?: string;
 }
 
 export interface SaveStepData {
@@ -70,6 +74,8 @@ export interface SaveStepData {
   minimumNoticeHours?: number;
   bookingHorizonDays?: number;
   cancellationWindowHours?: number;
+  ownerName?: string;
+  ownerPhone?: string;
 }
 
 export interface OnboardingReadinessRequirement {

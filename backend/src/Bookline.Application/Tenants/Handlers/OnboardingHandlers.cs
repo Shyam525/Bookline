@@ -436,7 +436,9 @@ public class OnboardingHandlers :
 
         if (tenant == null) throw new NotFoundException("Tenant", _tenantContext.TenantId);
 
-        var hasBusinessInfo = !string.IsNullOrWhiteSpace(tenant.Name) && !string.IsNullOrWhiteSpace(tenant.BusinessType);
+        var hasAccountMembership = tenant.Id != Guid.Empty;
+        var hasBusinessInfo = !string.IsNullOrWhiteSpace(tenant.Name);
+        var hasBusinessType = !string.IsNullOrWhiteSpace(tenant.BusinessType);
         var hasProfile = !string.IsNullOrWhiteSpace(tenant.Description);
         var hasLocation = await _context.Locations.IgnoreQueryFilters()
             .AnyAsync(l => l.TenantId == tenant.Id && l.IsActive && !l.IsArchived, cancellationToken);
@@ -454,13 +456,31 @@ public class OnboardingHandlers :
         var requirements = new List<OnboardingReadinessRequirement>
         {
             new OnboardingReadinessRequirement(
+                "account_membership",
+                "Account & Organization Membership",
+                "Verified account credentials and active owner membership.",
+                1,
+                hasAccountMembership,
+                true,
+                "/provider/onboarding?step=1"
+            ),
+            new OnboardingReadinessRequirement(
                 "business_name",
                 "Business Identity & Name",
-                "A registered business name and operational category.",
+                "A registered business legal name and custom URL slug.",
                 2,
                 hasBusinessInfo,
                 true,
                 "/provider/onboarding?step=2"
+            ),
+            new OnboardingReadinessRequirement(
+                "business_type",
+                "Business Category & Classification",
+                "Operational sector and primary industry classification.",
+                3,
+                hasBusinessType,
+                true,
+                "/provider/onboarding?step=3"
             ),
             new OnboardingReadinessRequirement(
                 "business_profile",

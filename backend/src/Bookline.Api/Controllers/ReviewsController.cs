@@ -25,6 +25,7 @@ public class ReviewsController : ControllerBase
 
     [HttpGet("provider/{tenantId:guid}")]
     [AllowAnonymous]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("discovery-limit")]
     public async Task<IActionResult> GetProviderReviews(
         Guid tenantId,
         [FromQuery] int page = 1,
@@ -131,6 +132,7 @@ public class ReviewsController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("booking-limit")]
     public async Task<IActionResult> SubmitReview([FromBody] SubmitReviewRequest request, CancellationToken cancellationToken)
     {
         var validator = new SubmitReviewRequestValidator();

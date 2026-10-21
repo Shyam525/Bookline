@@ -279,13 +279,18 @@ public class PaymentsController : ControllerBase
     /// <summary>
     /// Processes incoming payment gateway webhooks (Section 132: Idempotent Webhook Processing).
     /// Replaying the same webhook does not create duplicate payment or order transitions.
+    /// Segregated webhook rate-limit policy preserves gateway retry bursts (Section 120).
     /// </summary>
     [HttpPost("webhook")]
     [AllowAnonymous]
+    [EnableRateLimiting("webhook-limit")]
     public async Task<IActionResult> ProcessWebhook(
         [FromBody] PaymentWebhookRequest request,
         CancellationToken cancellationToken = default)
     {
+        Bookline.Infrastructure.Observability.BooklineMetrics.WebhookProcessed.Add(1,
+            new KeyValuePair<string, object?>("event_type", request.EventType ?? "Unknown"));
+
         var eventKey = request.EventId ?? request.TransactionReference;
         if (string.IsNullOrWhiteSpace(eventKey))
         {

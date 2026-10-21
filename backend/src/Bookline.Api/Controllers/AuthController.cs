@@ -35,6 +35,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("register-tenant")]
     [AllowAnonymous]
+    [EnableRateLimiting("register-limit")]
     public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.OwnerEmail) || string.IsNullOrWhiteSpace(request.Password))
@@ -245,7 +246,9 @@ public class AuthController : ControllerBase
         }
 
         // Return 200 OK regardless to prevent user enumeration
-        return Ok(new { Message = "If the email is registered, password reset instructions have been sent." });
+        return Content(System.Text.Json.JsonSerializer.Serialize(
+            new ForgotPasswordResponse("If the email is registered, password reset instructions have been sent.")),
+            "application/json");
     }
 
     [HttpPost("reset-password")]
@@ -306,6 +309,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("register-customer")]
     [AllowAnonymous]
+    [EnableRateLimiting("register-limit")]
     public async Task<IActionResult> RegisterCustomer([FromBody] RegisterCustomerRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
@@ -495,4 +499,5 @@ public class AuthController : ControllerBase
 
 public record RegisterCustomerRequest(string Email, string Password, string FirstName, string LastName, string? Phone);
 public record SwitchBusinessRequest(Guid TenantId);
+public record ForgotPasswordResponse(string Message);
 

@@ -12,4 +12,6 @@ public class OutboxMessage : TenantEntity
     public DateTimeOffset? ProcessedAtUtc { get; set; }
     public string? Error { get; set; }
     public int RetryCount { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? TraceId { get; set; }
 }

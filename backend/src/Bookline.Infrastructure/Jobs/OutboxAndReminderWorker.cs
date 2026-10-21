@@ -96,12 +96,25 @@ public class OutboxAndReminderWorker : BackgroundService
                     _lastReportRunInstant = currentCycleInstant;
                 }
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Outbox and Background Worker cancellation/shutdown handled.");
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred in Section 122 Background Worker cycle.");
             }
 
-            await Task.Delay(5000, stoppingToken);
+            try
+            {
+                await Task.Delay(5000, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Outbox and Background Worker cancellation/shutdown handled.");
+                break;
+            }
         }
     }
 
@@ -115,34 +128,97 @@ public class OutboxAndReminderWorker : BackgroundService
 
         if (!pendingMessages.Any()) return 0;
         var processedCount = 0;
+        var failedCount = 0;
+        var batchStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var oldestPending = pendingMessages.OrderBy(m => m.CreatedAtUtc).FirstOrDefault();
+        var oldestAgeSeconds = oldestPending != null 
+            ? Math.Round((DateTimeOffset.UtcNow - oldestPending.CreatedAtUtc).TotalSeconds, 1) 
+            : 0;
+
+        _logger.LogInformation("Outbox batch claimed: {BatchSize} pending events. Oldest pending event age: {OldestAgeSeconds}s",
+            pendingMessages.Count, oldestAgeSeconds);
 
         foreach (var msg in pendingMessages)
         {
-            try
+            var itemStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            string? correlationId = msg.CorrelationId;
+            if (string.IsNullOrWhiteSpace(correlationId))
             {
-                _logger.LogInformation("Dispatching Outbox Event [{Id}] ({EventType}) for Tenant {TenantId}",
-                    msg.Id, msg.EventType, msg.TenantId);
-
-                await DispatchOutboxNotificationAsync(dbContext, msg, emailSender, cancellationToken);
-
-                msg.Status = "Processed";
-                msg.ProcessedAtUtc = DateTimeOffset.UtcNow;
-                msg.Error = null;
-                processedCount++;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process Outbox Event [{Id}] ({EventType})", msg.Id, msg.EventType);
-                msg.RetryCount++;
-                msg.Error = ex.Message;
-                if (msg.RetryCount >= 5)
+                try
                 {
-                    msg.Status = "Failed";
+                    using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(msg.Content) ? "{}" : msg.Content);
+                    if (doc.RootElement.TryGetProperty("CorrelationId", out var cidProp))
+                    {
+                        correlationId = cidProp.GetString();
+                    }
+                }
+                catch { }
+            }
+            correlationId ??= msg.Id.ToString("N");
+
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                ["CorrelationId"] = correlationId,
+                ["TraceId"] = msg.TraceId ?? correlationId,
+                ["EventId"] = msg.Id,
+                ["TenantId"] = msg.TenantId,
+                ["OperationName"] = "ProcessOutboxEvent",
+                ["AttemptCount"] = msg.RetryCount + 1
+            }))
+            {
+                try
+                {
+                    await DispatchOutboxNotificationAsync(dbContext, msg, emailSender, cancellationToken);
+
+                    itemStopwatch.Stop();
+                    msg.Status = "Processed";
+                    msg.ProcessedAtUtc = DateTimeOffset.UtcNow;
+                    msg.Error = null;
+                    processedCount++;
+
+                    Bookline.Infrastructure.Observability.BooklineMetrics.OutboxEventsProcessed.Add(1,
+                        new KeyValuePair<string, object?>("event_type", msg.EventType),
+                        new KeyValuePair<string, object?>("outcome", "Success"));
+
+                    _logger.LogInformation("Outbox event [{Id}] ({EventType}) processed successfully in {DurationMs}ms (Attempt {AttemptCount}).",
+                        msg.Id, msg.EventType, itemStopwatch.ElapsedMilliseconds, msg.RetryCount + 1);
+                }
+                catch (Exception ex)
+                {
+                    itemStopwatch.Stop();
+                    failedCount++;
+                    msg.RetryCount++;
+                    var errorCategory = ex.GetType().Name;
+                    msg.Error = ex.Message;
+
+                    Bookline.Infrastructure.Observability.BooklineMetrics.OutboxEventsFailed.Add(1,
+                        new KeyValuePair<string, object?>("event_type", msg.EventType),
+                        new KeyValuePair<string, object?>("error_category", errorCategory));
+
+                    if (msg.RetryCount >= 5)
+                    {
+                        msg.Status = "Failed";
+                        _logger.LogError(ex, "Outbox event [{Id}] ({EventType}) permanently failed after {AttemptCount} attempts in {DurationMs}ms. ErrorCategory: {ErrorCategory}",
+                            msg.Id, msg.EventType, msg.RetryCount, itemStopwatch.ElapsedMilliseconds, errorCategory);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(ex, "Outbox event [{Id}] ({EventType}) failed on attempt {AttemptCount}. Retry scheduled. Duration: {DurationMs}ms. ErrorCategory: {ErrorCategory}",
+                            msg.Id, msg.EventType, msg.RetryCount, itemStopwatch.ElapsedMilliseconds, errorCategory);
+                    }
                 }
             }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        batchStopwatch.Stop();
+
+        Bookline.Infrastructure.Observability.BooklineMetrics.OutboxBatchDurationMs.Record(batchStopwatch.ElapsedMilliseconds);
+
+        _logger.LogInformation("Outbox batch completed: {ProcessedCount} processed, {FailedCount} failed in {DurationMs}ms",
+            processedCount, failedCount, batchStopwatch.ElapsedMilliseconds);
+
         return processedCount;
     }
 

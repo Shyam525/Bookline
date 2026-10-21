@@ -85,6 +85,7 @@ public class GlobalExceptionMiddleware
                 break;
 
             case BookingConflictException conflictEx:
+                Bookline.Infrastructure.Observability.BooklineMetrics.BookingConflicts.Add(1);
                 context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                 errorResponse.Status = (int)HttpStatusCode.Conflict;
                 errorResponse.Code = "SLOT_UNAVAILABLE";

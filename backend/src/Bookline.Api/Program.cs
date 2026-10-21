@@ -1,5 +1,9 @@
 using System.Text;
+using System.Threading.RateLimiting;
+using Bookline.Api.Health;
 using Bookline.Api.Middleware;
+using Bookline.Api.Observability;
+using Bookline.Api.RateLimiting;
 using Bookline.Application.Common.Behaviors;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
@@ -11,10 +15,12 @@ using Bookline.Infrastructure.Persistence.Interceptors;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using System.Text.Json;
@@ -25,11 +31,14 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
+// Configure Serilog with centralized privacy redaction (Section 119)
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console()
+    .Enrich.WithProperty("Service", "Bookline.Api")
+    .Enrich.WithProperty("Environment", builder.Environment.EnvironmentName)
+    .Enrich.With(new SensitiveDataMaskingEnricher())
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Service}] [{CorrelationId}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
 builder.Host.UseSerilog();
@@ -72,7 +81,23 @@ builder.Services.AddSwaggerGen(c =>
         c.IncludeXmlComments(xmlPath);
     }
 });
-builder.Services.AddHealthChecks();
+// Section 118: ASP.NET Core Health Checks Architecture
+builder.Services.AddHealthChecks()
+    .AddCheck<LivenessHealthCheck>("liveness", tags: new[] { "live" })
+    .AddCheck<PostgreSqlHealthCheck>("database", tags: new[] { "ready" })
+    .AddCheck<RedisHealthCheck>("redis", tags: new[] { "ready" });
+
+// Section 120.11: Trusted Client IP and Forwarded Headers
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    var trustAllProxies = builder.Configuration.GetValue<bool>("ForwardedHeaders:TrustAllProxies");
+    if (trustAllProxies)
+    {
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    }
+});
 
 // MediatR & FluentValidation Pipeline
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CreateServiceCommand>());
@@ -152,18 +177,29 @@ builder.Services.AddTransient<Bookline.Infrastructure.Jobs.InvitationCleanupJob>
 builder.Services.AddTransient<Bookline.Infrastructure.Jobs.ReportAggregationJob>();
 builder.Services.AddTransient<Bookline.Infrastructure.Jobs.InventoryCleanupJob>();
 
-// Section 117 Rate Limiting Configuration
+// Section 120: Partitioned Rate Limiting Configuration
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, token) =>
     {
         context.HttpContext.Response.ContentType = "application/json";
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+
         var traceId = context.HttpContext.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
             ? cStr
             : context.HttpContext.TraceIdentifier;
 
-        var response = ApiErrorResponse.RateLimited(traceId);
+        var clientIp = RateLimitHelper.ResolveClientIp(context.HttpContext);
+        var path = context.HttpContext.Request.Path.Value ?? string.Empty;
+
+        Bookline.Infrastructure.Observability.BooklineMetrics.RateLimitedRequests.Add(1,
+            new KeyValuePair<string, object?>("path", path));
+
+        Serilog.Log.Warning("Rate limit exceeded for client {ClientIp} on path {Path}. TraceId: {TraceId}",
+            clientIp, path, traceId);
+
+        var response = ApiErrorResponse.RateLimited(traceId, "Too many requests. Please try again shortly.");
         var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -172,40 +208,108 @@ builder.Services.AddRateLimiter(options =>
         await context.HttpContext.Response.WriteAsync(json, cancellationToken: token);
     };
 
-    options.AddFixedWindowLimiter("auth-limit", opt =>
+    options.AddPolicy("auth-limit", httpContext =>
     {
-        opt.PermitLimit = 15;
-        opt.Window = TimeSpan.FromMinutes(1);
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"auth_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
     });
 
-    options.AddFixedWindowLimiter("password-reset-limit", opt =>
+    options.AddPolicy("register-limit", httpContext =>
     {
-        opt.PermitLimit = 5;
-        opt.Window = TimeSpan.FromMinutes(1);
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"reg_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
     });
 
-    options.AddFixedWindowLimiter("discovery-limit", opt =>
+    options.AddPolicy("password-reset-limit", httpContext =>
     {
-        opt.PermitLimit = 120;
-        opt.Window = TimeSpan.FromMinutes(1);
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"pwd_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
     });
 
-    options.AddFixedWindowLimiter("booking-limit", opt =>
+    options.AddPolicy("discovery-limit", httpContext =>
     {
-        opt.PermitLimit = 30;
-        opt.Window = TimeSpan.FromMinutes(1);
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"disc_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
     });
 
-    options.AddFixedWindowLimiter("hold-limit", opt =>
+    options.AddPolicy("booking-limit", httpContext =>
     {
-        opt.PermitLimit = 30;
-        opt.Window = TimeSpan.FromMinutes(1);
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"book_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
     });
 
-    options.AddFixedWindowLimiter("payment-limit", opt =>
+    options.AddPolicy("hold-limit", httpContext =>
     {
-        opt.PermitLimit = 30;
-        opt.Window = TimeSpan.FromMinutes(1);
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"hold_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy("payment-limit", httpContext =>
+    {
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"pay_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy("webhook-limit", httpContext =>
+    {
+        var ip = RateLimitHelper.ResolveClientIp(httpContext);
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"wh_{ip}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 10
+            });
     });
 });
 
@@ -341,6 +445,8 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 // HTTP Request Pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -393,8 +499,22 @@ app.UseMiddleware<TenantContextMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health");
-app.MapHealthChecks("/ready");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live"),
+    ResponseWriter = HealthCheckResponseWriter.WriteResponseAsync
+});
+app.MapHealthChecks("/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteResponseAsync,
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy] = StatusCodes.Status200OK,
+        [HealthStatus.Degraded] = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
+});
 app.Map("/api/{**slug}", (HttpContext context) =>
 {
     var traceId = context.Items.TryGetValue("CorrelationId", out var cid) && cid is string cStr && !string.IsNullOrWhiteSpace(cStr)
@@ -423,6 +543,8 @@ try
                     CREATE EXTENSION IF NOT EXISTS btree_gist;
                     ALTER TABLE ""Tenants"" ADD COLUMN IF NOT EXISTS ""TimeZoneId"" text NOT NULL DEFAULT 'UTC';
                     UPDATE ""Tenants"" SET ""TimeZoneId"" = 'Asia/Kolkata' WHERE ""Slug"" = 'acme-salon' AND (""TimeZoneId"" IS NULL OR ""TimeZoneId"" = 'UTC');
+                    ALTER TABLE ""OutboxMessages"" ADD COLUMN IF NOT EXISTS ""CorrelationId"" text;
+                    ALTER TABLE ""OutboxMessages"" ADD COLUMN IF NOT EXISTS ""TraceId"" text;
                     ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_overlap;
                     ALTER TABLE ""Bookings"" ADD CONSTRAINT no_overlap
                       EXCLUDE USING gist (

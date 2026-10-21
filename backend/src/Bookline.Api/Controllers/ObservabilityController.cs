@@ -23,66 +23,7 @@ public class ObservabilityController : ControllerBase
         _redis = redis;
     }
 
-    /// <summary>
-    /// Liveness probe verifying the API process is alive.
-    /// </summary>
-    [HttpGet("/health")]
-    public IActionResult Health()
-    {
-        return Ok(new
-        {
-            status = "Healthy",
-            timestamp = DateTimeOffset.UtcNow,
-            uptime = DateTimeOffset.UtcNow - StartTime
-        });
-    }
 
-    /// <summary>
-    /// Readiness probe verifying dependencies: Database, Redis, Worker, and Outbox.
-    /// </summary>
-    [HttpGet("/ready")]
-    public async Task<IActionResult> Ready(CancellationToken cancellationToken)
-    {
-        bool dbHealthy = false;
-        int pendingOutbox = 0;
-        int failedOutbox = 0;
-
-        try
-        {
-            dbHealthy = await _dbContext.Database.CanConnectAsync(cancellationToken);
-            if (dbHealthy)
-            {
-                pendingOutbox = await _dbContext.OutboxMessages.IgnoreQueryFilters()
-                    .CountAsync(m => m.Status == "Pending", cancellationToken);
-                failedOutbox = await _dbContext.OutboxMessages.IgnoreQueryFilters()
-                    .CountAsync(m => m.Status == "Failed", cancellationToken);
-            }
-        }
-        catch
-        {
-            dbHealthy = false;
-        }
-
-        bool redisHealthy = _redis != null && _redis.IsConnected;
-
-        var isReady = dbHealthy;
-        var response = new
-        {
-            status = isReady ? "Ready" : "Degraded",
-            database = dbHealthy ? "Connected" : "Disconnected",
-            redis = redisHealthy ? "Connected" : "FallbackInMemory",
-            worker = "Active",
-            outbox = new
-            {
-                pending = pendingOutbox,
-                failed = failedOutbox,
-                status = failedOutbox > 10 ? "Alert" : "Normal"
-            },
-            timestamp = DateTimeOffset.UtcNow
-        };
-
-        return isReady ? Ok(response) : StatusCode(503, response);
-    }
 
     /// <summary>
     /// Comprehensive observability telemetry endpoint for monitoring dashboards.

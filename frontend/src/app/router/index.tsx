@@ -4,6 +4,8 @@ import { CustomerLayout } from '../../layouts/CustomerLayout';
 import { ProviderLayout } from '../../layouts/ProviderLayout';
 import { AdminLayout } from '../../layouts/AdminLayout';
 import { AuthLayout } from '../../layouts/AuthLayout';
+import { ProtectedRoute } from './ProtectedRoute';
+import { RoleRoute } from './RoleRoute';
 
 // Customer Pages
 import { HomePage } from '../../pages/marketing/HomePage';
@@ -58,10 +60,17 @@ import { AdminReportsPage } from '../../pages/admin/AdminReportsPage';
 import { AdminAuditPage } from '../../pages/admin/AdminAuditPage';
 import { AdminHealthPage } from '../../pages/admin/AdminHealthPage';
 
+// Feedback Pages
+import { NotFoundPage } from '../../pages/feedback/NotFoundPage';
+import { UnauthorizedPage } from '../../pages/feedback/UnauthorizedPage';
+
 const OnboardingRedirect: React.FC = () => {
   const location = useLocation();
   return <Navigate to={`/provider/onboarding${location.search}`} replace />;
 };
+
+const PROVIDER_ROLES = ['Owner', 'Provider', 'Admin', 'Staff', 'Receptionist', 'Manager'];
+const ADMIN_ROLES = ['PlatformAdmin', 'Admin'];
 
 export const AppRouter: React.FC = () => {
   return (
@@ -69,29 +78,37 @@ export const AppRouter: React.FC = () => {
       <Routes>
         {/* Persistent Onboarding Redirect (Preserves query search parameters) */}
         <Route path="/onboarding" element={<OnboardingRedirect />} />
+
+        {/* Global Feedback Routes */}
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
         {/* ========================================================= */}
         {/* 1. CUSTOMER MARKETPLACE (CustomerLayout - Section 22)     */}
         {/* ========================================================= */}
         <Route element={<CustomerLayout />}>
+          {/* Public Discovery */}
           <Route path="/" element={<HomePage />} />
           <Route path="/discover" element={<DiscoveryPage />} />
           <Route path="/discover/:category" element={<DiscoveryPage />} />
           <Route path="/category/:slug" element={<DiscoveryPage />} />
           <Route path="/business/:slug" element={<ProviderStorefrontPage />} />
-          <Route path="/book/:businessSlug" element={<ProviderStorefrontPage />} />
           <Route path="/book/:slug" element={<ProviderStorefrontPage />} />
-          <Route path="/favorites" element={<FavoritesPage />} />
-          <Route path="/appointments" element={<CustomerAppointmentsPage />} />
-          <Route path="/appointments/:id" element={<CustomerAppointmentsPage />} />
-          <Route path="/orders" element={<CustomerOrdersPage />} />
-          <Route path="/orders/:id" element={<CustomerOrdersPage />} />
-          <Route path="/notifications" element={<CustomerNotificationsPage />} />
-          <Route path="/dashboard" element={<CustomerDashboardPage />} />
-          <Route path="/customer/dashboard" element={<CustomerDashboardPage />} />
-          <Route path="/account" element={<CustomerDashboardPage />} />
-          <Route path="/profile" element={<CustomerProfilePage />} />
-          <Route path="/settings" element={<CustomerProfilePage />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
+
+          {/* Authenticated Customer Routes (Protected) */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/favorites" element={<FavoritesPage />} />
+            <Route path="/appointments" element={<CustomerAppointmentsPage />} />
+            <Route path="/appointments/:id" element={<CustomerAppointmentsPage />} />
+            <Route path="/orders" element={<CustomerOrdersPage />} />
+            <Route path="/orders/:id" element={<CustomerOrdersPage />} />
+            <Route path="/notifications" element={<CustomerNotificationsPage />} />
+            <Route path="/dashboard" element={<CustomerDashboardPage />} />
+            <Route path="/customer/dashboard" element={<CustomerDashboardPage />} />
+            <Route path="/account" element={<CustomerDashboardPage />} />
+            <Route path="/profile" element={<CustomerProfilePage />} />
+            <Route path="/settings" element={<CustomerProfilePage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+          </Route>
         </Route>
 
         {/* ========================================================= */}
@@ -107,7 +124,14 @@ export const AppRouter: React.FC = () => {
         {/* ========================================================= */}
         {/* 3. PROVIDER OPERATING OS (ProviderLayout)                */}
         {/* ========================================================= */}
-        <Route path="/provider" element={<ProviderLayout />}>
+        <Route
+          path="/provider"
+          element={
+            <RoleRoute allowedRoles={PROVIDER_ROLES}>
+              <ProviderLayout />
+            </RoleRoute>
+          }
+        >
           <Route index element={<Navigate to="/provider/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="calendar" element={<CalendarPage />} />
@@ -137,7 +161,14 @@ export const AppRouter: React.FC = () => {
         {/* ========================================================= */}
         {/* 4. PLATFORM GOVERNANCE ADMIN (AdminLayout)                */}
         {/* ========================================================= */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/admin"
+          element={
+            <RoleRoute allowedRoles={ADMIN_ROLES}>
+              <AdminLayout />
+            </RoleRoute>
+          }
+        >
           <Route index element={<AdminDashboardPage />} />
           <Route path="providers" element={<AdminProvidersPage />} />
           <Route path="businesses" element={<AdminBusinessesPage />} />
@@ -156,12 +187,13 @@ export const AppRouter: React.FC = () => {
           <Route path="health" element={<AdminHealthPage />} />
         </Route>
 
-        {/* Fallback Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 404 Not Found Catch-all */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );
 };
 
 export * from './routes';
-
+export { ProtectedRoute } from './ProtectedRoute';
+export { RoleRoute } from './RoleRoute';

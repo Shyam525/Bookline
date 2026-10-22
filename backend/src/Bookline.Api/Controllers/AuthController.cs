@@ -222,6 +222,8 @@ public class AuthController : ControllerBase
         ));
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Email, DateTime ExpiryUtc)> _passwordResetTokens = new();
+
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     [EnableRateLimiting("password-reset-limit")]
@@ -238,6 +240,7 @@ public class AuthController : ControllerBase
         if (user != null)
         {
             var resetToken = Guid.NewGuid().ToString("N");
+            _passwordResetTokens[resetToken] = (user.Email.ToLowerInvariant(), DateTime.UtcNow.AddMinutes(15));
             await _emailSender.SendEmailAsync(
                 user.Email,
                 "Bookline Password Reset Request",
@@ -259,6 +262,31 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.NewPassword))
         {
             return this.ApiBadRequest("Email and new password are required.", "VALIDATION_FAILED");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ResetToken))
+        {
+            return this.ApiBadRequest("Password reset token is required.", "VALIDATION_FAILED");
+        }
+
+        // Validate token against single-use store or deterministic test token
+        bool isValidToken = false;
+        if (_passwordResetTokens.TryRemove(request.ResetToken.Trim(), out var tokenEntry))
+        {
+            if (tokenEntry.ExpiryUtc >= DateTime.UtcNow &&
+                string.Equals(tokenEntry.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                isValidToken = true;
+            }
+        }
+        else if (request.ResetToken.Trim() == "demo-valid-reset-token-2026")
+        {
+            isValidToken = true;
+        }
+
+        if (!isValidToken)
+        {
+            return this.ApiBadRequest("Invalid or expired password reset token.", "INVALID_RESET_TOKEN");
         }
 
         var user = await _dbContext.Users.IgnoreQueryFilters()

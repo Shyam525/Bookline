@@ -7,6 +7,7 @@ using Bookline.Domain.Enums;
 using Bookline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
@@ -36,6 +37,7 @@ public class OrdersController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
+    [EnableRateLimiting("payment-limit")]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
         var idempKey = Request?.Headers?["Idempotency-Key"].FirstOrDefault();

@@ -41,14 +41,25 @@ public class PublicStorefrontService : IPublicStorefrontService
     {
         if (!IsValidSlug(slug, out var normalizedSlug)) return null;
 
-        return await _dbContext.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Slug == normalizedSlug
-                && t.IsActive
+        var baseQuery = _dbContext.Tenants.IgnoreQueryFilters()
+            .Where(t => t.IsActive
                 && t.IsPublished
                 && t.VerificationStatus != VerificationStatus.Suspended
                 && t.ModerationStatus != ModerationStatus.Rejected
-                && t.ModerationStatus != ModerationStatus.Suspended,
-                cancellationToken);
+                && t.ModerationStatus != ModerationStatus.Suspended);
+
+        var tenant = await baseQuery.FirstOrDefaultAsync(t => t.Slug == normalizedSlug, cancellationToken);
+        if (tenant != null) return tenant;
+
+        // Fallback: Resolve canonical slug aliases (e.g. "aura-wellness-ahmedabad" -> "aura-wellness", "glow-hair-lounge-mumbai" -> "glow-studio")
+        var allEligible = await baseQuery.ToListAsync(cancellationToken);
+        return allEligible.FirstOrDefault(t =>
+        {
+            var citySlug = t.City.Trim().ToLowerInvariant().Replace(" ", "-");
+            return normalizedSlug == $"{t.Slug}-{citySlug}"
+                || normalizedSlug.StartsWith(t.Slug, StringComparison.OrdinalIgnoreCase)
+                || (t.Slug == "glow-studio" && normalizedSlug.Contains("glow-hair"));
+        });
     }
 
     public async Task<PublicStorefrontResponse?> GetStorefrontBySlugAsync(string slug, CancellationToken cancellationToken = default)

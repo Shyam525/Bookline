@@ -114,7 +114,7 @@ This launches:
    - Filter by category (*Wellness*, *Beauty*, *Healthcare*, *Fitness*)
    - Pan map and click "Search this area"
 2. **Provider Storefront & Step-by-Step Booking**:
-   - Open `/business/aura-wellness-ahmedabad`
+   - Open `/business/aura-wellness` or `/business/aura-wellness-ahmedabad` (or `/business/glow-studio`)
    - Select a treatment service -> Select Specialist -> Choose Date & Available Slot
    - Experience the authoritative 5-minute slot hold countdown
    - Confirm booking to receive booking reference `BL-XXXXXX` and export `.ics` calendar event

@@ -172,4 +172,20 @@ export const onboardingApi = {
     }
     return res.json();
   },
+
+  async initiateTenant(token: string, data: { businessName: string; slug?: string; city?: string; category?: string; timezone?: string; currency?: string }): Promise<{ tenantId: string; name: string; slug: string; message: string }> {
+    const res = await fetch(`${API_BASE}/initiate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || err?.Message || 'Failed to initiate tenant onboarding');
+    }
+    return res.json();
+  },
 };

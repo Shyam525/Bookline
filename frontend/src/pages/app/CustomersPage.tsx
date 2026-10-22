@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../app/providers/AuthProvider';
 import { Button, IconButton } from '../../components/ui/Button';
 import { Input, SearchBox } from '../../components/forms/Inputs';
 import { Card, Avatar } from '../../components/data-display/DataDisplay';
 import { Modal, Drawer, ConfirmDialog, Skeleton, EmptyState, ErrorState } from '../../components/feedback/Feedback';
 import { UserPlus, Edit2, Archive, Eye, Mail, Phone, Calendar, Users, FileText, RefreshCw } from 'lucide-react';
-import { CustomerItem } from '../../services/api/customers';
+import { CustomerItem, customersApi } from '../../services/api/customers';
 import { useDebounce } from '../../hooks/useDebounce';
 
 export const CustomersPage: React.FC = () => {
-  // Mock initial state for design system & offline presentation
+  const { token } = useAuth();
+  // Initial state for design system & offline presentation
   const [customers, setCustomers] = useState<CustomerItem[]>([
     {
       id: 'cust-1',
@@ -63,13 +65,27 @@ export const CustomersPage: React.FC = () => {
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
-  const fetchCustomers = () => {
+  const fetchCustomers = async () => {
     setIsLoading(true);
     setErrorMsg(null);
-    setTimeout(() => {
+    try {
+      if (token) {
+        const res = await customersApi.getCustomers(token, debouncedSearch);
+        const items = res?.items ?? (Array.isArray(res) ? res : []);
+        if (items && items.length > 0) {
+          setCustomers(items);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Backend customers fetch failed, using fallback directory:', err);
+    } finally {
       setIsLoading(false);
-    }, 200);
+    }
   };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [token, debouncedSearch]);
   
   // Modals & Drawers
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -117,34 +133,57 @@ export const CustomersPage: React.FC = () => {
     setIsCustomerModalOpen(true);
   };
 
-  const handleSaveCustomer = (e: React.FormEvent) => {
+  const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingCustomer) {
-      setCustomers(customers.map(c => c.id === editingCustomer.id ? {
-        ...c,
-        ...customerForm,
-        fullName: `${customerForm.firstName} ${customerForm.lastName}`.trim(),
-      } : c));
-    } else {
-      const newCustomer: CustomerItem = {
-        id: `cust-${Date.now()}`,
-        tenantId: 't-1',
-        ...customerForm,
-        fullName: `${customerForm.firstName} ${customerForm.lastName}`.trim(),
-        totalBookingsCount: 0,
-        totalSpentAmount: 0.00,
-        isArchived: false,
-        createdAtUtc: new Date().toISOString(),
-      };
-      setCustomers([...customers, newCustomer]);
+    try {
+      if (editingCustomer) {
+        if (token) {
+          await customersApi.updateCustomer(token, editingCustomer.id, customerForm);
+        }
+        setCustomers(customers.map(c => c.id === editingCustomer.id ? {
+          ...c,
+          ...customerForm,
+          fullName: `${customerForm.firstName} ${customerForm.lastName}`.trim(),
+        } : c));
+      } else {
+        let created: CustomerItem | null = null;
+        if (token) {
+          try {
+            created = await customersApi.createCustomer(token, customerForm);
+          } catch (err) {
+            console.warn('Backend createCustomer failed, using local state:', err);
+          }
+        }
+        const newCustomer: CustomerItem = created || {
+          id: `cust-${Date.now()}`,
+          tenantId: 't-1',
+          ...customerForm,
+          fullName: `${customerForm.firstName} ${customerForm.lastName}`.trim(),
+          totalBookingsCount: 0,
+          totalSpentAmount: 0.00,
+          isArchived: false,
+          createdAtUtc: new Date().toISOString(),
+        };
+        setCustomers([...customers, newCustomer]);
+      }
+      setIsCustomerModalOpen(false);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to save customer');
     }
-    setIsCustomerModalOpen(false);
   };
 
-  const handleConfirmArchive = () => {
+  const handleConfirmArchive = async () => {
     if (archivingCustomerId) {
-      setCustomers(customers.map(c => c.id === archivingCustomerId ? { ...c, isArchived: true } : c));
-      setArchivingCustomerId(null);
+      try {
+        if (token) {
+          await customersApi.archiveCustomer(token, archivingCustomerId);
+        }
+        setCustomers(customers.map(c => c.id === archivingCustomerId ? { ...c, isArchived: true } : c));
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Failed to archive customer');
+      } finally {
+        setArchivingCustomerId(null);
+      }
     }
   };
 

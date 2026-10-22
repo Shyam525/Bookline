@@ -56,6 +56,37 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/check-in")]
+    public async Task<IActionResult> CheckIn(Guid id, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateBookingStatusCommand(id, "CheckedIn"), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/complete")]
+    public async Task<IActionResult> Complete(Guid id, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateBookingStatusCommand(id, "Completed"), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/no-show")]
+    public async Task<IActionResult> NoShow(Guid id, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateBookingStatusCommand(id, "NoShow"), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/status")]
+    public async Task<IActionResult> UpdateStatus(
+        Guid id,
+        [FromBody] UpdateBookingStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateBookingStatusCommand(id, request.Status, request.Reason), cancellationToken);
+        return NoContent();
+    }
+
     [HttpPut("{id:guid}/reschedule")]
     public async Task<ActionResult<BookingDto>> Reschedule(
         Guid id,
@@ -71,3 +102,4 @@ public class BookingsController : ControllerBase
 
 public record RescheduleBookingRequest(DateTimeOffset StartUtc, Guid HoldId);
 public record CancelBookingRequest(string? Reason = null);
+public record UpdateBookingStatusRequest(string Status, string? Reason = null);

@@ -61,7 +61,8 @@ export const ordersApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.items || []);
   },
 
   async getProviderOrders(token: string, tenantId: string): Promise<OrderDto[]> {
@@ -72,7 +73,8 @@ export const ordersApi = {
       },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.items || []);
   },
 
   async updateOrderStatus(id: string, status: string, token: string, tenantId: string): Promise<OrderDto> {

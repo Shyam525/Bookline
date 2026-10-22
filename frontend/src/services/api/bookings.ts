@@ -66,4 +66,40 @@ export const bookingsApi = {
     if (!res.ok) throw new Error('Failed to reschedule booking');
     return res.json();
   },
+
+  async updateBookingStatus(token: string, id: string, status: string, reason?: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/${id}/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, reason }),
+    });
+    if (!res.ok) throw new Error(`Failed to update booking status to ${status}`);
+  },
+
+  async checkInBooking(token: string, id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/${id}/check-in`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to check in booking');
+  },
+
+  async completeBooking(token: string, id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/${id}/complete`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to complete booking');
+  },
+
+  async noShowBooking(token: string, id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/${id}/no-show`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to mark booking as no-show');
+  },
 };

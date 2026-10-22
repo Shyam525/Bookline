@@ -10,7 +10,7 @@ namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin")]
-[Authorize] // Platform admin authorization
+[Authorize(Roles = "PlatformAdmin,Admin")] // Platform admin authorization
 public class AdminController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
@@ -205,6 +205,11 @@ public class AdminController : ControllerBase
     [HttpPost("payouts/process")]
     public async Task<IActionResult> TriggerPayout([FromBody] TriggerPayoutRequest request, CancellationToken cancellationToken)
     {
+        if (request.Amount <= 0)
+        {
+            return BadRequest(new { Message = "Payout amount must be greater than zero." });
+        }
+
         var result = await _payoutProvider.DisbursePayoutAsync(new ProcessPayoutRequest(
             TenantId: request.TenantId,
             Amount: request.Amount,

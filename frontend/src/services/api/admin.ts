@@ -45,7 +45,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async updateProviderVerification(id: string, status: string, token: string): Promise<void> {
@@ -65,7 +66,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getCommissions(token: string) {
@@ -73,7 +75,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getPayouts(token: string) {
@@ -81,7 +84,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async triggerPayout(tenantId: string, amount: number, token: string) {
@@ -105,7 +109,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getAnalytics(token: string) {
@@ -121,7 +126,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getBookings(token: string) {
@@ -129,7 +135,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getOrders(token: string) {
@@ -137,7 +144,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getPayments(token: string) {
@@ -145,7 +153,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getModeration(token: string) {
@@ -153,7 +162,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async updateModeration(entityType: string, id: string, status: string, token: string) {
@@ -182,7 +192,8 @@ export const adminApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async getSystem(token: string) {

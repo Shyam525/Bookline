@@ -22,11 +22,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.ConfigureServices(services =>
         {
-            services.AddControllers()
-                .AddJsonOptions(options =>
-                {
-                    options.JsonSerializerOptions.Converters.Add(new InstantJsonConverter());
-                });
+
 
             var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<BooklineDbContext>));
             if (descriptor != null)
@@ -45,8 +41,17 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var db = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
             db.Database.EnsureCreated();
 
-            var tenant1 = new Tenant { Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), Name = "Demo Salon", Slug = "acme-salon" };
-            var tenant2 = new Tenant { Id = Guid.Parse("00000000-0000-0000-0000-000000000002"), Name = "Other Salon", Slug = "other-salon" };
+            var tenant1 = new Tenant
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                Name = "Demo Salon",
+                Slug = "acme-salon",
+                IsActive = true,
+                IsPublished = true,
+                VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified,
+                City = "New York"
+            };
+            var tenant2 = new Tenant { Id = Guid.Parse("00000000-0000-0000-0000-000000000002"), Name = "Other Salon", Slug = "other-salon", IsActive = true, IsPublished = true, VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified };
             db.Tenants.AddRange(tenant1, tenant2);
 
             var service1 = new Service { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), TenantId = tenant1.Id, Name = "Haircut", DurationMinutes = 45, Price = 50 };

@@ -44,7 +44,17 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Add services
-builder.Services.AddControllers()
+var jsonSerializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+};
+jsonSerializerOptions.Converters.Add(new InstantJsonConverter());
+
+builder.Services.AddControllers(options =>
+{
+    options.OutputFormatters.RemoveType<Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonOutputFormatter>();
+    options.OutputFormatters.Insert(0, new SafeJsonOutputFormatter(jsonSerializerOptions));
+})
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new InstantJsonConverter());
@@ -711,6 +721,34 @@ public class InstantJsonConverter : JsonConverter<Instant>
     public override void Write(System.Text.Json.Utf8JsonWriter writer, Instant value, System.Text.Json.JsonSerializerOptions options)
     {
         writer.WriteStringValue(value.ToString());
+    }
+}
+
+public class SafeJsonOutputFormatter : Microsoft.AspNetCore.Mvc.Formatters.TextOutputFormatter
+{
+    private readonly JsonSerializerOptions _jsonSerializerOptions;
+
+    public SafeJsonOutputFormatter(JsonSerializerOptions jsonSerializerOptions)
+    {
+        _jsonSerializerOptions = jsonSerializerOptions;
+        SupportedMediaTypes.Add("application/json");
+        SupportedMediaTypes.Add("text/json");
+        SupportedMediaTypes.Add("application/*+json");
+        SupportedEncodings.Add(System.Text.Encoding.UTF8);
+        SupportedEncodings.Add(System.Text.Encoding.Unicode);
+    }
+
+    public override async Task WriteResponseBodyAsync(Microsoft.AspNetCore.Mvc.Formatters.OutputFormatterWriteContext context, System.Text.Encoding selectedEncoding)
+    {
+        var response = context.HttpContext.Response;
+        if (context.Object == null)
+        {
+            await response.WriteAsync("null", selectedEncoding);
+            return;
+        }
+
+        var type = context.ObjectType ?? context.Object.GetType();
+        await JsonSerializer.SerializeAsync(response.Body, context.Object, type, _jsonSerializerOptions);
     }
 }
 

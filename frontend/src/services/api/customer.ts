@@ -63,7 +63,7 @@ export const customerApi = {
   async getAppointments(
     token: string,
     params?: { page?: number; pageSize?: number; status?: string; sort?: string; direction?: string }
-  ): Promise<any> {
+  ): Promise<CustomerAppointmentDto[]> {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', params.page.toString());
     if (params?.pageSize) query.append('pageSize', params.pageSize.toString());
@@ -78,7 +78,8 @@ export const customerApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 
   async rescheduleAppointment(id: string, newStartUtc: string, newEndUtc: string, token: string) {
@@ -118,6 +119,7 @@ export const customerApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    return data.items ?? (Array.isArray(data) ? data : []);
   },
 };

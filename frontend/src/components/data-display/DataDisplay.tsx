@@ -151,16 +151,30 @@ export const Avatar: React.FC<{ name: string; size?: 'sm' | 'md' | 'lg' }> = ({ 
 };
 
 export const Skeleton: React.FC<{ className?: string }> = ({ className }) => {
-  return <div className={twMerge('bg-[#181D2C] animate-pulse rounded-lg', className)} />;
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading..."
+      data-testid="skeleton-loader"
+      className={twMerge('bg-[#181D2C] animate-pulse rounded-lg', className)}
+    />
+  );
 };
 
-export const EmptyState: React.FC<{ title: string; description: string; action?: React.ReactNode }> = ({
+export const EmptyState: React.FC<{ title: string; description: string; action?: React.ReactNode; testId?: string }> = ({
   title,
   description,
   action,
+  testId = 'empty-state',
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center text-center p-12 bg-[#111520] border border-[#212638] rounded-2xl space-y-4">
+    <div
+      role="status"
+      aria-label={title}
+      data-testid={testId}
+      className="flex flex-col items-center justify-center text-center p-12 bg-[#111520] border border-[#212638] rounded-2xl space-y-4"
+    >
       <div className="w-12 h-12 rounded-full bg-[#181D2C] flex items-center justify-center text-[#7E88A8]">
         <Inbox className="w-6 h-6" />
       </div>
@@ -173,13 +187,19 @@ export const EmptyState: React.FC<{ title: string; description: string; action?:
   );
 };
 
-export const ErrorState: React.FC<{ title?: string; message: string; onRetry?: () => void }> = ({
+export const ErrorState: React.FC<{ title?: string; message: string; onRetry?: () => void; testId?: string }> = ({
   title = 'Something went wrong',
   message,
   onRetry,
+  testId = 'error-state',
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center text-center p-8 bg-red-500/5 border border-red-500/20 rounded-2xl space-y-4">
+    <div
+      role="alert"
+      aria-live="assertive"
+      data-testid={testId}
+      className="flex flex-col items-center justify-center text-center p-8 bg-red-500/5 border border-red-500/20 rounded-2xl space-y-4"
+    >
       <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
         <AlertTriangle className="w-6 h-6" />
       </div>
@@ -189,8 +209,10 @@ export const ErrorState: React.FC<{ title?: string; message: string; onRetry?: (
       </div>
       {onRetry && (
         <button
+          type="button"
           onClick={onRetry}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-sm rounded-xl transition-colors"
+          aria-label={`Retry ${title}`}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-sm rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
         >
           Try Again
         </button>

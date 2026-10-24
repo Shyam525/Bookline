@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, MapPin, Search, Command, User, Shield, Settings, LogOut, ChevronDown, Check } from 'lucide-react';
-import { NotificationCenter } from './NotificationCenter';
+import { NotificationDropdown } from './NotificationDropdown';
 import { Avatar } from '../data-display/DataDisplay';
 
 export interface TopBarProps {
@@ -132,7 +132,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenCommandPalette, activeOrg,
 
       {/* Right: Notifications & User Menu */}
       <div className="flex items-center gap-3">
-        <NotificationCenter />
+        <NotificationDropdown />
 
         {/* User Menu Dropdown */}
         <div ref={userRef} className="relative">

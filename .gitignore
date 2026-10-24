@@ -17,4 +17,6 @@ Thumbs.db
 node_modules/
 dist/
 *.zip
+staging-zip/
 scratch/
+*.cer

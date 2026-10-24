@@ -21,7 +21,15 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "[3/3] Running Frontend TypeScript & Vite Build..." -ForegroundColor Cyan
+Write-Host "[3/4] Running Frontend Automated Tests (49 Tests)..." -ForegroundColor Cyan
+npm --prefix frontend run test
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "X Frontend Unit Tests Failed!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "[4/4] Running Frontend TypeScript & Vite Build..." -ForegroundColor Cyan
 npm --prefix frontend run build
 
 if ($LASTEXITCODE -ne 0) {

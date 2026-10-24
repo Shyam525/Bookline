@@ -2,7 +2,7 @@
 param(
     [string]$SourceDir = "c:\z-projects\Bookline",
     [string]$ZipOutput = "c:\z-projects\Bookline\BOOKLINE-final.zip",
-    [string]$ExtractTestDir = "c:\z-projects\Bookline\scratch\verify-extract"
+    [string]$ExtractTestDir = (Join-Path $env:TEMP "bookline-verify-extract")
 )
 
 Write-Host "===> Packaging Bookline Production Release <===" -ForegroundColor Cyan
@@ -83,5 +83,8 @@ try {
 finally {
     if (Test-Path $tempDir) {
         Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $ExtractTestDir) {
+        Remove-Item $ExtractTestDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }

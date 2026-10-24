@@ -130,7 +130,7 @@ export const CustomerAppointmentsPage: React.FC = () => {
     customerApi
       .getAppointments(token)
       .then((data) => {
-        const items: CustomerAppointmentDto[] = Array.isArray(data) ? data : (data?.items ?? []);
+        const items: CustomerAppointmentDto[] = Array.isArray(data) ? data : ((data as any)?.items ?? []);
         if (items.length > 0) {
           const apiIds = new Set(items.map((d) => d.id));
           const uniqueLocals = localBookings.filter((b) => !apiIds.has(b.id));

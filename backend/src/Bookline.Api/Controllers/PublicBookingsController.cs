@@ -99,6 +99,11 @@ public class PublicBookingsController : ControllerBase
         return CreatedAtAction(nameof(CreateBooking), new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// Legacy tenant metadata lookup by slug.
+    /// Note: Canonical rich storefront profiles with services, products, locations, and reviews
+    /// are served authoritatively by <see cref="PublicBusinessesController.GetBusinessBySlug"/>.
+    /// </summary>
     [HttpGet("tenant/{slug}")]
     public async Task<ActionResult<Bookline.Application.Tenants.Queries.PublicTenantDto>> GetTenantBySlug(
         [FromRoute] string slug,

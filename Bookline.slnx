@@ -1,12 +1,12 @@
 <Solution>
-  <Folder Name="Backend">
+  <Folder Name="/Backend/">
     <Project Path="backend/src/Bookline.Api/Bookline.Api.csproj" />
     <Project Path="backend/src/Bookline.Application/Bookline.Application.csproj" />
     <Project Path="backend/src/Bookline.Domain/Bookline.Domain.csproj" />
     <Project Path="backend/src/Bookline.Infrastructure/Bookline.Infrastructure.csproj" />
     <Project Path="backend/src/Bookline.Worker/Bookline.Worker.csproj" />
   </Folder>
-  <Folder Name="Tests">
+  <Folder Name="/Tests/">
     <Project Path="backend/tests/Bookline.Application.UnitTests/Bookline.Application.UnitTests.csproj" />
     <Project Path="backend/tests/Bookline.Domain.UnitTests/Bookline.Domain.UnitTests.csproj" />
     <Project Path="backend/tests/Bookline.Infrastructure.UnitTests/Bookline.Infrastructure.UnitTests.csproj" />

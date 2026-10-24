@@ -1,3 +1,9 @@
+/**
+ * Customer Workspace API Client
+ * Scope: Authenticated Consumer / Client Self-Service endpoints (/api/v1/customer)
+ * Responsibilities: Profile management, personal appointment history, rescheduling, and personal orders.
+ */
+
 export interface CustomerAppointmentDto {
   id: string;
   bookingReference: string;

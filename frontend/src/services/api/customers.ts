@@ -1,3 +1,9 @@
+/**
+ * Provider CRM API Client
+ * Scope: Provider / Staff Operations endpoints (/api/v1/customers)
+ * Responsibilities: Multi-tenant CRM client management, client directory, notes, and archiving.
+ */
+
 export interface CustomerItem {
   id: string;
   tenantId: string;

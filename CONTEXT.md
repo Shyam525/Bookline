@@ -32,6 +32,18 @@
 - `SaveChangesInterceptor` MUST automatically stamp `TenantId` on entity insertion, and throw an exception if a modified/deleted entity's `TenantId` does not match the active `TenantContext`.
 - `IgnoreQueryFilters()` is STRICTLY FORBIDDEN unless approved for explicit, commented system-admin/cross-tenant maintenance paths.
 
+## Phase Execution Protocol & Gujarat MVP Boundaries
+- **Product Strategy**: Provider-management SaaS first, customer booking and discovery second.
+- **Unified Calendar Anchor**: Manual walk-ins, phone appointments, and direct online booking links share the identical scheduling engine, conflict checks, and `Bookings` records.
+- **Initial Target Market**: Gujarat, India (Configurable launch city via `AppConfig:LaunchCity`, default `Asia/Kolkata` timezone).
+- **Core Constraints**: 1 operational location in MVP, provider subscription hypothesis (no commissions), no online payment gateways in MVP (record offline Cash/UPI/Card), bilingual English/Gujarati ready.
+- **Reference Architecture & Planning Documentation**:
+  - MVP Scope: `docs/product/bookline-mvp.md`
+  - Current State Audit: `docs/architecture/current-state.md`
+  - Target Architecture: `docs/architecture/target-architecture.md`
+  - Phased Roadmap: `docs/planning/implementation-roadmap.md`
+  - Acceptance Criteria: `docs/quality/acceptance-criteria.md`
+
 ## Code Quality & Compiler Directives
 - `<Nullable>enable</Nullable>` is enforced across all projects.
 - `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` is enforced across all projects.

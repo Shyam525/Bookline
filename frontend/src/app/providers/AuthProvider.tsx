@@ -88,7 +88,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    if (tokens?.accessToken && (user?.role === 'Owner' || user?.role === 'Admin' || user?.role === 'Staff')) {
+    if (tokens?.accessToken && (
+      user?.role === 'Owner' ||
+      user?.role === 'BusinessOwner' ||
+      user?.role === 'Admin' ||
+      user?.role === 'Staff' ||
+      user?.role === 'BusinessStaff'
+    )) {
       refreshBusinesses(tokens.accessToken);
     }
   }, [tokens?.accessToken, user?.role]);

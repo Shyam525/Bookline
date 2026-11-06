@@ -69,7 +69,7 @@ const OnboardingRedirect: React.FC = () => {
   return <Navigate to={`/provider/onboarding${location.search}`} replace />;
 };
 
-const PROVIDER_ROLES = ['Owner', 'Provider', 'Admin', 'Staff', 'Receptionist', 'Manager'];
+const PROVIDER_ROLES = ['Owner', 'BusinessOwner', 'Provider', 'Admin', 'Staff', 'BusinessStaff', 'Receptionist', 'Manager'];
 const ADMIN_ROLES = ['PlatformAdmin', 'Admin'];
 
 export const AppRouter: React.FC = () => {

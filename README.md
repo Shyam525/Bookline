@@ -1,9 +1,25 @@
-# BOOKLINE — Elite Production-Grade Multi-Vendor Marketplace Platform
+# BOOKLINE — Provider Management & Appointment Platform
 
-**Bookline** is a real, scalable, multi-vendor marketplace platform where:
-- **Customers** discover local businesses, services, and products with interactive vector maps and PostGIS geolocation.
-- **Providers** operate multi-business organizations on Bookline (storefronts, branch locations, treatment menus, retail inventory, appointments calendar, and payouts).
-- **Platform Administrators** govern discovery, KYC verification, review moderation, transactional take-rate economics (10%), and infrastructure health.
+**Bookline** is a provider-management SaaS and appointment-booking platform built for independent local service businesses (salons, barbershops, beauty studios, spas, and wellness centers).
+
+- **Initial Market**: Gujarat, India (Configurable launch city, initial focus: Ahmedabad, Surat, Vadodara, Rajkot).
+- **Product Strategy**: **Provider-Management SaaS First, Customer Booking & Discovery Second**.
+- **The Core Anchor**: **The Unified Calendar**. Walk-ins, phone calls, WhatsApp/Instagram requests, and direct booking links share identical scheduling rules and database records.
+
+---
+
+## Architecture & Phase 0 Documentation Blueprint
+
+The platform architecture, roadmap, and validation frameworks are comprehensively documented under `docs/`:
+
+1. **[MVP Product Specification](docs/product/bookline-mvp.md)**: Frozen product scope, provider/customer promises, and deliberate operational constraints.
+2. **[Current State Technical Audit](docs/architecture/current-state.md)**: Comprehensive codebase inventory, test health baseline, and .NET framework assessment.
+3. **[Target Architecture Blueprint](docs/architecture/target-architecture.md)**: Modular monolith architecture across all 8 core subsystems and risk mitigations.
+4. **[Implementation Roadmap](docs/planning/implementation-roadmap.md)**: Phase-by-phase execution plan from Phase 0 to Phase 9 with strict acceptance gates.
+5. **[Acceptance Criteria Framework](docs/quality/acceptance-criteria.md)**: Testable quality standards, temporal correctness, and tenant isolation invariants.
+6. **[Provider Interview Guide](docs/validation/provider-interview-guide.md)**: Field discovery guide for salon and barbershop owners in Gujarat.
+7. **[Customer Interview Guide](docs/validation/customer-interview-guide.md)**: Customer discovery guide evaluating booking friction and waiting pain.
+8. **[Pilot Performance Metrics](docs/validation/pilot-metrics.md)**: Quantitative and qualitative pilot validation KPIs (DACU, zero double-bookings, retention).
 
 ---
 

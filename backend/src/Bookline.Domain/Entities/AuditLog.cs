@@ -5,6 +5,7 @@ using Bookline.Domain.Common;
 public class AuditLog : TenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid BusinessId => TenantId; // Domain alias for business reference
     public string Actor { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty;
     public string Target { get; set; } = string.Empty;

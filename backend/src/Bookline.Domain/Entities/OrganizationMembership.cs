@@ -5,6 +5,7 @@ namespace Bookline.Domain.Entities;
 public class OrganizationMembership : TenantEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid BusinessId => TenantId; // Domain alias for business reference
     public Guid UserId { get; set; }
     public string Role { get; set; } = "Staff"; // Owner, Admin, Manager, Receptionist, Staff, Viewer
     public bool IsActive { get; set; } = true;

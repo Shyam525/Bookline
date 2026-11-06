@@ -67,8 +67,8 @@ The platform architecture, roadmap, and validation frameworks are comprehensivel
   - Playfair Display & DM Sans typography
   - TanStack Query, React Router, Lucide Icons, Leaflet / Vector Map
 - **Testing**:
-  - xUnit, FluentAssertions, Architecture tests, Integration harness
-  - 103 Automated Tests passing with 0 failures
+  - xUnit, FluentAssertions, Architecture tests, Integration harness, Node.js TAP runner
+  - 521 Automated Tests passing with 0 failures (472 backend + 49 frontend)
 
 ---
 
@@ -103,22 +103,57 @@ This launches:
 - **redis**: Redis coordinator for holds and cache on `localhost:6379`
 - **mailpit**: Local SMTP relay & Webmail UI on [http://localhost:8026](http://localhost:8026)
 
-### Option B: Local Development
-1. **Run Backend**:
-   ```bash
-   cd backend/src/Bookline.Api
-   dotnet run
-   ```
-2. **Run Frontend**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-3. **Run Test Suite**:
-   ```bash
-   dotnet test backend
-   ```
+### Option B: Local Step-by-Step Development
+
+Follow these steps to run Bookline directly on your host machine:
+
+#### 1. Configure Environment Variables
+Copy `.env.example` to `.env` or set environment variables in your local environment. Development configurations in `backend/src/Bookline.Api/appsettings.Development.json` use safe local defaults:
+```bash
+cp .env.example .env
+```
+> **Security Note**: Never commit production secrets. In production environments (`ASPNETCORE_ENVIRONMENT=Production`), the application enforces validation requiring a cryptographically secure `JwtSettings:Secret` with a minimum length of 32 bytes (256 bits).
+
+#### 2. Start PostgreSQL & Infrastructure Services
+Launch PostgreSQL (with PostGIS), Redis, and Mailpit via Docker Compose:
+```bash
+docker compose up -d postgres redis mailpit
+```
+
+#### 3. Apply Database Migrations
+Apply the existing EF Core migrations to initialize or update your database schema:
+```bash
+dotnet ef database update --project backend/src/Bookline.Infrastructure --startup-project backend/src/Bookline.Api
+```
+
+#### 4. Start the Backend Web API
+Run the ASP.NET Core API server:
+```bash
+dotnet run --project backend/src/Bookline.Api
+```
+The API is available at [http://localhost:5168](http://localhost:5168), with Swagger UI at `/swagger`, liveness at `/health`, and readiness at `/ready`.
+
+#### 5. Start the Frontend Application
+In a separate terminal, install frontend dependencies and start the Vite development server:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The client UI will run on [http://localhost:5173](http://localhost:5173) (or [http://localhost:3000](http://localhost:3000) when run via Docker).
+
+#### 6. Run Automated Tests & Verifications
+Run the backend and frontend test suites to verify system integrity:
+```bash
+# Run all backend unit and integration test projects (Domain, Application, Infrastructure, Integration)
+dotnet test backend
+
+# Run frontend unit and workflow tests
+npm --prefix frontend test
+
+# Run frontend TypeScript type-checking and production build
+npm --prefix frontend run build
+```
 
 ---
 
@@ -170,16 +205,22 @@ This launches:
   - **Customer**: `customer@bookline.local` / `Customer123!`
   - **Provider**: `provider@bookline.local` / `Provider123!`
   - **Platform Admin**: `admin@bookline.local` / `Admin123!`
-- **Exact Test Command**:
+- **Exact Test Commands**:
   ```powershell
-  powershell -Command "Get-ChildItem -Path 'backend' -Recurse -Filter '*.dll' | Unblock-File; dotnet test backend/Bookline.slnx"
+  # Backend Tests (472 passing)
+  dotnet test backend
+
+  # Frontend Tests (49 passing)
+  npm --prefix frontend test
   ```
 - **Verification Report**:
   ```text
-  Passed!  - Failed: 0, Passed: 78, Skipped: 0, Total: 78 - Bookline.Application.UnitTests.dll (net8.0)
-  Passed!  - Failed: 0, Passed: 21, Skipped: 0, Total: 21 - Bookline.Domain.UnitTests.dll (net8.0)
-  Passed!  - Failed: 0, Passed:  4, Skipped: 0, Total:  4 - Bookline.IntegrationTests.dll (net8.0)
-  Total: 103 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
+  Passed!  - Failed: 0, Passed:  21, Skipped: 0, Total:  21 - Bookline.Domain.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed: 372, Skipped: 0, Total: 372 - Bookline.Application.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed:  63, Skipped: 0, Total:  63 - Bookline.Infrastructure.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed:  16, Skipped: 0, Total:  16 - Bookline.IntegrationTests.dll (net8.0)
+  Frontend: 49 passed, 0 failed, 3 suites (Node.js test runner)
+  Total: 521 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
   ```
 
 ---

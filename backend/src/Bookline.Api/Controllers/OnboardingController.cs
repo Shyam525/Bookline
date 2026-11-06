@@ -64,21 +64,21 @@ public class OnboardingController : ControllerBase
 
         return await _teamAuth.CanManageTeamAsync(callerId, tenantId, cancellationToken)
             || User.IsInRole("Admin")
-            || User.IsInRole("PlatformAdmin")
-            || User.IsInRole("Owner");
+            || User.IsInRole("PlatformAdmin");
     }
 
     [HttpGet("status")]
     public async Task<ActionResult<OnboardingStatusDto>> GetStatus(CancellationToken cancellationToken)
     {
         var callerId = GetCurrentUserId();
-        if (callerId == Guid.Empty || _dbContext == null) return Unauthorized();
+        if (callerId == Guid.Empty) return Unauthorized();
 
         var tenantId = await GetEffectiveTenantIdAsync(cancellationToken);
         if (tenantId == Guid.Empty)
         {
-            var user = await _dbContext.Users.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.Id == callerId, cancellationToken);
+            var user = _dbContext != null
+                ? await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == callerId, cancellationToken)
+                : null;
 
             return Ok(new OnboardingStatusDto(
                 Guid.Empty,
@@ -125,7 +125,7 @@ public class OnboardingController : ControllerBase
         }
 
         var canManage = await _teamAuth.CanManageTeamAsync(callerId, tenantId, cancellationToken);
-        if (!canManage && !User.IsInRole("Admin") && !User.IsInRole("PlatformAdmin") && !User.IsInRole("Owner"))
+        if (!canManage && !User.IsInRole("Admin") && !User.IsInRole("PlatformAdmin"))
         {
             return Forbid();
         }
@@ -189,7 +189,7 @@ public class OnboardingController : ControllerBase
         else
         {
             var canManage = await _teamAuth.CanManageTeamAsync(callerId, tenantId, cancellationToken);
-            if (!canManage && !User.IsInRole("Admin") && !User.IsInRole("PlatformAdmin") && !User.IsInRole("Owner"))
+            if (!canManage && !User.IsInRole("Admin") && !User.IsInRole("PlatformAdmin"))
             {
                 return Forbid();
             }

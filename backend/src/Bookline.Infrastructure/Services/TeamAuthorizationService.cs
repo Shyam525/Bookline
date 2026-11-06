@@ -27,15 +27,23 @@ public class TeamAuthorizationService : ITeamAuthorizationService
 
         // 2. Check OrganizationMembership
         var membership = await _dbContext.OrganizationMemberships.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == tenantId && m.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == tenantId, cancellationToken);
 
-        if (membership != null && Enum.TryParse<ProviderTeamRole>(membership.Role, true, out var role))
+        if (membership != null)
         {
-            return role;
+            if (!membership.IsActive)
+            {
+                return null; // Explicitly deactivated or revoked membership
+            }
+
+            if (Enum.TryParse<ProviderTeamRole>(membership.Role, true, out var role))
+            {
+                return role;
+            }
         }
 
-        // 3. Check if primary user is tenant owner
-        if (user != null && user.TenantId == tenantId && (user.Role == "Owner" || user.Role == "Provider"))
+        // 3. Check if primary user is tenant owner (fallback only if no membership record)
+        if (user != null && user.TenantId == tenantId && (user.Role == "Owner" || user.Role == "Provider" || user.Role == "BusinessOwner"))
         {
             return ProviderTeamRole.Owner;
         }

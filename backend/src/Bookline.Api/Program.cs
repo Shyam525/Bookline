@@ -378,10 +378,21 @@ builder.Services.AddDbContext<BooklineDbContext>((sp, options) =>
 
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<BooklineDbContext>());
 
-// Configure JWT Authentication
+// Configure JWT Authentication & Configuration Validation
 var secretKey = builder.Configuration["JwtSettings:Secret"] ?? "SuperSecretKeyForBooklineApiThatIsAtLeast32BytesLong!";
 var issuer = builder.Configuration["JwtSettings:Issuer"] ?? "Bookline";
 var audience = builder.Configuration["JwtSettings:Audience"] ?? "BooklineApp";
+
+if (builder.Environment.IsProduction())
+{
+    if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32 || secretKey.Contains("SuperSecretKey"))
+    {
+        throw new InvalidOperationException("Production configuration failure: 'JwtSettings:Secret' must be configured with a secure key of at least 32 bytes.");
+    }
+}
+
+builder.Services.Configure<Bookline.Application.Common.Models.AppConfig>(
+    builder.Configuration.GetSection(Bookline.Application.Common.Models.AppConfig.SectionName));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -448,9 +459,31 @@ builder.Services.AddAuthentication(options =>
 // Configure RBAC Policies
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("ManageBookings", policy => policy.RequireRole("Owner", "Staff", "Receptionist"));
-    options.AddPolicy("ManageServices", policy => policy.RequireRole("Owner"));
-    options.AddPolicy("ManageStaff", policy => policy.RequireRole("Owner"));
+    // Canonical Phase 1 Identity Policies
+    options.AddPolicy(Bookline.Domain.Constants.Policies.RequirePlatformAdmin, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.PlatformAdmin, Bookline.Domain.Constants.Roles.Admin));
+
+    options.AddPolicy(Bookline.Domain.Constants.Policies.RequireBusinessOwner, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.Admin, Bookline.Domain.Constants.Roles.PlatformAdmin));
+
+    options.AddPolicy(Bookline.Domain.Constants.Policies.RequireBusinessStaff, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessStaff, Bookline.Domain.Constants.Roles.Staff, Bookline.Domain.Constants.Roles.Manager, Bookline.Domain.Constants.Roles.Receptionist, Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.Admin, Bookline.Domain.Constants.Roles.PlatformAdmin));
+
+    options.AddPolicy(Bookline.Domain.Constants.Policies.RequireBusinessAccess, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.Admin, Bookline.Domain.Constants.Roles.BusinessStaff, Bookline.Domain.Constants.Roles.Staff, Bookline.Domain.Constants.Roles.Manager, Bookline.Domain.Constants.Roles.Receptionist, Bookline.Domain.Constants.Roles.Viewer, Bookline.Domain.Constants.Roles.PlatformAdmin));
+
+    options.AddPolicy(Bookline.Domain.Constants.Policies.RequireCustomer, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.Customer, Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.BusinessStaff, Bookline.Domain.Constants.Roles.PlatformAdmin));
+
+    // Operational Domain Policies
+    options.AddPolicy(Bookline.Domain.Constants.Policies.ManageBookings, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.BusinessStaff, Bookline.Domain.Constants.Roles.Staff, Bookline.Domain.Constants.Roles.Receptionist, Bookline.Domain.Constants.Roles.Manager, Bookline.Domain.Constants.Roles.PlatformAdmin));
+    options.AddPolicy(Bookline.Domain.Constants.Policies.ManageServices, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.Admin, Bookline.Domain.Constants.Roles.Manager, Bookline.Domain.Constants.Roles.PlatformAdmin));
+    options.AddPolicy(Bookline.Domain.Constants.Policies.ManageStaff, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.Admin, Bookline.Domain.Constants.Roles.Manager, Bookline.Domain.Constants.Roles.PlatformAdmin));
+    options.AddPolicy(Bookline.Domain.Constants.Policies.ManageFinancials, policy =>
+        policy.RequireRole(Bookline.Domain.Constants.Roles.BusinessOwner, Bookline.Domain.Constants.Roles.Owner, Bookline.Domain.Constants.Roles.PlatformAdmin));
 });
 
 var app = builder.Build();

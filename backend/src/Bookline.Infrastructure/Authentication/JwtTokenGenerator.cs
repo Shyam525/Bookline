@@ -41,6 +41,22 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new("name", user.FullName)
         };
 
+        // Ensure both canonical MVP role and legacy alias are present for policy evaluation
+        if (Bookline.Domain.Constants.Roles.IsBusinessOwner(activeRole))
+        {
+            if (!claims.Any(c => c.Type == ClaimTypes.Role && c.Value == Bookline.Domain.Constants.Roles.BusinessOwner))
+                claims.Add(new Claim(ClaimTypes.Role, Bookline.Domain.Constants.Roles.BusinessOwner));
+            if (!claims.Any(c => c.Type == ClaimTypes.Role && c.Value == Bookline.Domain.Constants.Roles.Owner))
+                claims.Add(new Claim(ClaimTypes.Role, Bookline.Domain.Constants.Roles.Owner));
+        }
+        else if (Bookline.Domain.Constants.Roles.IsBusinessStaff(activeRole))
+        {
+            if (!claims.Any(c => c.Type == ClaimTypes.Role && c.Value == Bookline.Domain.Constants.Roles.BusinessStaff))
+                claims.Add(new Claim(ClaimTypes.Role, Bookline.Domain.Constants.Roles.BusinessStaff));
+            if (!claims.Any(c => c.Type == ClaimTypes.Role && c.Value == Bookline.Domain.Constants.Roles.Staff))
+                claims.Add(new Claim(ClaimTypes.Role, Bookline.Domain.Constants.Roles.Staff));
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),

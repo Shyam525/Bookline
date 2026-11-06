@@ -62,8 +62,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             var staff2 = new Staff { Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), TenantId = tenant2.Id, Name = "Bob", TimeZoneId = "UTC" };
             db.Staff.AddRange(staff1, staff2);
 
-            db.WorkingHours.Add(new WorkingHours { TenantId = tenant1.Id, StaffId = staff1.Id, DayOfWeek = DayOfWeek.Friday, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
-            db.WorkingHours.Add(new WorkingHours { TenantId = tenant2.Id, StaffId = staff2.Id, DayOfWeek = DayOfWeek.Friday, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
+            for (int d = 0; d < 7; d++)
+            {
+                db.WorkingHours.Add(new WorkingHours { TenantId = tenant1.Id, StaffId = staff1.Id, DayOfWeek = (DayOfWeek)d, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
+                db.WorkingHours.Add(new WorkingHours { TenantId = tenant2.Id, StaffId = staff2.Id, DayOfWeek = (DayOfWeek)d, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
+            }
 
             db.SaveChanges();
         });
@@ -84,9 +87,10 @@ public class PublicAvailabilityIntegrationTests : IClassFixture<CustomWebApplica
     {
         var staffId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var serviceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var futureDate = DateTime.UtcNow.Date.AddDays(7).ToString("yyyy-MM-dd");
 
         // Act - Request availability for valid staff & service belonging to tenant acme-salon
-        var availabilityRes = await _client.GetAsync($"/api/v1/public/availability?staffId={staffId}&serviceId={serviceId}&date=2026-10-30&timezone=UTC&slug=acme-salon");
+        var availabilityRes = await _client.GetAsync($"/api/v1/public/availability?staffId={staffId}&serviceId={serviceId}&date={futureDate}&timezone=UTC&slug=acme-salon");
 
         // Assert 200 OK
         if (availabilityRes.StatusCode != HttpStatusCode.OK)
@@ -109,9 +113,10 @@ public class PublicAvailabilityIntegrationTests : IClassFixture<CustomWebApplica
         // Staff belongs to tenant 1 (acme-salon), but Service belongs to tenant 2 (other-salon)
         var staffId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var otherTenantServiceId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var futureDate = DateTime.UtcNow.Date.AddDays(7).ToString("yyyy-MM-dd");
 
         // Act - Request availability with cross-tenant IDs
-        var availabilityRes = await _client.GetAsync($"/api/v1/public/availability?staffId={staffId}&serviceId={otherTenantServiceId}&date=2026-10-30&timezone=UTC&slug=acme-salon");
+        var availabilityRes = await _client.GetAsync($"/api/v1/public/availability?staffId={staffId}&serviceId={otherTenantServiceId}&date={futureDate}&timezone=UTC&slug=acme-salon");
 
         // Assert 404 Not Found
         Assert.Equal(HttpStatusCode.NotFound, availabilityRes.StatusCode);

@@ -39,9 +39,9 @@ public class ProviderOnboardingPhase2Tests
         return (context, tenantContext);
     }
 
-    private static OnboardingController CreateController(ISender sender, ITeamAuthorizationService teamAuth, ITenantContext tenantContext, Guid callerId, string role = "Owner")
+    private static OnboardingController CreateController(ISender sender, ITeamAuthorizationService teamAuth, ITenantContext tenantContext, Guid callerId, string role = "Owner", IApplicationDbContext? db = null)
     {
-        var controller = new OnboardingController(sender, teamAuth, tenantContext);
+        var controller = new OnboardingController(sender, teamAuth, tenantContext, db);
         var claims = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(ClaimTypes.NameIdentifier, callerId.ToString()),
@@ -218,7 +218,7 @@ public class ProviderOnboardingPhase2Tests
 
         var teamAuth = new TeamAuthorizationService(db);
         var mockSender = new MockSender();
-        var controller = CreateController(mockSender, teamAuth, context, unauthorizedUserId, "Customer");
+        var controller = CreateController(mockSender, teamAuth, context, unauthorizedUserId, "Customer", db);
 
         // Act: Customer attempts to read onboarding status of the business
         var result = await controller.GetStatus(CancellationToken.None);
@@ -260,7 +260,7 @@ public class ProviderOnboardingPhase2Tests
 
         var teamAuth = new TeamAuthorizationService(db);
         var mockSender = new MockSender();
-        var controller = CreateController(mockSender, teamAuth, context, revokedUserId, "Owner");
+        var controller = CreateController(mockSender, teamAuth, context, revokedUserId, "Owner", db);
 
         // Act
         var result = await controller.GetStatus(CancellationToken.None);
@@ -308,7 +308,7 @@ public class ProviderOnboardingPhase2Tests
             null, 5, 2, 30, 4, new List<int> { 1, 2 }
         ));
 
-        var controller = CreateController(mockSender, teamAuth, context, ownerId, "Owner");
+        var controller = CreateController(mockSender, teamAuth, context, ownerId, "Owner", db);
 
         // Act
         var result = await controller.GetStatus(CancellationToken.None);

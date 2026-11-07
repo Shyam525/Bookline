@@ -68,7 +68,7 @@ The platform architecture, roadmap, and validation frameworks are comprehensivel
   - TanStack Query, React Router, Lucide Icons, Leaflet / Vector Map
 - **Testing**:
   - xUnit, FluentAssertions, Architecture tests, Integration harness, Node.js TAP runner
-  - 521 Automated Tests passing with 0 failures (472 backend + 49 frontend)
+  - 547 Automated Tests passing with 0 failures (498 backend + 49 frontend)
 
 ---
 
@@ -157,6 +157,31 @@ npm --prefix frontend run build
 
 ---
 
+## 4.5 Provider Onboarding & Business Configuration (Phase 2)
+
+Phase 2 establishes self-service provider onboarding and runtime business configuration without manual database intervention:
+
+- **Business Profile Subsystem** (`/api/v1/business/profile`):
+  - Configuration of business name, public slug, description, category, contact details (phone, email, website), physical address, Gujarat city/area (e.g. `Ahmedabad`, `Bodakdev`), geographical coordinates, and IANA timezone validation (`Asia/Kolkata` via NodaTime Tzdb).
+  - Logo, cover, and gallery image persistence.
+  - Real-time slug availability endpoint (`/api/v1/business/slug/check?slug=...`) with collision protection.
+- **Business Location Model**:
+  - Clear primary location modeling (`Location.IsPrimary = true`) operating as one primary location for the MVP while preserving multi-location schema readiness.
+- **Business Hours & Booking Policy Subsystem** (`/api/v1/business/policies`):
+  - Weekly opening hours with break intervals and closed day support.
+  - Lead-time rules: Minimum notice hours (`MinimumNoticeHours`), booking horizon days (`BookingHorizonDays`).
+  - Cancellation & rescheduling policies: Window hours (`CancellationWindowHours`, `ReschedulingWindowHours`) and policy disclosures.
+- **Staff Management & Break Interval Splitting** (`/api/v1/staff`):
+  - Staff creation, editing, and activation/deactivation (`PATCH /api/v1/staff/{id}/status`). Inactive staff are strictly barred from slot holds and appointments.
+  - Service assignments with relational integrity validation.
+  - Working hours with non-overlapping break validation (`SetWorkingHoursCommandValidator`); automatically splits shift into operational slots avoiding break conflicts.
+  - Time-off recording and scheduling exclusion.
+- **Provider Setup Wizard & Management UI**:
+  - Multi-step onboarding pipeline (`/onboarding`) with draft progress persistence (save and resume).
+  - Storefront settings editor (`/provider/settings/storefront`) and Staff availability editor (`/provider/availability`).
+
+---
+
 ## 5. Verification & Key Flows
 
 1. **Customer Discovery & Interactive Map**:
@@ -207,7 +232,7 @@ npm --prefix frontend run build
   - **Platform Admin**: `admin@bookline.local` / `Admin123!`
 - **Exact Test Commands**:
   ```powershell
-  # Backend Tests (472 passing)
+  # Backend Tests (498 passing)
   dotnet test backend
 
   # Frontend Tests (49 passing)
@@ -216,11 +241,11 @@ npm --prefix frontend run build
 - **Verification Report**:
   ```text
   Passed!  - Failed: 0, Passed:  21, Skipped: 0, Total:  21 - Bookline.Domain.UnitTests.dll (net8.0)
-  Passed!  - Failed: 0, Passed: 372, Skipped: 0, Total: 372 - Bookline.Application.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed: 398, Skipped: 0, Total: 398 - Bookline.Application.UnitTests.dll (net8.0)
   Passed!  - Failed: 0, Passed:  63, Skipped: 0, Total:  63 - Bookline.Infrastructure.UnitTests.dll (net8.0)
   Passed!  - Failed: 0, Passed:  16, Skipped: 0, Total:  16 - Bookline.IntegrationTests.dll (net8.0)
   Frontend: 49 passed, 0 failed, 3 suites (Node.js test runner)
-  Total: 521 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
+  Total: 547 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
   ```
 
 ---

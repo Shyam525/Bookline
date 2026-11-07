@@ -141,11 +141,13 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<int>("DepositPolicy")
-                        .HasColumnType("integer");
+                    b.Property<string>("DepositPolicy")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<decimal>("DepositRequiredAmount")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<DateTimeOffset>("EndUtc")
                         .HasColumnType("timestamp with time zone");
@@ -496,6 +498,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("City")
                         .IsRequired()
                         .HasColumnType("text");
@@ -515,6 +521,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPrimary")
                         .HasColumnType("boolean");
 
                     b.Property<double>("Latitude")
@@ -845,6 +854,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("CorrelationId")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -867,6 +879,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("TraceId")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -1594,6 +1609,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<decimal>("AvailablePayoutBalance")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1604,9 +1623,18 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<int>("BookingHorizonDays")
                         .HasColumnType("integer");
 
+                    b.Property<string>("BusinessHoursJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("BusinessType")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("CancellationPolicy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CancellationWindowHours")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Category")
                         .IsRequired()
@@ -1644,6 +1672,9 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
                         .HasColumnType("text");
 
                     b.Property<string>("GalleryImagesJson")
@@ -1698,6 +1729,12 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<string>("PostalCode")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("ReschedulingPolicy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ReschedulingWindowHours")
+                        .HasColumnType("integer");
 
                     b.Property<int>("ReviewCount")
                         .HasColumnType("integer");

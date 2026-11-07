@@ -59,6 +59,13 @@ public class StaffController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPatch("{id:guid}/status")]
+    public async Task<ActionResult<StaffDto>> SetStaffStatus(Guid id, [FromBody] SetStaffStatusRequest request)
+    {
+        var result = await _sender.Send(new SetStaffStatusCommand(id, request.IsActive));
+        return Ok(result);
+    }
+
     [HttpPut("{id:guid}/archive")]
     public async Task<ActionResult> ArchiveStaff(Guid id)
     {

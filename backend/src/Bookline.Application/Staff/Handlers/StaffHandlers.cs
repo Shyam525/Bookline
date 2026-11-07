@@ -15,6 +15,7 @@ public class StaffCommandHandler :
     IRequestHandler<GetStaffByIdQuery, StaffDto>,
     IRequestHandler<CreateStaffCommand, StaffDto>,
     IRequestHandler<UpdateStaffCommand, StaffDto>,
+    IRequestHandler<SetStaffStatusCommand, StaffDto>,
     IRequestHandler<ArchiveStaffCommand, bool>,
     IRequestHandler<AssignStaffServicesCommand, StaffDto>,
     IRequestHandler<SetWorkingHoursCommand, IReadOnlyList<WorkingHourDto>>,
@@ -206,6 +207,22 @@ public class StaffCommandHandler :
         return MapToDto(staff);
     }
 
+    public async Task<StaffDto> Handle(SetStaffStatusCommand command, CancellationToken cancellationToken)
+    {
+        var staff = await _context.Staff
+            .Include(s => s.StaffServices)
+            .Include(s => s.WorkingHours)
+            .FirstOrDefaultAsync(s => s.Id == command.Id, cancellationToken);
+
+        if (staff == null) throw new NotFoundException(nameof(DomainStaff), command.Id);
+
+        staff.IsActive = command.IsActive;
+        staff.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return MapToDto(staff);
+    }
+
     public async Task<bool> Handle(ArchiveStaffCommand command, CancellationToken cancellationToken)
     {
         var staff = await _context.Staff.FirstOrDefaultAsync(s => s.Id == command.Id, cancellationToken);
@@ -255,20 +272,79 @@ public class StaffCommandHandler :
 
         _context.WorkingHours.RemoveRange(staff.WorkingHours);
 
-        var newHours = request.WorkingHours.Select(h => new WorkingHours
+        var newHours = new List<WorkingHours>();
+        var resultDtos = new List<WorkingHourDto>();
+
+        foreach (var h in request.WorkingHours)
         {
-            Id = Guid.NewGuid(),
-            StaffId = staff.Id,
-            TenantId = _tenantContext.TenantId,
-            DayOfWeek = h.DayOfWeek,
-            StartTime = h.StartTime,
-            EndTime = h.EndTime
-        }).ToList();
+            var breaksList = h.Breaks != null && h.Breaks.Any()
+                ? h.Breaks.OrderBy(b => b.StartTime).ToList()
+                : new List<BreakInput>();
+
+            var breakDtos = breaksList
+                .Select(b => new BreakDto(b.StartTime, b.EndTime, b.Label))
+                .ToList();
+
+            if (!breaksList.Any())
+            {
+                var wh = new WorkingHours
+                {
+                    Id = Guid.NewGuid(),
+                    StaffId = staff.Id,
+                    TenantId = _tenantContext.TenantId,
+                    DayOfWeek = h.DayOfWeek,
+                    StartTime = h.StartTime,
+                    EndTime = h.EndTime,
+                    Label = "Regular Shift"
+                };
+                newHours.Add(wh);
+                resultDtos.Add(new WorkingHourDto(wh.Id, wh.StaffId, wh.DayOfWeek, wh.StartTime, wh.EndTime, null));
+            }
+            else
+            {
+                var currentStart = h.StartTime;
+                foreach (var b in breaksList)
+                {
+                    if (b.StartTime > currentStart)
+                    {
+                        var wh = new WorkingHours
+                        {
+                            Id = Guid.NewGuid(),
+                            StaffId = staff.Id,
+                            TenantId = _tenantContext.TenantId,
+                            DayOfWeek = h.DayOfWeek,
+                            StartTime = currentStart,
+                            EndTime = b.StartTime,
+                            Label = $"Shift before {b.Label ?? "Break"}"
+                        };
+                        newHours.Add(wh);
+                    }
+                    currentStart = b.EndTime;
+                }
+
+                if (h.EndTime > currentStart)
+                {
+                    var wh = new WorkingHours
+                    {
+                        Id = Guid.NewGuid(),
+                        StaffId = staff.Id,
+                        TenantId = _tenantContext.TenantId,
+                        DayOfWeek = h.DayOfWeek,
+                        StartTime = currentStart,
+                        EndTime = h.EndTime,
+                        Label = "Shift after Break"
+                    };
+                    newHours.Add(wh);
+                }
+
+                resultDtos.Add(new WorkingHourDto(Guid.NewGuid(), staff.Id, h.DayOfWeek, h.StartTime, h.EndTime, breakDtos));
+            }
+        }
 
         _context.WorkingHours.AddRange(newHours);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return newHours.Select(h => new WorkingHourDto(h.Id, h.StaffId, h.DayOfWeek, h.StartTime, h.EndTime)).ToList();
+        return resultDtos;
     }
 
     public async Task<TimeOffDto> Handle(CreateTimeOffCommand request, CancellationToken cancellationToken)

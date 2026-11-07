@@ -3,12 +3,24 @@ using MediatR;
 
 namespace Bookline.Application.Staff.Commands;
 
+public record BreakDto(TimeOnly StartTime, TimeOnly EndTime, string? Label = null);
+
 public record WorkingHourDto(
     Guid Id,
     Guid StaffId,
     DayOfWeek DayOfWeek,
     TimeOnly StartTime,
-    TimeOnly EndTime
+    TimeOnly EndTime,
+    List<BreakDto>? Breaks = null
+);
+
+public record BreakInput(TimeOnly StartTime, TimeOnly EndTime, string? Label = null);
+
+public record WorkingHourInput(
+    DayOfWeek DayOfWeek,
+    TimeOnly StartTime,
+    TimeOnly EndTime,
+    List<BreakInput>? Breaks = null
 );
 
 public record TimeOffDto(
@@ -72,11 +84,12 @@ public record GetPagedStaffQuery(
 public record GetStaffByIdQuery(Guid Id) : IRequest<StaffDto>;
 public record CreateStaffCommand(CreateStaffRequest Request) : IRequest<StaffDto>;
 public record UpdateStaffCommand(Guid Id, UpdateStaffRequest Request) : IRequest<StaffDto>;
+public record SetStaffStatusCommand(Guid Id, bool IsActive) : IRequest<StaffDto>;
+public record SetStaffStatusRequest(bool IsActive);
 public record ArchiveStaffCommand(Guid Id) : IRequest<bool>;
 public record AssignStaffServicesCommand(Guid StaffId, List<Guid> ServiceIds) : IRequest<StaffDto>;
 
 // Working Hours & Time Off Commands
-public record WorkingHourInput(DayOfWeek DayOfWeek, TimeOnly StartTime, TimeOnly EndTime);
 public record SetWorkingHoursCommand(Guid StaffId, List<WorkingHourInput> WorkingHours) : IRequest<IReadOnlyList<WorkingHourDto>>;
 public record CreateTimeOffCommand(Guid StaffId, DateTimeOffset StartUtc, DateTimeOffset EndUtc, string? Reason) : IRequest<TimeOffDto>;
 
@@ -106,11 +119,54 @@ public class SetWorkingHoursCommandValidator : AbstractValidator<SetWorkingHours
             items.RuleFor(i => i.EndTime)
                 .GreaterThan(i => i.StartTime)
                 .WithMessage("End time must be after start time.");
+
+            items.RuleFor(i => i.Breaks)
+                .Must(HasNoOverlappingBreaks)
+                .WithMessage("Breaks cannot overlap.")
+                .When(i => i.Breaks != null && i.Breaks.Any());
+
+            items.RuleFor(i => i)
+                .Must(BreaksFallWithinWorkingHours)
+                .WithMessage("Breaks must fall strictly within working hours.")
+                .When(i => i.Breaks != null && i.Breaks.Any());
         });
 
         RuleFor(x => x.WorkingHours)
             .Must(HasNoOverlappingHours)
             .WithMessage("Working hours cannot contain overlapping intervals for the same day.");
+    }
+
+    private static bool HasNoOverlappingBreaks(List<BreakInput>? breaks)
+    {
+        if (breaks == null || breaks.Count <= 1) return true;
+
+        var sorted = breaks.OrderBy(b => b.StartTime).ToList();
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            if (sorted[i].EndTime <= sorted[i].StartTime)
+            {
+                return false;
+            }
+            if (i < sorted.Count - 1 && sorted[i].EndTime > sorted[i + 1].StartTime)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool BreaksFallWithinWorkingHours(WorkingHourInput input)
+    {
+        if (input.Breaks == null || !input.Breaks.Any()) return true;
+
+        foreach (var b in input.Breaks)
+        {
+            if (b.StartTime < input.StartTime || b.EndTime > input.EndTime)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static bool HasNoOverlappingHours(List<WorkingHourInput>? hours)

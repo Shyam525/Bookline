@@ -92,16 +92,15 @@ public class AvailabilityHandlers :
 
         foreach (var staff in staffList)
         {
-            var workingHour = staff.WorkingHours.FirstOrDefault(wh => wh.DayOfWeek == targetDayOfWeek);
-            if (workingHour == null) continue;
+            var dayHours = staff.WorkingHours.Where(wh => wh.DayOfWeek == targetDayOfWeek).ToList();
+            if (!dayHours.Any()) continue;
 
-            var staffSchedule = new StaffSchedule(new List<WorkingWindow>
-            {
-                new WorkingWindow(
-                    new LocalTime(workingHour.StartTime.Hour, workingHour.StartTime.Minute),
-                    new LocalTime(workingHour.EndTime.Hour, workingHour.EndTime.Minute)
-                )
-            });
+            var windows = dayHours.Select(wh => new WorkingWindow(
+                new LocalTime(wh.StartTime.Hour, wh.StartTime.Minute),
+                new LocalTime(wh.EndTime.Hour, wh.EndTime.Minute)
+            )).ToList();
+
+            var staffSchedule = new StaffSchedule(windows);
 
             // Fetch staff bookings for local date interval
             var startOfDayUtc = localDate.AtStartOfDayInZone(tz).ToInstant().ToDateTimeOffset();

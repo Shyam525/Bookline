@@ -55,6 +55,12 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
                 throw new ValidationException("SERVICE_NOT_BOOKABLE: This service is unavailable for online booking.");
             }
 
+            var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.StaffId, cancellationToken);
+            if (staff != null && (!staff.IsActive || staff.IsArchived))
+            {
+                throw new ValidationException("STAFF_UNAVAILABLE: The selected staff member is inactive or unavailable.");
+            }
+
             if (tenantId == Guid.Empty && service != null)
             {
                 tenantId = service.TenantId;

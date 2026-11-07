@@ -79,6 +79,7 @@ export const OnboardingWizardPage: React.FC = () => {
     // Step 5: Location
     locationName: '',
     city: '',
+    area: 'Bodakdev',
     address: '',
     state: '',
     postalCode: '',
@@ -153,6 +154,7 @@ export const OnboardingWizardPage: React.FC = () => {
           publicPhone: status.phone || prev.publicPhone,
           address: status.address || prev.address,
           city: status.city || prev.city,
+          area: status.area || prev.area || 'Bodakdev',
           state: status.state || prev.state,
           postalCode: status.postalCode || prev.postalCode,
           country: status.country || prev.country,
@@ -637,11 +639,18 @@ export const OnboardingWizardPage: React.FC = () => {
               placeholder="e.g. 402 Bodakdev Commercial Hub, SG Highway"
               required
             />
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
               <Input
                 label="City"
                 value={form.city}
                 onChange={(e) => setForm({ ...form, city: e.target.value })}
+                required
+              />
+              <Input
+                label="Area / Locality"
+                value={form.area}
+                onChange={(e) => setForm({ ...form, area: e.target.value })}
+                placeholder="e.g. Bodakdev"
                 required
               />
               <Input

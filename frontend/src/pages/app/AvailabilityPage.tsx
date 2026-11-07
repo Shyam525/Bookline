@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, IconButton } from '../../components/ui/Button';
 import { Input, Select } from '../../components/forms/Inputs';
 import { Card, Avatar } from '../../components/data-display/DataDisplay';
 import { Modal, ConfirmDialog } from '../../components/feedback/Feedback';
-import { Clock, Calendar, Plus, Trash2, Check, Sparkles, RefreshCw, Coffee, AlertCircle } from 'lucide-react';
+import { Clock, Calendar, Plus, Trash2, Check, Sparkles, RefreshCw, Coffee, AlertCircle, Loader2 } from 'lucide-react';
 import { TimeSlotItem } from '../../services/api/availability';
+import { useAuth } from '../../app/providers/AuthProvider';
+import { staffApi, StaffItem } from '../../services/api/staff';
 
 interface ShiftInterval {
   id: string;
@@ -36,13 +38,34 @@ interface TimeOffEntry {
  * 79. TIME OFF: Vacation, Sick, Holiday, Personal, Custom blocked periods
  */
 export const AvailabilityPage: React.FC = () => {
-  const staffMembers = [
+  const { token } = useAuth();
+  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string; title: string }[]>([
     { id: 'staff-1', name: 'Elena Vance', title: 'Senior Master Stylist' },
     { id: 'staff-2', name: 'Marcus Brody', title: 'Master Barber' },
     { id: 'staff-3', name: 'Sophia Chen', title: 'Color Specialist' },
-  ];
+  ]);
 
   const [selectedStaffId, setSelectedStaffId] = useState('staff-1');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    staffApi
+      .getAllStaff(token)
+      .then((data) => {
+        if (data && data.length > 0) {
+          const mapped = data.map((s) => ({
+            id: s.id,
+            name: s.name,
+            title: s.title || 'Specialist',
+          }));
+          setStaffMembers(mapped);
+          setSelectedStaffId(mapped[0].id);
+        }
+      })
+      .catch((err) => console.warn('Could not load remote staff roster:', err));
+  }, [token]);
 
   // Weekly Schedule State with Multiple Intervals (Section 77)
   const [weeklySchedule, setWeeklySchedule] = useState<DaySchedule[]>([
@@ -223,23 +246,91 @@ export const AvailabilityPage: React.FC = () => {
     );
   };
 
-  const handleSaveSchedule = () => {
-    setIsScheduleSaved(true);
-    setTimeout(() => setIsScheduleSaved(false), 3000);
+  const handleSaveSchedule = async () => {
+    if (!token || !selectedStaffId) {
+      setIsScheduleSaved(true);
+      setTimeout(() => setIsScheduleSaved(false), 3000);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setSaveError(null);
+
+      const payload: any[] = [];
+      for (const day of weeklySchedule) {
+        if (!day.isEnabled || !day.intervals.length) continue;
+        for (const inv of day.intervals) {
+          payload.push({
+            dayOfWeek: day.dayOfWeek,
+            startTime: inv.start.length === 5 ? `${inv.start}:00` : inv.start,
+            endTime: inv.end.length === 5 ? `${inv.end}:00` : inv.end,
+          });
+        }
+      }
+
+      await staffApi.setWorkingHours(token, selectedStaffId, payload);
+      setIsScheduleSaved(true);
+      setTimeout(() => setIsScheduleSaved(false), 3000);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save working schedule');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleCreateTimeOff = (e: React.FormEvent) => {
+  const handleCreateTimeOff = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newEntry: TimeOffEntry = {
-      id: `to-${Date.now()}`,
-      staffId: selectedStaffId,
-      type: timeOffType,
-      startUtc: new Date(timeOffForm.startIso).toISOString(),
-      endUtc: new Date(timeOffForm.endIso).toISOString(),
-      reason: timeOffForm.reason || `${timeOffType} Leave`,
-    };
-    setTimeOffList([...timeOffList, newEntry]);
-    setIsTimeOffModalOpen(false);
+    if (!token || !selectedStaffId) {
+      const newEntry: TimeOffEntry = {
+        id: `to-${Date.now()}`,
+        staffId: selectedStaffId,
+        type: timeOffType,
+        startUtc: new Date(timeOffForm.startIso).toISOString(),
+        endUtc: new Date(timeOffForm.endIso).toISOString(),
+        reason: timeOffForm.reason || `${timeOffType} Leave`,
+      };
+      setTimeOffList([...timeOffList, newEntry]);
+      setIsTimeOffModalOpen(false);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const res = await staffApi.createTimeOff(token, selectedStaffId, {
+        startUtc: new Date(timeOffForm.startIso).toISOString(),
+        endUtc: new Date(timeOffForm.endIso).toISOString(),
+        reason: timeOffForm.reason || `${timeOffType} Leave`,
+      });
+
+      setTimeOffList((prev) => [
+        ...prev,
+        {
+          id: res.id || `to-${Date.now()}`,
+          staffId: selectedStaffId,
+          type: timeOffType,
+          startUtc: res.startUtc || new Date(timeOffForm.startIso).toISOString(),
+          endUtc: res.endUtc || new Date(timeOffForm.endIso).toISOString(),
+          reason: res.reason || `${timeOffType} Leave`,
+        },
+      ]);
+      setIsTimeOffModalOpen(false);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to record time off');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteTimeOff = async (id: string) => {
+    if (token && selectedStaffId && !id.startsWith('to-')) {
+      try {
+        await staffApi.deleteTimeOff(token, selectedStaffId, id);
+      } catch (err) {
+        console.warn('Could not delete time off on server:', err);
+      }
+    }
+    setTimeOffList(timeOffList.filter((item) => item.id !== id));
   };
 
   return (
@@ -288,8 +379,12 @@ export const AvailabilityPage: React.FC = () => {
                 </p>
               </div>
 
-              <Button variant="primary" size="sm" onClick={handleSaveSchedule}>
-                {isScheduleSaved ? (
+              <Button variant="primary" size="sm" onClick={handleSaveSchedule} disabled={isSaving}>
+                {isSaving ? (
+                  <span className="flex items-center gap-1 text-white">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                  </span>
+                ) : isScheduleSaved ? (
                   <span className="flex items-center gap-1 text-white">
                     <Check className="w-4 h-4" /> Saved!
                   </span>
@@ -435,7 +530,7 @@ export const AvailabilityPage: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => setTimeOffList(timeOffList.filter((item) => item.id !== to.id))}
+                    onClick={() => handleDeleteTimeOff(to.id)}
                     className="p-1.5 text-red-400 hover:text-red-300"
                   >
                     <Trash2 className="w-4 h-4" />

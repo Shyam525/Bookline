@@ -9,6 +9,7 @@ export interface OnboardingStatus {
   phone?: string;
   address: string;
   city?: string;
+  area?: string;
   state?: string;
   postalCode?: string;
   country?: string;
@@ -53,6 +54,7 @@ export interface SaveStepData {
   locationName?: string;
   address?: string;
   city?: string;
+  area?: string;
   state?: string;
   postalCode?: string;
   country?: string;

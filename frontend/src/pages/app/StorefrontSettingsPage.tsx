@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { Link } from 'react-router-dom';
+import { businessApi } from '../../services/api/business';
 import {
   Building2,
   Image,
@@ -17,6 +18,8 @@ import {
   ExternalLink,
   Plus,
   Trash2,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 
 type SettingsTab =
@@ -38,15 +41,26 @@ type SettingsTab =
  * Cancellation, Notifications, Payments, Team, Security.
  */
 export const StorefrontSettingsPage: React.FC = () => {
-  const { activeBusiness } = useAuth();
+  const { token, activeBusiness } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // 1. Business Profile
   const [businessName, setBusinessName] = useState(activeBusiness?.name || 'Aura Wellness & Spa');
+  const [slug, setSlug] = useState(activeBusiness?.slug || 'aura-wellness-ahmedabad');
   const [category, setCategory] = useState('Wellness & Spa');
   const [phone, setPhone] = useState('+91 79 4001 2233');
   const [email, setEmail] = useState('contact@aurawellness.example.com');
+  const [address, setAddress] = useState('402 Bodakdev Commercial Hub, SG Highway');
+  const [city, setCity] = useState('Ahmedabad');
+  const [area, setArea] = useState('Bodakdev');
+  const [state, setState] = useState('Gujarat');
+  const [country, setCountry] = useState('India');
+  const [postalCode, setPostalCode] = useState('380054');
+  const [timeZoneId, setTimeZoneId] = useState('Asia/Kolkata');
   const [description, setDescription] = useState(
     'A sanctuary of restorative holistic wellness, bespoke clinical aesthetics, and therapeutic recovery in Ahmedabad.'
   );
@@ -76,10 +90,14 @@ export const StorefrontSettingsPage: React.FC = () => {
   const [bookingHorizonDays, setBookingHorizonDays] = useState(30);
   const [bufferMinutes, setBufferMinutes] = useState(15);
 
-  // 6. Cancellation (Section 67 & 75)
+  // 6. Cancellation & Rescheduling (Section 67 & 75)
   const [minimumNoticeHours, setMinimumNoticeHours] = useState(4);
   const [cancellationPolicyNote, setCancellationPolicyNote] = useState(
     'Cancellations must be made at least 4 hours prior to appointment start time. Late cancellations may incur a 50% reservation fee.'
+  );
+  const [reschedulingWindowHours, setReschedulingWindowHours] = useState(2);
+  const [reschedulingPolicyNote, setReschedulingPolicyNote] = useState(
+    'Rescheduling is permitted up to 2 hours before appointment start time.'
   );
 
   // 7. Notifications
@@ -104,10 +122,99 @@ export const StorefrontSettingsPage: React.FC = () => {
   const [twoFactorRequired, setTwoFactorRequired] = useState(true);
   const [auditLoggingEnabled, setAuditLoggingEnabled] = useState(true);
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!token) return;
+    setIsLoading(true);
+    setSaveError(null);
+
+    Promise.all([
+      businessApi.getProfile(token).catch((err) => {
+        console.warn('Could not load profile from backend:', err);
+        return null;
+      }),
+      businessApi.getPolicies(token).catch((err) => {
+        console.warn('Could not load policies from backend:', err);
+        return null;
+      }),
+    ])
+      .then(([prof, pol]) => {
+        if (prof) {
+          setBusinessName(prof.name);
+          setSlug(prof.slug);
+          setCategory(prof.category || 'Beauty & Wellness');
+          setPhone(prof.phone || '');
+          setEmail(prof.email || '');
+          setDescription(prof.description || '');
+          setAddress(prof.address || '');
+          setCity(prof.city || 'Ahmedabad');
+          setArea(prof.area || 'Bodakdev');
+          setState(prof.state || 'Gujarat');
+          setCountry(prof.country || 'India');
+          setPostalCode(prof.postalCode || '');
+          setTimeZoneId(prof.timeZoneId || 'Asia/Kolkata');
+          setCoverImageUrl(prof.coverImageUrl || '');
+          setLogoUrl(prof.logoUrl || '');
+        }
+        if (pol) {
+          setHoldDurationMinutes(pol.holdDurationMinutes || 5);
+          setMinimumNoticeHours(pol.minimumNoticeHours || 2);
+          setBookingHorizonDays(pol.bookingHorizonDays || 30);
+          if (pol.cancellationPolicy) setCancellationPolicyNote(pol.cancellationPolicy);
+          if (pol.reschedulingPolicy) setReschedulingPolicyNote(pol.reschedulingPolicy);
+          if (pol.reschedulingWindowHours) setReschedulingWindowHours(pol.reschedulingWindowHours);
+        }
+      })
+      .finally(() => setIsLoading(false));
+  }, [token]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    if (!token) {
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await businessApi.updateProfile(token, {
+        name: businessName,
+        slug,
+        category,
+        businessType: category,
+        phone,
+        email,
+        description,
+        address,
+        city,
+        area,
+        state,
+        country,
+        postalCode,
+        timeZoneId,
+        logoUrl,
+        coverImageUrl,
+        isPublished: true,
+      });
+
+      await businessApi.updatePolicies(token, {
+        holdDurationMinutes,
+        minimumNoticeHours,
+        bookingHorizonDays,
+        cancellationWindowHours: minimumNoticeHours,
+        cancellationPolicy: cancellationPolicyNote,
+        reschedulingWindowHours,
+        reschedulingPolicy: reschedulingPolicyNote,
+      });
+
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save settings.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const navTabs = [
@@ -152,6 +259,13 @@ export const StorefrontSettingsPage: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-[#34D399]/10 border border-[#34D399]/30 text-[#34D399] text-xs flex items-center gap-2 shadow-sm">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           <span>Business settings updated and synchronized across all branches!</span>
+        </div>
+      )}
+
+      {saveError && (
+        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2 shadow-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{saveError}</span>
         </div>
       )}
 
@@ -219,6 +333,59 @@ export const StorefrontSettingsPage: React.FC = () => {
                       <option value="Barbershop">Barbershop</option>
                       <option value="Aesthetic Clinic">Aesthetic Clinic</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                      Public URL Slug (bookline.in/business/slug)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white focus:outline-none focus:border-[#E8546A]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                      Timezone (IANA Identifier)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={timeZoneId}
+                      onChange={(e) => setTimeZoneId(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white focus:outline-none focus:border-[#E8546A]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                      Street Address
+                    </label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white focus:outline-none focus:border-[#E8546A]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#7E88A8] mb-1">
+                      Area / Neighborhood
+                    </label>
+                    <input
+                      type="text"
+                      value={area}
+                      onChange={(e) => setArea(e.target.value)}
+                      placeholder="e.g. Bodakdev"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#181D2C] border border-[#212638] text-white focus:outline-none focus:border-[#E8546A]"
+                    />
                   </div>
                 </div>
 
@@ -659,10 +826,11 @@ export const StorefrontSettingsPage: React.FC = () => {
               <span className="text-xs text-[#7E88A8]">All modifications are saved to the persistent database.</span>
               <button
                 type="submit"
-                className="px-6 py-2.5 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white font-bold text-xs transition-all shadow-md flex items-center gap-2"
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
-                <span>Save Settings</span>
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>
               </button>
             </div>
           </form>

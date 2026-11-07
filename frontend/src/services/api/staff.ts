@@ -111,4 +111,59 @@ export const staffApi = {
     if (!res.ok) throw new Error('Failed to assign services');
     return res.json();
   },
+
+  async setStaffStatus(token: string, id: string, isActive: boolean): Promise<StaffItem> {
+    const res = await fetch(`${API_BASE}/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ isActive }),
+    });
+    if (!res.ok) throw new Error('Failed to update staff status');
+    return res.json();
+  },
+
+  async setWorkingHours(token: string, id: string, workingHours: any[]): Promise<WorkingHourItem[]> {
+    const res = await fetch(`${API_BASE}/${id}/working-hours`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(workingHours),
+    });
+    if (!res.ok) throw new Error('Failed to save working hours');
+    return res.json();
+  },
+
+  async getTimeOff(token: string, id: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/${id}/time-off`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to load time off entries');
+    return res.json();
+  },
+
+  async createTimeOff(token: string, id: string, data: { startUtc: string; endUtc: string; reason?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/${id}/time-off`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to record time off');
+    return res.json();
+  },
+
+  async deleteTimeOff(token: string, id: string, timeOffId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/${id}/time-off/${timeOffId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to delete time off');
+  },
 };

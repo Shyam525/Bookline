@@ -40,7 +40,8 @@ public record OnboardingStatusDto(
     string? OwnerName = null,
     string? OwnerEmail = null,
     string? OwnerPhone = null,
-    string? MembershipRole = null
+    string? MembershipRole = null,
+    string Area = "Bodakdev"
 );
 
 public record SaveOnboardingStepRequest(
@@ -55,6 +56,7 @@ public record SaveOnboardingStepRequest(
     string? LocationName = null,
     string? Address = null,
     string? City = null,
+    string? Area = null,
     string? State = null,
     string? PostalCode = null,
     string? Country = null,

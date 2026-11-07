@@ -99,9 +99,17 @@ public class OnboardingHandlers :
             if (!string.IsNullOrWhiteSpace(req.BusinessName))
             {
                 tenant.Name = req.BusinessName.Trim();
-                tenant.Slug = !string.IsNullOrWhiteSpace(req.BusinessSlug) 
-                    ? req.BusinessSlug.Trim() 
+                var targetSlug = !string.IsNullOrWhiteSpace(req.BusinessSlug) 
+                    ? req.BusinessSlug.Trim().ToLowerInvariant() 
                     : Slugify(req.BusinessName);
+
+                var collision = await _context.Tenants.IgnoreQueryFilters()
+                    .AnyAsync(t => t.Id != tenant.Id && t.Slug == targetSlug, cancellationToken);
+                if (collision)
+                {
+                    throw new ValidationException("SLUG_ALREADY_EXISTS: The specified business URL is already taken.");
+                }
+                tenant.Slug = targetSlug;
             }
         }
 
@@ -127,6 +135,7 @@ public class OnboardingHandlers :
             {
                 tenant.Address = req.Address.Trim();
                 if (!string.IsNullOrWhiteSpace(req.City)) tenant.City = req.City.Trim();
+                if (!string.IsNullOrWhiteSpace(req.Area)) tenant.Area = req.Area.Trim();
                 if (!string.IsNullOrWhiteSpace(req.State)) tenant.State = req.State.Trim();
                 if (!string.IsNullOrWhiteSpace(req.PostalCode)) tenant.PostalCode = req.PostalCode.Trim();
                 if (!string.IsNullOrWhiteSpace(req.Country)) tenant.Country = req.Country.Trim();
@@ -143,11 +152,13 @@ public class OnboardingHandlers :
                         Name = req.LocationName?.Trim() ?? $"{tenant.Name} Flagship",
                         Address = req.Address.Trim(),
                         City = req.City?.Trim() ?? tenant.City,
+                        Area = req.Area?.Trim() ?? tenant.Area,
                         State = req.State?.Trim() ?? tenant.State,
                         Country = req.Country?.Trim() ?? tenant.Country,
                         PostalCode = req.PostalCode?.Trim() ?? tenant.PostalCode,
                         Timezone = tenant.TimeZoneId,
                         Currency = tenant.Currency,
+                        IsPrimary = true,
                         IsActive = true,
                         CreatedAtUtc = DateTime.UtcNow
                     };
@@ -158,9 +169,11 @@ public class OnboardingHandlers :
                     if (!string.IsNullOrWhiteSpace(req.LocationName)) location.Name = req.LocationName.Trim();
                     location.Address = req.Address.Trim();
                     if (!string.IsNullOrWhiteSpace(req.City)) location.City = req.City.Trim();
+                    if (!string.IsNullOrWhiteSpace(req.Area)) location.Area = req.Area.Trim();
                     if (!string.IsNullOrWhiteSpace(req.State)) location.State = req.State.Trim();
                     if (!string.IsNullOrWhiteSpace(req.PostalCode)) location.PostalCode = req.PostalCode.Trim();
                     if (!string.IsNullOrWhiteSpace(req.Country)) location.Country = req.Country.Trim();
+                    location.IsPrimary = true;
                     location.UpdatedAtUtc = DateTime.UtcNow;
                 }
             }
@@ -746,7 +759,8 @@ public class OnboardingHandlers :
             OwnerName: ownerUser?.FullName,
             OwnerEmail: ownerUser?.Email,
             OwnerPhone: ownerUser?.Phone,
-            MembershipRole: membership?.Role ?? (ownerUser != null ? "Owner" : null)
+            MembershipRole: membership?.Role ?? (ownerUser != null ? "Owner" : null),
+            Area: location?.Area ?? tenant.Area ?? "Bodakdev"
         );
     }
 

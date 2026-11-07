@@ -13,6 +13,7 @@ public class Tenant
     public string Currency { get; set; } = "USD";
     public string Address { get; set; } = string.Empty;
     public string City { get; set; } = "Ahmedabad";
+    public string Area { get; set; } = "Bodakdev";
     public string State { get; set; } = "Gujarat";
     public string Country { get; set; } = "India";
     public string PostalCode { get; set; } = string.Empty;
@@ -24,6 +25,7 @@ public class Tenant
     public string? CoverImageUrl { get; set; }
     public string? GalleryImagesJson { get; set; } = "[]";
     public string? Phone { get; set; }
+    public string? Email { get; set; }
     public string? Website { get; set; }
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Verified;
     public ModerationStatus ModerationStatus { get; set; } = ModerationStatus.Approved;
@@ -41,6 +43,11 @@ public class Tenant
     public int HoldDurationMinutes { get; set; } = 5;
     public int MinimumNoticeHours { get; set; } = 2;
     public int BookingHorizonDays { get; set; } = 30;
+    public int CancellationWindowHours { get; set; } = 4;
+    public string? CancellationPolicy { get; set; } = "Cancellations must be made at least 4 hours prior to appointment start time.";
+    public int ReschedulingWindowHours { get; set; } = 2;
+    public string? ReschedulingPolicy { get; set; } = "Rescheduling is permitted up to 2 hours before appointment start time.";
+    public string? BusinessHoursJson { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
 }

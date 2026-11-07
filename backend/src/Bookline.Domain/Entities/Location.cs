@@ -9,6 +9,7 @@ public class Location : TenantEntity
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string City { get; set; } = "Ahmedabad";
+    public string Area { get; set; } = "Bodakdev";
     public string State { get; set; } = "Gujarat";
     public string Country { get; set; } = "India";
     public string PostalCode { get; set; } = string.Empty;
@@ -17,6 +18,7 @@ public class Location : TenantEntity
     public string Phone { get; set; } = string.Empty;
     public string Timezone { get; set; } = "Asia/Kolkata";
     public string Currency { get; set; } = "USD";
+    public bool IsPrimary { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public bool IsArchived { get; set; } = false;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

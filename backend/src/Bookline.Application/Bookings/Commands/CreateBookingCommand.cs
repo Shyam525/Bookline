@@ -22,7 +22,8 @@ public record CreateBookingCommand(
     string? CustomerPhone = null,
     string? CustomerNotes = null,
     Guid? LocationId = null,
-    Guid? ResourceId = null
+    Guid? ResourceId = null,
+    string? IdempotencyKey = null
 ) : IRequest<BookingDto>;
 
 public class CreateBookingCommandValidator : AbstractValidator<CreateBookingCommand>
@@ -45,6 +46,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
     private readonly ITenantContext _tenantContext;
     private readonly ISlotHoldService _slotHoldService;
     private readonly ISlotEngine _slotEngine;
+    private readonly IIdempotencyService? _idempotencyService;
     private readonly IEmailSender? _emailSender;
     private readonly IBookingActionTokenService? _tokenService;
     private readonly NodaTime.IClock _clock;
@@ -54,6 +56,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         ITenantContext tenantContext,
         ISlotHoldService slotHoldService,
         ISlotEngine slotEngine,
+        IIdempotencyService? idempotencyService = null,
         IEmailSender? emailSender = null,
         IBookingActionTokenService? tokenService = null,
         NodaTime.IClock? clock = null)
@@ -62,6 +65,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         _tenantContext = tenantContext;
         _slotHoldService = slotHoldService;
         _slotEngine = slotEngine;
+        _idempotencyService = idempotencyService;
         _emailSender = emailSender;
         _tokenService = tokenService;
         _clock = clock ?? NodaTime.SystemClock.Instance;
@@ -69,6 +73,17 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
     public async Task<BookingDto> Handle(CreateBookingCommand request, CancellationToken cancellationToken)
     {
+        // 0. Idempotency Check
+        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey) && _idempotencyService != null)
+        {
+            var cached = await _idempotencyService.GetExistingAsync(request.IdempotencyKey, "CreateBooking", cancellationToken);
+            if (cached != null)
+            {
+                var cachedDto = System.Text.Json.JsonSerializer.Deserialize<BookingDto>(cached.ResponseJson);
+                if (cachedDto != null) return cachedDto;
+            }
+        }
+
         // 1. Retrieve Service for duration & tenant identification
         var service = await _context.Services.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == request.ServiceId, cancellationToken);
         if (service == null)
@@ -315,8 +330,18 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             throw;
         }
 
-        // 4. Release Redis hold after successful persistence
+        // 4. Release Redis & Database holds after successful persistence
         await _slotHoldService.ReleaseHoldAsync(tenantId, request.StaffId, request.StartUtc, request.HoldId, cancellationToken);
+
+        var dbHold = await _context.BookingHolds
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(h => h.StaffId == request.StaffId && h.StartUtc == request.StartUtc && !h.IsReleased, cancellationToken);
+        if (dbHold != null)
+        {
+            dbHold.Release();
+            _context.BookingHolds.Remove(dbHold);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
         // 5. Send confirmation email (best-effort)
         if (_emailSender != null && _tokenService != null)
@@ -338,7 +363,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             }
         }
 
-        return new BookingDto(
+        var resultDto = new BookingDto(
             booking.Id,
             booking.TenantId,
             booking.StaffId,
@@ -350,7 +375,34 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             booking.CreatedAtUtc,
             booking.BookingReference,
             booking.RelatedOrderId,
-            booking.RelatedOrderNumber);
+            booking.RelatedOrderNumber,
+            service.Name,
+            staff?.Name ?? "Specialist",
+            customer?.FullName ?? "Customer",
+            customer?.Phone ?? string.Empty,
+            customer?.Email ?? string.Empty,
+            service.Price,
+            service.Currency,
+            booking.Source.ToString(),
+            booking.CustomerNotes,
+            booking.InternalNotes,
+            booking.TimeZoneId,
+            booking.LocationId);
+
+        // 6. Save Idempotency record if key was provided
+        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey) && _idempotencyService != null)
+        {
+            await _idempotencyService.SaveAsync(
+                request.IdempotencyKey,
+                "CreateBooking",
+                201,
+                System.Text.Json.JsonSerializer.Serialize(resultDto),
+                tenantId,
+                null,
+                cancellationToken);
+        }
+
+        return resultDto;
     }
 
     private async Task<Customer> ResolveCustomerAsync(

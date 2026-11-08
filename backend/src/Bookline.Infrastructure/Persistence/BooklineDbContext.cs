@@ -56,6 +56,8 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.HasPostgresExtension("btree_gist");
+
         // Composite key for StaffService and ServiceLocation
         modelBuilder.Entity<StaffService>()
             .HasKey(ss => new { ss.StaffId, ss.ServiceId });

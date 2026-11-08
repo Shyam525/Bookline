@@ -126,6 +126,18 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
                 ?? DateTimeZoneProviders.Tzdb["UTC"];
         }
 
+        var targetDayOfWeek = (DayOfWeek)(((int)request.Date.DayOfWeek) % 7);
+
+        // 1. Validate Booking Horizon
+        if (tenant != null && tenant.BookingHorizonDays > 0)
+        {
+            var localToday = _clock.GetCurrentInstant().InZone(zone).Date;
+            if (request.Date > localToday.PlusDays(tenant.BookingHorizonDays))
+            {
+                return Array.Empty<Slot>();
+            }
+        }
+
         var workingHours = await _context.WorkingHours
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -144,16 +156,81 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             .Where(t => t.StaffId == request.StaffId)
             .ToListAsync(cancellationToken);
 
-        var targetDayOfWeek = (DayOfWeek)(((int)request.Date.DayOfWeek) % 7);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var activeHolds = await _context.BookingHolds
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(h => h.StaffId == request.StaffId && !h.IsReleased && h.ExpiresAtUtc > nowUtc)
+            .ToListAsync(cancellationToken);
+
         var dayHours = workingHours.Where(w => w.DayOfWeek == targetDayOfWeek).ToList();
         var windows = dayHours.Select(w => new WorkingWindow(
             LocalTime.FromTicksSinceMidnight(w.StartTime.Ticks),
             LocalTime.FromTicksSinceMidnight(w.EndTime.Ticks)
         )).ToList();
 
+        // 2. Business Opening Hours, Closed Days & Business Break Intervals
+        var businessBreakIntervals = new List<Interval>();
+        if (!string.IsNullOrWhiteSpace(tenant?.BusinessHoursJson))
+        {
+            try
+            {
+                var businessHours = System.Text.Json.JsonSerializer.Deserialize<List<Bookline.Application.Tenants.DTOs.BusinessDayHours>>(
+                    tenant.BusinessHoursJson,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                var dayConfig = businessHours?.FirstOrDefault(d => d.DayOfWeek == targetDayOfWeek);
+                if (dayConfig != null)
+                {
+                    if (!dayConfig.IsOpen)
+                    {
+                        return Array.Empty<Slot>();
+                    }
+
+                    if (dayConfig.OpenTime.HasValue && dayConfig.CloseTime.HasValue)
+                    {
+                        var bOpen = LocalTime.FromTicksSinceMidnight(dayConfig.OpenTime.Value.ToTimeSpan().Ticks);
+                        var bClose = LocalTime.FromTicksSinceMidnight(dayConfig.CloseTime.Value.ToTimeSpan().Ticks);
+
+                        var clamped = new List<WorkingWindow>();
+                        foreach (var w in windows)
+                        {
+                            var wStart = w.Start > bOpen ? w.Start : bOpen;
+                            var wEnd = w.End < bClose ? w.End : bClose;
+                            if (wEnd > wStart)
+                            {
+                                clamped.Add(new WorkingWindow(wStart, wEnd));
+                            }
+                        }
+                        windows = clamped;
+                    }
+
+                    if (dayConfig.Breaks != null && dayConfig.Breaks.Any())
+                    {
+                        foreach (var b in dayConfig.Breaks)
+                        {
+                            var bStart = LocalTime.FromTicksSinceMidnight(b.StartTime.ToTimeSpan().Ticks);
+                            var bEnd = LocalTime.FromTicksSinceMidnight(b.EndTime.ToTimeSpan().Ticks);
+                            var bStartInstant = request.Date.At(bStart).InZoneLeniently(zone).ToInstant();
+                            var bEndInstant = request.Date.At(bEnd).InZoneLeniently(zone).ToInstant();
+                            if (bEndInstant > bStartInstant)
+                            {
+                                businessBreakIntervals.Add(new Interval(bStartInstant, bEndInstant));
+                            }
+                        }
+                    }
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Fallback gracefully on parsing anomaly
+            }
+        }
+
+        var totalBufferMinutes = service.BufferBeforeMinutes + service.BufferAfterMinutes;
         var serviceInfo = new ServiceInfo(
             Duration.FromMinutes(service.DurationMinutes),
-            Duration.FromMinutes(service.BufferMinutes));
+            Duration.FromMinutes(totalBufferMinutes));
 
         var schedule = new StaffSchedule(windows);
 
@@ -162,10 +239,22 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             Instant.FromDateTimeOffset(b.EndUtc)
         )).ToList();
 
+        // Active booking holds block availability
+        foreach (var hold in activeHolds)
+        {
+            bookingIntervals.Add(new Interval(
+                Instant.FromDateTimeOffset(hold.StartUtc),
+                Instant.FromDateTimeOffset(hold.EndUtc)
+            ));
+        }
+
         var timeOffIntervals = timeOffs.Select(t => new Interval(
             Instant.FromDateTimeOffset(t.StartUtc),
             Instant.FromDateTimeOffset(t.EndUtc)
         )).ToList();
+
+        // Business breaks are treated as blocked intervals
+        timeOffIntervals.AddRange(businessBreakIntervals);
 
         var minNotice = Duration.FromHours(tenant?.MinimumNoticeHours ?? 2);
 

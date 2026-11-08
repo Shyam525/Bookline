@@ -26,6 +26,7 @@ using DomainStaff = Bookline.Domain.Entities.Staff;
 
 public class Phase3ProviderCalendarAndManualAppointmentsTests
 {
+    private static DateTimeOffset UtcToday => new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
     private (BooklineDbContext Db, TenantContext TenantCtx, IAppointmentSchedulingService SchedulingService) CreateTestContext(Guid? tenantId = null)
     {
         var activeTenantId = tenantId ?? Guid.NewGuid();
@@ -139,7 +140,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
 
         // Schedule for next Wednesday at 10:00 AM IST (04:30 AM UTC)
-        var futureStartUtc = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(4).AddMinutes(30);
+        var futureStartUtc = UtcToday.AddDays(3).AddHours(4).AddMinutes(30);
 
         var req = new CreateManualBookingRequest(
             StaffId: staff.Id,
@@ -192,7 +193,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
 
-        var futureStartUtc = DateTimeOffset.UtcNow.Date.AddDays(4).AddHours(5);
+        var futureStartUtc = UtcToday.AddDays(4).AddHours(5);
 
         var req = new CreateManualBookingRequest(
             StaffId: staff.Id,
@@ -220,7 +221,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         var (tenant, staff, service) = await SeedStandardBusinessAsync(db, tenantCtx.TenantId);
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
-        var futureStartUtc = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(5);
+        var futureStartUtc = UtcToday.AddDays(3).AddHours(5);
 
         var req = new CreateManualBookingRequest(
             StaffId: staff.Id,
@@ -267,7 +268,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         await db.SaveChangesAsync();
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
-        var futureStartUtc = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(5);
+        var futureStartUtc = UtcToday.AddDays(3).AddHours(5);
 
         // Receptionist enters a walk-in with the same phone number
         var req = new CreateManualBookingRequest(
@@ -298,7 +299,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         var (tenant, staff, service) = await SeedStandardBusinessAsync(db, tenantCtx.TenantId);
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
-        var slotStart = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(5); // 10:30 AM IST
+        var slotStart = UtcToday.AddDays(3).AddHours(5); // 10:30 AM IST
 
         // Booking 1: 10:30 - 11:15 (45 mins)
         var req1 = new CreateManualBookingRequest(
@@ -337,7 +338,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         await db.SaveChangesAsync();
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
-        var slotStart = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(5);
+        var slotStart = UtcToday.AddDays(3).AddHours(5);
 
         var req = new CreateManualBookingRequest(
             StaffId: staff.Id,
@@ -362,7 +363,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         // Staff shift has break 13:00 to 14:00 (IST).
         // 13:00 IST = 07:30 UTC.
         // Attempting appointment at 07:30 UTC (13:00 IST) should be rejected
-        var breakStartUtc = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(7).AddMinutes(30);
+        var breakStartUtc = UtcToday.AddDays(3).AddHours(7).AddMinutes(30);
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
         var req = new CreateManualBookingRequest(
@@ -410,7 +411,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         var (tenant, staff, service) = await SeedStandardBusinessAsync(db, tenantCtx.TenantId);
 
         var handler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
-        var slotStart = DateTimeOffset.UtcNow.Date.AddDays(3).AddHours(5);
+        var slotStart = UtcToday.AddDays(3).AddHours(5);
 
         var req = new CreateManualBookingRequest(
             StaffId: staff.Id,
@@ -459,14 +460,14 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         // Add 2 bookings for Bhavin
         var b1 = Booking.CreateManual(
             tenantCtx.TenantId, staff.Id, service.Id, customer.Id,
-            DateTimeOffset.UtcNow.Date.AddDays(-5).AddHours(5),
-            DateTimeOffset.UtcNow.Date.AddDays(-5).AddHours(5).AddMinutes(45),
+            UtcToday.AddDays(-5).AddHours(5),
+            UtcToday.AddDays(-5).AddHours(5).AddMinutes(45),
             BookingSource.WalkIn, service.Name, service.Price);
 
         var b2 = Booking.CreateManual(
             tenantCtx.TenantId, staff.Id, service.Id, customer.Id,
-            DateTimeOffset.UtcNow.Date.AddDays(2).AddHours(5),
-            DateTimeOffset.UtcNow.Date.AddDays(2).AddHours(5).AddMinutes(45),
+            UtcToday.AddDays(2).AddHours(5),
+            UtcToday.AddDays(2).AddHours(5).AddMinutes(45),
             BookingSource.WhatsApp, service.Name, service.Price);
 
         db.Bookings.AddRange(b1, b2);
@@ -486,7 +487,7 @@ public class Phase3ProviderCalendarAndManualAppointmentsTests
         var (db, tenantCtx, schedulingService) = CreateTestContext();
         var (tenant, staff, service) = await SeedStandardBusinessAsync(db, tenantCtx.TenantId);
 
-        var slotStart = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(5);
+        var slotStart = UtcToday.AddDays(1).AddHours(5);
         var manualHandler = new CreateManualBookingCommandHandler(db, tenantCtx, schedulingService);
 
         var req = new CreateManualBookingRequest(

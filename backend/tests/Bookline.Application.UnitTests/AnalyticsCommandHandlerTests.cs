@@ -75,7 +75,7 @@ public class AnalyticsCommandHandlerTests
             Amount = 150m,
             PaymentType = PaymentType.FullPayment,
             Status = PaymentStatus.Completed,
-            CreatedAtUtc = DateTime.UtcNow.Date
+            CreatedAtUtc = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
 

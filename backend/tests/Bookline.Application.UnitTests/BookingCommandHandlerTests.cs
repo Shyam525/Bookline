@@ -270,7 +270,7 @@ public class BookingCommandHandlerTests
 
         using var context = new BooklineDbContext(options, _tenantContext);
 
-        var tenant = new Tenant { Id = _tenantId, Name = "Acme Salon", Slug = "acme-salon", IsActive = true };
+        var tenant = new Tenant { Id = _tenantId, Name = "Acme Salon", Slug = "acme-salon", IsActive = true, BookingHorizonDays = 3650 };
         context.Tenants.Add(tenant);
 
         var staff = new Staff { Id = _staffId, TenantId = _tenantId, TimeZoneId = "UTC" };

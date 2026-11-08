@@ -43,6 +43,7 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
     public async Task<BookingDto> Handle(RescheduleBookingCommand request, CancellationToken cancellationToken)
     {
         var booking = await _context.Bookings
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(candidate => candidate.Id == request.BookingId, cancellationToken);
         if (booking == null)
         {
@@ -76,19 +77,30 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
 
         var endUtc = request.StartUtc.AddMinutes(service.DurationMinutes);
 
+        var originalStartUtc = booking.StartUtc;
+        var originalEndUtc = booking.EndUtc;
+        var originalStaffId = booking.StaffId;
+
         // Perform conflict and schedule validation using shared scheduling rules
         if (_schedulingService != null)
         {
-            await _schedulingService.ValidateScheduleEligibilityAsync(
-                tenantId: booking.TenantId,
-                staffId: targetStaffId,
-                serviceId: booking.ServiceId,
-                startUtc: request.StartUtc,
-                endUtc: endUtc,
-                locationId: booking.LocationId,
-                excludeBookingId: booking.Id,
-                allowPast: false,
-                cancellationToken: cancellationToken);
+            try
+            {
+                await _schedulingService.ValidateScheduleEligibilityAsync(
+                    tenantId: booking.TenantId,
+                    staffId: targetStaffId,
+                    serviceId: booking.ServiceId,
+                    startUtc: request.StartUtc,
+                    endUtc: endUtc,
+                    locationId: booking.LocationId,
+                    excludeBookingId: booking.Id,
+                    allowPast: false,
+                    cancellationToken: cancellationToken);
+            }
+            catch (ValidationException vex) when (vex.Message.Contains("SCHEDULING_CONFLICT"))
+            {
+                throw new BookingConflictException(Array.Empty<Slot>());
+            }
         }
 
         booking.Reschedule(request.StartUtc, endUtc, request.StaffId);
@@ -130,11 +142,14 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
         }
         catch (DbUpdateException exception) when (IsOverlapViolation(exception))
         {
+            // Preserve original appointment safely on conflict
+            booking.Reschedule(originalStartUtc, originalEndUtc, originalStaffId);
+
             if (request.HoldId.HasValue && request.HoldId.Value != Guid.Empty)
             {
                 await _slotHoldService.ReleaseHoldAsync(
                     booking.TenantId,
-                    booking.StaffId,
+                    targetStaffId,
                     request.StartUtc,
                     request.HoldId.Value,
                     cancellationToken);
@@ -170,8 +185,17 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
         while (inner != null)
         {
             var type = inner.GetType();
-            if (type.Name == "PostgresException" &&
-                type.GetProperty("SqlState")?.GetValue(inner)?.ToString() == "23P01")
+            if (type.Name == "PostgresException")
+            {
+                var sqlState = type.GetProperty("SqlState")?.GetValue(inner)?.ToString();
+                var constraint = type.GetProperty("ConstraintName")?.GetValue(inner)?.ToString();
+                if (sqlState == "23P01" || constraint == "no_overlap" || constraint == "no_resource_overlap" || constraint == "no_overlap_staff_booking")
+                {
+                    return true;
+                }
+            }
+
+            if (inner.Message.Contains("23P01") || inner.Message.Contains("no_overlap") || inner.Message.Contains("no_resource_overlap"))
             {
                 return true;
             }

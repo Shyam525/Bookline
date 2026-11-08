@@ -27,7 +27,8 @@ public record CreateManualBookingRequest(
     string? CustomerNotes = null,
     string? InternalNotes = null,
     decimal? PriceOverride = null,
-    bool AllowPast = false
+    bool AllowPast = false,
+    string? IdempotencyKey = null
 );
 
 public record CreateManualBookingCommand(CreateManualBookingRequest Request) : IRequest<BookingDto>;
@@ -54,20 +55,34 @@ public class CreateManualBookingCommandHandler : IRequestHandler<CreateManualBoo
     private readonly IApplicationDbContext _context;
     private readonly ITenantContext _tenantContext;
     private readonly IAppointmentSchedulingService _schedulingService;
+    private readonly IIdempotencyService? _idempotencyService;
 
     public CreateManualBookingCommandHandler(
         IApplicationDbContext context,
         ITenantContext tenantContext,
-        IAppointmentSchedulingService schedulingService)
+        IAppointmentSchedulingService schedulingService,
+        IIdempotencyService? idempotencyService = null)
     {
         _context = context;
         _tenantContext = tenantContext;
         _schedulingService = schedulingService;
+        _idempotencyService = idempotencyService;
     }
 
     public async Task<BookingDto> Handle(CreateManualBookingCommand command, CancellationToken cancellationToken)
     {
         var req = command.Request;
+
+        // 0. Idempotency Check
+        if (!string.IsNullOrWhiteSpace(req.IdempotencyKey) && _idempotencyService != null)
+        {
+            var cached = await _idempotencyService.GetExistingAsync(req.IdempotencyKey, "CreateManualBooking", cancellationToken);
+            if (cached != null)
+            {
+                var cachedDto = JsonSerializer.Deserialize<BookingDto>(cached.ResponseJson);
+                if (cachedDto != null) return cachedDto;
+            }
+        }
 
         // 1. Resolve Tenant Context
         var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : Guid.Empty;
@@ -244,11 +259,18 @@ public class CreateManualBookingCommandHandler : IRequestHandler<CreateManualBoo
             })
         });
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsExclusionViolation(ex))
+        {
+            throw new ValidationException("SCHEDULING_CONFLICT: The selected staff member already has an appointment during this time window.");
+        }
 
         var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == req.StaffId, cancellationToken);
 
-        return new BookingDto(
+        var resultDto = new BookingDto(
             booking.Id,
             booking.TenantId,
             booking.StaffId,
@@ -274,6 +296,51 @@ public class CreateManualBookingCommandHandler : IRequestHandler<CreateManualBoo
             booking.TimeZoneId,
             booking.LocationId
         );
+
+        if (!string.IsNullOrWhiteSpace(req.IdempotencyKey) && _idempotencyService != null)
+        {
+            await _idempotencyService.SaveAsync(
+                req.IdempotencyKey,
+                "CreateManualBooking",
+                201,
+                JsonSerializer.Serialize(resultDto),
+                tenantId,
+                null,
+                cancellationToken);
+        }
+
+        return resultDto;
+    }
+
+    private static bool IsExclusionViolation(DbUpdateException ex)
+    {
+        var inner = ex.InnerException;
+        while (inner != null)
+        {
+            var innerType = inner.GetType();
+            if (innerType.Name == "PostgresException")
+            {
+                var sqlStateProp = innerType.GetProperty("SqlState");
+                var constraintProp = innerType.GetProperty("ConstraintName");
+
+                var sqlState = sqlStateProp?.GetValue(inner)?.ToString();
+                var constraint = constraintProp?.GetValue(inner)?.ToString();
+
+                if (sqlState == "23P01" || constraint == "no_overlap" || constraint == "no_resource_overlap" || constraint == "no_overlap_staff_booking")
+                {
+                    return true;
+                }
+            }
+
+            if (inner.Message.Contains("23P01") || inner.Message.Contains("no_overlap") || inner.Message.Contains("no_resource_overlap"))
+            {
+                return true;
+            }
+
+            inner = inner.InnerException;
+        }
+
+        return false;
     }
 }
 

@@ -77,7 +77,24 @@ export const CalendarPage: React.FC = () => {
     customerPhone: '',
     time: '10:00',
     date: new Date().toISOString().split('T')[0],
+    source: 'WalkIn' as 'WalkIn' | 'Phone' | 'WhatsApp' | 'Instagram' | 'Manual',
+    customerNotes: '',
+    internalNotes: '',
   });
+  const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customerHistory, setCustomerHistory] = useState<CalendarBookingItem[] | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Reschedule Modal State
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [rescheduleForm, setRescheduleForm] = useState({
+    staffId: '',
+    date: new Date().toISOString().split('T')[0],
+    time: '10:00',
+  });
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [isRescheduling, setIsRescheduling] = useState(false);
 
   // Scheduled Breaks, Time-off & Blocked Slots (Section 48 Visual Model)
   const [scheduleBlocks] = useState<ScheduleBlock[]>([
@@ -450,6 +467,7 @@ export const CalendarPage: React.FC = () => {
   // Handle Free Area Click to Create Appointment (Section 50)
   const handleFreeAreaClick = (staffId: string, hour: number) => {
     const formattedHour = `${hour.toString().padStart(2, '0')}:00`;
+    setFormError('');
     setBookingForm({
       staffId: staffId || (staffList[0]?.id ?? ''),
       serviceId: servicesList[0]?.id ?? '',
@@ -458,46 +476,106 @@ export const CalendarPage: React.FC = () => {
       customerPhone: '',
       time: formattedHour,
       date: currentDate.toISOString().split('T')[0],
+      source: 'WalkIn',
+      customerNotes: '',
+      internalNotes: '',
     });
     setIsBookingModalOpen(true);
   };
 
-  // Submit New Booking
-  const handleCreateAppointment = (e: React.FormEvent) => {
+  // Submit New Booking (Connected to backend manual appointment API)
+  const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    const [hours, mins] = bookingForm.time.split(':').map(Number);
-    const start = new Date(currentDate);
-    start.setHours(hours, mins, 0, 0);
+    setFormError('');
+    setIsSubmitting(true);
+    try {
+      const [hours, mins] = bookingForm.time.split(':').map(Number);
+      const [year, month, day] = bookingForm.date.split('-').map(Number);
+      const start = new Date(year, month - 1, day, hours, mins, 0);
 
-    const srv = servicesList.find((s) => s.id === bookingForm.serviceId);
-    const staff = staffList.find((s) => s.id === bookingForm.staffId);
-    const durationMins = srv?.durationMinutes || 45;
-    const end = new Date(start.getTime() + durationMins * 60000);
+      const srv = servicesList.find((s) => s.id === bookingForm.serviceId);
+      const staff = staffList.find((s) => s.id === bookingForm.staffId);
 
-    const newBooking: CalendarBookingItem = {
-      id: `bk-${Date.now()}`,
-      staffId: bookingForm.staffId,
-      staffName: staff?.name || 'Assigned Specialist',
-      serviceId: bookingForm.serviceId,
-      serviceName: srv?.name || 'Custom Consultation',
-      customerId: `cust-${Date.now()}`,
-      customerName: bookingForm.customerName || 'Walk-in Client',
-      startUtc: start.toISOString(),
-      endUtc: end.toISOString(),
-      status: 'Confirmed',
-    };
+      if (token) {
+        const created = await bookingsApi.createManualBooking(token, {
+          staffId: bookingForm.staffId,
+          serviceId: bookingForm.serviceId,
+          startUtc: start.toISOString(),
+          source: bookingForm.source,
+          customerName: bookingForm.customerName.trim(),
+          customerPhone: bookingForm.customerPhone?.trim() || undefined,
+          customerEmail: bookingForm.customerEmail?.trim() || undefined,
+          customerNotes: bookingForm.customerNotes?.trim() || undefined,
+          internalNotes: bookingForm.internalNotes?.trim() || undefined,
+        });
+        setBookings((prev) => [...prev, created]);
+      } else {
+        const durationMins = srv?.durationMinutes || 45;
+        const end = new Date(start.getTime() + durationMins * 60000);
 
-    setBookings((prev) => [...prev, newBooking]);
-    setIsBookingModalOpen(false);
+        const newBooking: CalendarBookingItem = {
+          id: `bk-${Date.now()}`,
+          staffId: bookingForm.staffId,
+          staffName: staff?.name || 'Assigned Specialist',
+          serviceId: bookingForm.serviceId,
+          serviceName: srv?.name || 'Custom Consultation',
+          customerId: `cust-${Date.now()}`,
+          customerName: bookingForm.customerName || 'Walk-in Client',
+          customerPhone: bookingForm.customerPhone,
+          customerEmail: bookingForm.customerEmail,
+          startUtc: start.toISOString(),
+          endUtc: end.toISOString(),
+          status: 'Confirmed',
+          source: bookingForm.source,
+          price: srv?.price || 0,
+          currency: srv?.currency || 'INR',
+          customerNotes: bookingForm.customerNotes,
+          internalNotes: bookingForm.internalNotes,
+        };
+        setBookings((prev) => [...prev, newBooking]);
+      }
+      setIsBookingModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to create appointment');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Status transitions
-  const handleUpdateStatus = (id: string, newStatus: 'Confirmed' | 'Completed' | 'Cancelled' | 'NoShow') => {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
-    );
-    if (selectedBooking && selectedBooking.id === id) {
-      setSelectedBooking({ ...selectedBooking, status: newStatus });
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: 'Confirmed' | 'CheckedIn' | 'Completed' | 'Cancelled' | 'NoShow'
+  ) => {
+    try {
+      if (token) {
+        if (newStatus === 'CheckedIn') await bookingsApi.checkInBooking(token, id);
+        else if (newStatus === 'Completed') await bookingsApi.completeBooking(token, id);
+        else if (newStatus === 'NoShow') await bookingsApi.noShowBooking(token, id);
+        else if (newStatus === 'Cancelled') await bookingsApi.cancelBooking(token, id);
+        else if (newStatus === 'Confirmed') await bookingsApi.confirmBooking(token, id);
+      }
+      setBookings((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
+      );
+      if (selectedBooking && selectedBooking.id === id) {
+        setSelectedBooking({ ...selectedBooking, status: newStatus });
+      }
+    } catch (err: any) {
+      alert(err.message || `Failed to update status to ${newStatus}`);
+    }
+  };
+
+  const loadCustomerHistory = async (customerId: string) => {
+    if (!token || !customerId) return;
+    setLoadingHistory(true);
+    try {
+      const history = await bookingsApi.getCustomerAppointments(token, customerId);
+      setCustomerHistory(history);
+    } catch (err) {
+      console.warn('Failed to load customer history:', err);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -505,6 +583,40 @@ export const CalendarPage: React.FC = () => {
     if (cancellingBookingId) {
       handleUpdateStatus(cancellingBookingId, 'Cancelled');
       setCancellingBookingId(null);
+    }
+  };
+
+  const handleReschedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !selectedBooking) return;
+    setIsRescheduling(true);
+    setRescheduleError('');
+    try {
+      const startUtc = new Date(`${rescheduleForm.date}T${rescheduleForm.time}:00`).toISOString();
+      const updated = await bookingsApi.rescheduleBooking(token, selectedBooking.id, {
+        startUtc,
+        staffId: rescheduleForm.staffId || undefined,
+      });
+      const updatedStaff = staffList.find((s) => s.id === (rescheduleForm.staffId || selectedBooking.staffId));
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id
+            ? {
+                ...b,
+                startUtc: updated.startUtc,
+                endUtc: updated.endUtc,
+                staffId: updated.staffId || b.staffId,
+                staffName: updatedStaff?.name || b.staffName,
+              }
+            : b
+        )
+      );
+      setIsRescheduleModalOpen(false);
+      setSelectedBooking(null);
+    } catch (err: any) {
+      setRescheduleError(err.message || 'Failed to reschedule appointment');
+    } finally {
+      setIsRescheduling(false);
     }
   };
 
@@ -561,6 +673,7 @@ export const CalendarPage: React.FC = () => {
           <Button
             variant="primary"
             onClick={() => {
+              setFormError('');
               setBookingForm({
                 staffId: staffList[0]?.id || '',
                 serviceId: servicesList[0]?.id || '',
@@ -569,6 +682,9 @@ export const CalendarPage: React.FC = () => {
                 customerPhone: '',
                 time: '10:00',
                 date: currentDate.toISOString().split('T')[0],
+                source: 'WalkIn',
+                customerNotes: '',
+                internalNotes: '',
               });
               setIsBookingModalOpen(true);
             }}
@@ -941,35 +1057,89 @@ export const CalendarPage: React.FC = () => {
           ============================================================== */}
       <Drawer
         isOpen={!!selectedBooking}
-        onClose={() => setSelectedBooking(null)}
+        onClose={() => {
+          setSelectedBooking(null);
+          setCustomerHistory(null);
+        }}
         title="Appointment Operations"
       >
         {selectedBooking && (
           <div className="space-y-6">
-            {/* Header Status */}
+            {/* Header Status & Source */}
             <div className="flex items-center justify-between border-b border-[#212638] pb-4">
-              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusStyle(selectedBooking.status)}`}>
-                {selectedBooking.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusStyle(selectedBooking.status)}`}>
+                  {selectedBooking.status}
+                </span>
+                {selectedBooking.source && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#212638] text-[#ECEFFE] border border-[#2B324B]">
+                    {selectedBooking.source}
+                  </span>
+                )}
+              </div>
               <span className="text-xs font-mono text-[#7E88A8]">
-                REF: {selectedBooking.id}
+                REF: {selectedBooking.bookingReference || selectedBooking.id}
               </span>
             </div>
 
             {/* Client Information */}
             <div className="bg-[#181D2C] p-4 rounded-xl border border-[#212638] space-y-3">
-              <span className="text-[11px] font-semibold text-[#7E88A8] uppercase tracking-wider">
-                Client Profile
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-[#7E88A8] uppercase tracking-wider">
+                  Client Profile
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-[#E8546A] hover:bg-[#E8546A]/10 h-7 px-2"
+                  onClick={() => loadCustomerHistory(selectedBooking.customerId)}
+                >
+                  {loadingHistory ? 'Loading History...' : 'View History'}
+                </Button>
+              </div>
               <div className="flex items-center gap-3">
                 <Avatar name={selectedBooking.customerName} size="md" />
                 <div>
                   <h4 className="text-sm font-bold text-[#ECEFFE]">
                     {selectedBooking.customerName}
                   </h4>
-                  <p className="text-xs text-[#7E88A8]">Registered Marketplace Client</p>
+                  {selectedBooking.customerPhone && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-mono text-[#7E88A8]">{selectedBooking.customerPhone}</span>
+                      <a
+                        href={`https://wa.me/${selectedBooking.customerPhone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-medium"
+                      >
+                        WhatsApp
+                      </a>
+                    </div>
+                  )}
+                  {selectedBooking.customerEmail && (
+                    <p className="text-xs text-[#7E88A8] mt-0.5">{selectedBooking.customerEmail}</p>
+                  )}
                 </div>
               </div>
+
+              {customerHistory && (
+                <div className="mt-3 pt-3 border-t border-[#212638] space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs font-semibold text-[#ECEFFE]">Past Appointments ({customerHistory.length})</p>
+                  {customerHistory.length === 0 ? (
+                    <p className="text-xs text-[#7E88A8]">No previous visits recorded.</p>
+                  ) : (
+                    customerHistory.map((h) => (
+                      <div key={h.id} className="text-xs p-2 rounded bg-[#111520] border border-[#212638] flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-[#ECEFFE]">{h.serviceName}</p>
+                          <p className="text-[10px] text-[#7E88A8]">{new Date(h.startUtc).toLocaleDateString()} · {h.staffName}</p>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded ${getStatusStyle(h.status)}`}>{h.status}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Appointment Core Details (Section 49) */}
@@ -1009,6 +1179,29 @@ export const CalendarPage: React.FC = () => {
                   {formatBusinessDate(selectedBooking.startUtc, 'full')}
                 </span>
               </div>
+
+              {selectedBooking.price !== undefined && selectedBooking.price > 0 && (
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-[#212638]">
+                  <span className="text-[#7E88A8]">Price Snapshot</span>
+                  <span className="font-semibold text-[#ECEFFE] font-mono">
+                    ₹{selectedBooking.price}
+                  </span>
+                </div>
+              )}
+
+              {selectedBooking.customerNotes && (
+                <div className="pt-2 border-t border-[#212638]">
+                  <span className="text-[11px] font-semibold text-[#7E88A8]">Customer Notes</span>
+                  <p className="text-xs text-[#ECEFFE] mt-1 italic">{selectedBooking.customerNotes}</p>
+                </div>
+              )}
+
+              {selectedBooking.internalNotes && (
+                <div className="pt-2 border-t border-[#212638] bg-amber-500/5 p-2 rounded">
+                  <span className="text-[11px] font-semibold text-amber-400">Confidential Provider Notes</span>
+                  <p className="text-xs text-[#ECEFFE] mt-1">{selectedBooking.internalNotes}</p>
+                </div>
+              )}
             </div>
 
             {/* Lifecycle Operations Actions */}
@@ -1024,6 +1217,16 @@ export const CalendarPage: React.FC = () => {
               )}
 
               {selectedBooking.status === 'Confirmed' && (
+                <Button
+                  variant="primary"
+                  className="w-full bg-[#10B981] hover:bg-[#059669] text-white font-semibold"
+                  onClick={() => handleUpdateStatus(selectedBooking.id, 'CheckedIn')}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" /> Check In Client
+                </Button>
+              )}
+
+              {(selectedBooking.status === 'Confirmed' || selectedBooking.status === 'CheckedIn') && (
                 <Button
                   variant="primary"
                   className="w-full bg-[#38BDF8] hover:bg-[#0EA5E9] text-white"
@@ -1043,7 +1246,26 @@ export const CalendarPage: React.FC = () => {
                 </Button>
               )}
 
-              {selectedBooking.status !== 'Cancelled' && (
+              {(selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Pending') && (
+                <Button
+                  variant="outline"
+                  className="w-full text-[#38BDF8] border-[#38BDF8]/30 hover:bg-[#38BDF8]/10"
+                  onClick={() => {
+                    setRescheduleError('');
+                    const startDate = new Date(selectedBooking.startUtc);
+                    setRescheduleForm({
+                      staffId: selectedBooking.staffId,
+                      date: startDate.toISOString().split('T')[0],
+                      time: startDate.toTimeString().substring(0, 5),
+                    });
+                    setIsRescheduleModalOpen(true);
+                  }}
+                >
+                  <Clock className="w-4 h-4 mr-2" /> Reschedule Appointment
+                </Button>
+              )}
+
+              {selectedBooking.status !== 'Cancelled' && selectedBooking.status !== 'Completed' && selectedBooking.status !== 'NoShow' && (
                 <Button
                   variant="danger"
                   className="w-full"
@@ -1063,51 +1285,73 @@ export const CalendarPage: React.FC = () => {
       <Modal
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
-        title="Schedule Specialist Appointment"
+        title="Schedule Walk-in / Manual Appointment"
       >
         <form onSubmit={handleCreateAppointment} className="space-y-4">
-          <Input
-            label="Client Full Name"
-            placeholder="e.g. Ananya Sen"
-            value={bookingForm.customerName}
-            onChange={(e) => setBookingForm({ ...bookingForm, customerName: e.target.value })}
-            required
-          />
+          {formError && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+              {formError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label="Appointment Source"
+              value={bookingForm.source}
+              onChange={(e) => setBookingForm({ ...bookingForm, source: e.target.value as any })}
+              options={[
+                { value: 'WalkIn', label: 'Walk-in' },
+                { value: 'Phone', label: 'Phone Call' },
+                { value: 'WhatsApp', label: 'WhatsApp' },
+                { value: 'Instagram', label: 'Instagram DM' },
+                { value: 'Manual', label: 'Other / Manual' },
+              ]}
+              required
+            />
+            <Input
+              label="Client Full Name"
+              placeholder="e.g. Ramesh Patel"
+              value={bookingForm.customerName}
+              onChange={(e) => setBookingForm({ ...bookingForm, customerName: e.target.value })}
+              required
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Email Address"
+              label="Phone Number"
+              placeholder="+91 98250 12345"
+              value={bookingForm.customerPhone}
+              onChange={(e) => setBookingForm({ ...bookingForm, customerPhone: e.target.value })}
+            />
+            <Input
+              label="Email Address (Optional)"
               type="email"
               placeholder="client@example.com"
               value={bookingForm.customerEmail}
               onChange={(e) => setBookingForm({ ...bookingForm, customerEmail: e.target.value })}
             />
-            <Input
-              label="Phone Number"
-              placeholder="+91 98765 43210"
-              value={bookingForm.customerPhone}
-              onChange={(e) => setBookingForm({ ...bookingForm, customerPhone: e.target.value })}
-            />
           </div>
 
-          <Select
-            label="Specialist"
-            value={bookingForm.staffId}
-            onChange={(e) => setBookingForm({ ...bookingForm, staffId: e.target.value })}
-            options={staffList.map((s) => ({ value: s.id, label: s.name }))}
-            required
-          />
-
-          <Select
-            label="Service"
-            value={bookingForm.serviceId}
-            onChange={(e) => setBookingForm({ ...bookingForm, serviceId: e.target.value })}
-            options={servicesList.map((s) => ({
-              value: s.id,
-              label: `${s.name} (${formatDuration(s.durationMinutes)} · ₹${s.price})`,
-            }))}
-            required
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label="Specialist"
+              value={bookingForm.staffId}
+              onChange={(e) => setBookingForm({ ...bookingForm, staffId: e.target.value })}
+              options={staffList.map((s) => ({ value: s.id, label: s.name }))}
+              required
+            />
+            <Select
+              label="Service"
+              value={bookingForm.serviceId}
+              onChange={(e) => setBookingForm({ ...bookingForm, serviceId: e.target.value })}
+              options={servicesList.map((s) => ({
+                value: s.id,
+                label: `${s.name} (${formatDuration(s.durationMinutes)} · ₹${s.price})`,
+              }))}
+              required
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
@@ -1126,12 +1370,80 @@ export const CalendarPage: React.FC = () => {
             />
           </div>
 
+          <Input
+            label="Customer Notes"
+            placeholder="Preferences, allergy alerts, specific requests..."
+            value={bookingForm.customerNotes}
+            onChange={(e) => setBookingForm({ ...bookingForm, customerNotes: e.target.value })}
+          />
+
+          <Input
+            label="Confidential Provider Notes (Internal)"
+            placeholder="Private staff notes, formula used, VIP status..."
+            value={bookingForm.internalNotes}
+            onChange={(e) => setBookingForm({ ...bookingForm, internalNotes: e.target.value })}
+          />
+
           <div className="flex justify-end gap-3 pt-4 border-t border-[#212638]">
             <Button variant="ghost" type="button" onClick={() => setIsBookingModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" className="bg-[#E8546A] hover:bg-[#D44359]">
-              Confirm Booking
+            <Button variant="primary" type="submit" disabled={isSubmitting} className="bg-[#E8546A] hover:bg-[#D44359]">
+              {isSubmitting ? 'Scheduling...' : 'Confirm Appointment'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reschedule Appointment Modal */}
+      <Modal
+        isOpen={isRescheduleModalOpen}
+        onClose={() => setIsRescheduleModalOpen(false)}
+        title="Reschedule Appointment"
+      >
+        <form onSubmit={handleReschedule} className="space-y-4">
+          {rescheduleError && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+              {rescheduleError}
+            </div>
+          )}
+
+          <Select
+            label="Assigned Specialist"
+            value={rescheduleForm.staffId}
+            onChange={(e) => setRescheduleForm({ ...rescheduleForm, staffId: e.target.value })}
+            options={staffList.map((s) => ({ value: s.id, label: s.name }))}
+            required
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="New Date"
+              type="date"
+              value={rescheduleForm.date}
+              onChange={(e) => setRescheduleForm({ ...rescheduleForm, date: e.target.value })}
+              required
+            />
+            <Input
+              label="New Start Time"
+              type="time"
+              value={rescheduleForm.time}
+              onChange={(e) => setRescheduleForm({ ...rescheduleForm, time: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#212638]">
+            <Button variant="ghost" type="button" onClick={() => setIsRescheduleModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={isRescheduling}
+              className="bg-[#38BDF8] hover:bg-[#0EA5E9] text-white"
+            >
+              {isRescheduling ? 'Rescheduling...' : 'Save Rescheduled Time'}
             </Button>
           </div>
         </form>

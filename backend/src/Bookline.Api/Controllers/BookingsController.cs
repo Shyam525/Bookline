@@ -87,6 +87,15 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("manual")]
+    public async Task<ActionResult<BookingDto>> CreateManual(
+        [FromBody] CreateManualBookingRequest request,
+        CancellationToken cancellationToken)
+    {
+        var booking = await _sender.Send(new CreateManualBookingCommand(request), cancellationToken);
+        return CreatedAtAction(nameof(GetCalendar), new { id = booking.Id }, booking);
+    }
+
     [HttpPut("{id:guid}/reschedule")]
     public async Task<ActionResult<BookingDto>> Reschedule(
         Guid id,
@@ -94,12 +103,12 @@ public class BookingsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var booking = await _sender.Send(
-            new RescheduleBookingCommand(id, request.StartUtc, request.HoldId),
+            new RescheduleBookingCommand(id, request.StartUtc, request.HoldId, request.StaffId),
             cancellationToken);
         return Ok(booking);
     }
 }
 
-public record RescheduleBookingRequest(DateTimeOffset StartUtc, Guid HoldId);
+public record RescheduleBookingRequest(DateTimeOffset StartUtc, Guid? HoldId = null, Guid? StaffId = null);
 public record CancelBookingRequest(string? Reason = null);
 public record UpdateBookingStatusRequest(string Status, string? Reason = null);

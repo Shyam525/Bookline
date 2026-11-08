@@ -121,6 +121,7 @@ builder.Services.AddScoped<TenantSaveChangesInterceptor>();
 builder.Services.AddTransient<IPasswordHasher, PasswordHasher>();
 builder.Services.AddTransient<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISlotEngine, Bookline.Application.Common.Services.SlotEngine>();
+builder.Services.AddScoped<Bookline.Application.Common.Interfaces.IAppointmentSchedulingService, Bookline.Application.Common.Services.AppointmentSchedulingService>();
 
 // Section 123: Redis Integration for holds, coordination, cache, and rate limiting
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"] 

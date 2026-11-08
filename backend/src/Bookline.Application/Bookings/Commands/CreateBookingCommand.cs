@@ -223,8 +223,12 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         booking.TotalPrice = service.Price;
         booking.Currency = service.Currency;
         booking.CustomerNotes = request.CustomerNotes;
+        booking.Source = Bookline.Domain.Enums.BookingSource.Online;
+        booking.ServiceNameSnapshot = service.Name;
+        booking.PriceSnapshot = service.Price;
 
         var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+        booking.TimeZoneId = tenant?.TimeZoneId ?? "Asia/Kolkata";
         if (tenant != null)
         {
             var currentInstant = _clock.GetCurrentInstant();
@@ -500,7 +504,8 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
                 .Where(t => t.StaffId == staffId)
                 .ToListAsync(cancellationToken);
 
-            var dayHours = workingHours.Where(w => (int)w.DayOfWeek == (int)localDate.DayOfWeek).ToList();
+            var targetDayOfWeek = (DayOfWeek)(((int)localDate.DayOfWeek) % 7);
+            var dayHours = workingHours.Where(w => w.DayOfWeek == targetDayOfWeek).ToList();
             var windows = dayHours.Select(w => new WorkingWindow(
                 NodaTime.LocalTime.FromTicksSinceMidnight(w.StartTime.Ticks),
                 NodaTime.LocalTime.FromTicksSinceMidnight(w.EndTime.Ticks)

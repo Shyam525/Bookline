@@ -12,15 +12,15 @@ using Microsoft.EntityFrameworkCore;
 public record RescheduleBookingCommand(
     Guid BookingId,
     DateTimeOffset StartUtc,
-    Guid HoldId) : IRequest<BookingDto>;
+    Guid? HoldId = null,
+    Guid? StaffId = null) : IRequest<BookingDto>;
 
 public class RescheduleBookingCommandValidator : AbstractValidator<RescheduleBookingCommand>
 {
     public RescheduleBookingCommandValidator()
     {
         RuleFor(command => command.BookingId).NotEmpty();
-        RuleFor(command => command.HoldId).NotEmpty();
-        RuleFor(command => command.StartUtc).GreaterThan(DateTimeOffset.UtcNow);
+        RuleFor(command => command.StartUtc).GreaterThan(DateTimeOffset.UtcNow.AddMinutes(-5));
     }
 }
 
@@ -28,13 +28,16 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
 {
     private readonly IApplicationDbContext _context;
     private readonly ISlotHoldService _slotHoldService;
+    private readonly IAppointmentSchedulingService? _schedulingService;
 
     public RescheduleBookingCommandHandler(
         IApplicationDbContext context,
-        ISlotHoldService slotHoldService)
+        ISlotHoldService slotHoldService,
+        IAppointmentSchedulingService? schedulingService = null)
     {
         _context = context;
         _slotHoldService = slotHoldService;
+        _schedulingService = schedulingService;
     }
 
     public async Task<BookingDto> Handle(RescheduleBookingCommand request, CancellationToken cancellationToken)
@@ -46,6 +49,10 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
             throw new NotFoundException(nameof(Booking), request.BookingId);
         }
 
+        var targetStaffId = request.StaffId.HasValue && request.StaffId.Value != Guid.Empty
+            ? request.StaffId.Value
+            : booking.StaffId;
+
         var service = await _context.Services
             .FirstOrDefaultAsync(candidate => candidate.Id == booking.ServiceId, cancellationToken);
         if (service == null)
@@ -53,19 +60,38 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
             throw new NotFoundException(nameof(Service), booking.ServiceId);
         }
 
-        var validHold = await _slotHoldService.ValidateHoldAsync(
-            booking.TenantId,
-            booking.StaffId,
-            request.StartUtc,
-            request.HoldId,
-            cancellationToken);
-        if (!validHold)
+        if (request.HoldId.HasValue && request.HoldId.Value != Guid.Empty)
         {
-            throw new ValidationException("Slot hold is invalid or has expired.");
+            var validHold = await _slotHoldService.ValidateHoldAsync(
+                booking.TenantId,
+                targetStaffId,
+                request.StartUtc,
+                request.HoldId.Value,
+                cancellationToken);
+            if (!validHold)
+            {
+                throw new ValidationException("Slot hold is invalid or has expired.");
+            }
         }
 
         var endUtc = request.StartUtc.AddMinutes(service.DurationMinutes);
-        booking.Reschedule(request.StartUtc, endUtc);
+
+        // Perform conflict and schedule validation using shared scheduling rules
+        if (_schedulingService != null)
+        {
+            await _schedulingService.ValidateScheduleEligibilityAsync(
+                tenantId: booking.TenantId,
+                staffId: targetStaffId,
+                serviceId: booking.ServiceId,
+                startUtc: request.StartUtc,
+                endUtc: endUtc,
+                locationId: booking.LocationId,
+                excludeBookingId: booking.Id,
+                allowPast: false,
+                cancellationToken: cancellationToken);
+        }
+
+        booking.Reschedule(request.StartUtc, endUtc, request.StaffId);
 
         // Record Audit log & Outbox event within atomic transaction (Section 66)
         _context.AuditLogs.Add(new AuditLog
@@ -104,21 +130,27 @@ public class RescheduleBookingCommandHandler : IRequestHandler<RescheduleBooking
         }
         catch (DbUpdateException exception) when (IsOverlapViolation(exception))
         {
+            if (request.HoldId.HasValue && request.HoldId.Value != Guid.Empty)
+            {
+                await _slotHoldService.ReleaseHoldAsync(
+                    booking.TenantId,
+                    booking.StaffId,
+                    request.StartUtc,
+                    request.HoldId.Value,
+                    cancellationToken);
+            }
+            throw new BookingConflictException(Array.Empty<Slot>());
+        }
+
+        if (request.HoldId.HasValue && request.HoldId.Value != Guid.Empty)
+        {
             await _slotHoldService.ReleaseHoldAsync(
                 booking.TenantId,
                 booking.StaffId,
                 request.StartUtc,
-                request.HoldId,
+                request.HoldId.Value,
                 cancellationToken);
-            throw new BookingConflictException(Array.Empty<Slot>());
         }
-
-        await _slotHoldService.ReleaseHoldAsync(
-            booking.TenantId,
-            booking.StaffId,
-            request.StartUtc,
-            request.HoldId,
-            cancellationToken);
 
         return new BookingDto(
             booking.Id,

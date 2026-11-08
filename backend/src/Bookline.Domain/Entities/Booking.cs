@@ -15,6 +15,11 @@ public class Booking : TenantEntity
     public DateTimeOffset StartUtc { get; set; }
     public DateTimeOffset EndUtc { get; set; }
     public BookingStatus Status { get; private set; } = BookingStatus.Pending;
+    public BookingSource Source { get; set; } = BookingSource.Manual;
+    public string ServiceNameSnapshot { get; set; } = string.Empty;
+    public decimal PriceSnapshot { get; set; } = 0.00m;
+    public string? InternalNotes { get; set; }
+    public string? TimeZoneId { get; set; } = "Asia/Kolkata";
     public string? CancellationReason { get; set; }
     public string? CancelledBy { get; set; }
     public string? CustomerNotes { get; set; }
@@ -51,9 +56,56 @@ public class Booking : TenantEntity
         BookingReference = $"BL-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
     }
 
+    public static Booking CreateManual(
+        Guid tenantId,
+        Guid staffId,
+        Guid serviceId,
+        Guid customerId,
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        BookingSource source,
+        string serviceNameSnapshot,
+        decimal priceSnapshot,
+        string currency = "INR",
+        Guid? locationId = null,
+        string? customerNotes = null,
+        string? internalNotes = null,
+        string? timeZoneId = "Asia/Kolkata",
+        string? createdBy = null)
+    {
+        if (endUtc <= startUtc)
+        {
+            throw new ArgumentException("Booking end time must be after its start time.", nameof(endUtc));
+        }
+
+        return new Booking
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            StaffId = staffId,
+            ServiceId = serviceId,
+            CustomerId = customerId,
+            LocationId = locationId,
+            StartUtc = startUtc,
+            EndUtc = endUtc,
+            Status = BookingStatus.Confirmed,
+            Source = source,
+            ServiceNameSnapshot = serviceNameSnapshot,
+            PriceSnapshot = priceSnapshot,
+            TotalPrice = priceSnapshot,
+            Currency = currency,
+            CustomerNotes = customerNotes,
+            InternalNotes = internalNotes,
+            TimeZoneId = timeZoneId ?? "Asia/Kolkata",
+            CreatedBy = createdBy,
+            BookingReference = $"BL-{Guid.NewGuid().ToString("N")[..6].ToUpper()}",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+    }
+
     public void Confirm()
     {
-        if (Status != BookingStatus.Pending)
+        if (Status != BookingStatus.Pending && Status != BookingStatus.Confirmed)
         {
             throw new InvalidStatusTransitionException(Status, BookingStatus.Confirmed);
         }
@@ -93,7 +145,7 @@ public class Booking : TenantEntity
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    public void Reschedule(DateTimeOffset startUtc, DateTimeOffset endUtc)
+    public void Reschedule(DateTimeOffset startUtc, DateTimeOffset endUtc, Guid? newStaffId = null)
     {
         if (Status != BookingStatus.Pending && Status != BookingStatus.Confirmed)
         {
@@ -106,6 +158,10 @@ public class Booking : TenantEntity
 
         StartUtc = startUtc;
         EndUtc = endUtc;
+        if (newStaffId.HasValue && newStaffId.Value != Guid.Empty)
+        {
+            StaffId = newStaffId.Value;
+        }
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 

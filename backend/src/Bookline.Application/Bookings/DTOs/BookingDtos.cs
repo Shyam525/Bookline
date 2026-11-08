@@ -14,7 +14,19 @@ public record BookingDto(
     DateTimeOffset CreatedAtUtc,
     string? BookingReference = null,
     Guid? RelatedOrderId = null,
-    string? RelatedOrderNumber = null
+    string? RelatedOrderNumber = null,
+    string? ServiceName = null,
+    string? StaffName = null,
+    string? CustomerName = null,
+    string? CustomerPhone = null,
+    string? CustomerEmail = null,
+    decimal Price = 0.00m,
+    string Currency = "INR",
+    string Source = "Manual",
+    string? CustomerNotes = null,
+    string? InternalNotes = null,
+    string? TimeZoneId = null,
+    Guid? LocationId = null
 );
 
 public record HoldSlotResultDto(

@@ -1,3 +1,4 @@
+using Bookline.Application.Bookings.Queries;
 using Bookline.Application.Common.Models;
 using Bookline.Application.Customers.DTOs;
 using FluentValidation;
@@ -16,6 +17,8 @@ public record GetCustomersQuery(
 ) : IRequest<PagedResult<CustomerDto>>;
 
 public record GetCustomerByIdQuery(Guid Id) : IRequest<CustomerDto>;
+
+public record GetCustomerAppointmentsQuery(Guid CustomerId) : IRequest<IReadOnlyList<CalendarBookingDto>>;
 
 // Commands
 public record CreateCustomerCommand(CreateCustomerRequest Request) : IRequest<CustomerDto>;

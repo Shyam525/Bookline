@@ -1,3 +1,4 @@
+using Bookline.Application.Bookings.Queries;
 using Bookline.Application.Common.Exceptions;
 using Bookline.Application.Common.Interfaces;
 using Bookline.Application.Common.Models;
@@ -13,6 +14,7 @@ namespace Bookline.Application.Customers.Handlers;
 public class CustomerCommandHandler :
     IRequestHandler<GetCustomersQuery, PagedResult<CustomerDto>>,
     IRequestHandler<GetCustomerByIdQuery, CustomerDto>,
+    IRequestHandler<GetCustomerAppointmentsQuery, IReadOnlyList<CalendarBookingDto>>,
     IRequestHandler<CreateCustomerCommand, CustomerDto>,
     IRequestHandler<UpdateCustomerCommand, CustomerDto>,
     IRequestHandler<ArchiveCustomerCommand, bool>
@@ -82,6 +84,53 @@ public class CustomerCommandHandler :
         if (customer == null) throw new NotFoundException(nameof(Customer), request.Id);
 
         return MapToDto(customer);
+    }
+
+    public async Task<IReadOnlyList<CalendarBookingDto>> Handle(GetCustomerAppointmentsQuery request, CancellationToken cancellationToken)
+    {
+        var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == request.CustomerId, cancellationToken);
+        if (customer == null) throw new NotFoundException(nameof(Customer), request.CustomerId);
+
+        var bookings = await _context.Bookings
+            .AsNoTracking()
+            .Include(b => b.Staff)
+            .Include(b => b.Service)
+            .Where(b => b.CustomerId == request.CustomerId)
+            .OrderByDescending(b => b.StartUtc)
+            .ToListAsync(cancellationToken);
+
+        return bookings.Select(b =>
+        {
+            var sName = !string.IsNullOrEmpty(b.ServiceNameSnapshot)
+                ? b.ServiceNameSnapshot
+                : (b.Service != null ? b.Service.Name : "Service");
+            var price = b.PriceSnapshot > 0 ? b.PriceSnapshot : b.TotalPrice;
+
+            return new CalendarBookingDto(
+                b.Id,
+                b.StaffId,
+                b.Staff != null ? b.Staff.Name : "Specialist",
+                b.ServiceId,
+                sName,
+                b.CustomerId,
+                customer.FullName,
+                b.StartUtc,
+                b.EndUtc,
+                b.Status,
+                b.BookingReference,
+                customer.Phone,
+                customer.Email,
+                b.LocationId,
+                null,
+                b.Source.ToString(),
+                price,
+                b.Currency,
+                b.CustomerNotes,
+                b.InternalNotes,
+                b.TimeZoneId ?? "Asia/Kolkata",
+                b.CreatedAtUtc
+            );
+        }).ToList();
     }
 
     public async Task<CustomerDto> Handle(CreateCustomerCommand command, CancellationToken cancellationToken)

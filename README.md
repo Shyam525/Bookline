@@ -38,6 +38,11 @@ The platform architecture, roadmap, and validation frameworks are comprehensivel
 - Multi-business ownership with fast tenant context switching (e.g., *Aura Wellness & Spa* vs. *Glow Hair Lounge*).
 - Operational location branch selector (*Bodakdev Flagship*, *Satellite Branch*, *Mumbai Studio*).
 - Day/Week appointment calendar with specialist lanes and status workflows (`Pending`, `Confirmed`, `CheckedIn`, `Completed`, `Cancelled`, `NoShow`).
+- Manual appointment creation across controlled sources: `WalkIn`, `Phone`, `WhatsApp`, `Instagram`, `Manual`, and `Online`.
+- Price snapshotting and service name snapshotting preserving historical billing integrity against subsequent catalog changes.
+- Confidential internal provider notes (isolated from client view) alongside customer notes.
+- Shared conflict scheduling engine (`IAppointmentSchedulingService`) enforcing business operating hours, staff shift schedules, breaks, time-offs, double-booking prevention, and past appointment rules.
+- Automatic customer deduplication and reuse by normalized phone/email, plus dedicated customer appointment history inspector.
 - Physical retail product catalog with stock counts, held reservations, and online toggle.
 - Retail order fulfillment pipeline (`Paid` → `Processing` → `Ready` → `Completed`).
 - Public storefront profile customization (cover, logo, bio, cancellation window, advance deposit rules).
@@ -68,7 +73,8 @@ The platform architecture, roadmap, and validation frameworks are comprehensivel
   - TanStack Query, React Router, Lucide Icons, Leaflet / Vector Map
 - **Testing**:
   - xUnit, FluentAssertions, Architecture tests, Integration harness, Node.js TAP runner
-  - 547 Automated Tests passing with 0 failures (498 backend + 49 frontend)
+  - 562 Automated Tests passing with 0 failures (513 backend + 49 frontend)
+  - Unit tests for Phase 3: Shared conflict scheduling (`IAppointmentSchedulingService`), manual appointment creation, historical snapshots, customer deduplication, and lifecycle transitions.
 
 ---
 
@@ -232,7 +238,7 @@ Phase 2 establishes self-service provider onboarding and runtime business config
   - **Platform Admin**: `admin@bookline.local` / `Admin123!`
 - **Exact Test Commands**:
   ```powershell
-  # Backend Tests (498 passing)
+  # Backend Tests (513 passing)
   dotnet test backend
 
   # Frontend Tests (49 passing)
@@ -241,11 +247,11 @@ Phase 2 establishes self-service provider onboarding and runtime business config
 - **Verification Report**:
   ```text
   Passed!  - Failed: 0, Passed:  21, Skipped: 0, Total:  21 - Bookline.Domain.UnitTests.dll (net8.0)
-  Passed!  - Failed: 0, Passed: 398, Skipped: 0, Total: 398 - Bookline.Application.UnitTests.dll (net8.0)
+  Passed!  - Failed: 0, Passed: 413, Skipped: 0, Total: 413 - Bookline.Application.UnitTests.dll (net8.0)
   Passed!  - Failed: 0, Passed:  63, Skipped: 0, Total:  63 - Bookline.Infrastructure.UnitTests.dll (net8.0)
   Passed!  - Failed: 0, Passed:  16, Skipped: 0, Total:  16 - Bookline.IntegrationTests.dll (net8.0)
   Frontend: 49 passed, 0 failed, 3 suites (Node.js test runner)
-  Total: 547 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
+  Total: 562 Passed, 0 Failed, 0 Skipped (100% Pass Rate)
   ```
 
 ---

@@ -135,7 +135,7 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
         var existingBookings = await _context.Bookings
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(b => b.StaffId == request.StaffId && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
+            .Where(b => b.StaffId == request.StaffId && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.CheckedIn))
             .ToListAsync(cancellationToken);
 
         var timeOffs = await _context.TimeOffs
@@ -144,7 +144,8 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             .Where(t => t.StaffId == request.StaffId)
             .ToListAsync(cancellationToken);
 
-        var dayHours = workingHours.Where(w => (int)w.DayOfWeek == (int)request.Date.DayOfWeek).ToList();
+        var targetDayOfWeek = (DayOfWeek)(((int)request.Date.DayOfWeek) % 7);
+        var dayHours = workingHours.Where(w => w.DayOfWeek == targetDayOfWeek).ToList();
         var windows = dayHours.Select(w => new WorkingWindow(
             LocalTime.FromTicksSinceMidnight(w.StartTime.Ticks),
             LocalTime.FromTicksSinceMidnight(w.EndTime.Ticks)

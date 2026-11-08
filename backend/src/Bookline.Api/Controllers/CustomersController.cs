@@ -1,3 +1,4 @@
+using Bookline.Application.Bookings.Queries;
 using Bookline.Application.Common.Models;
 using Bookline.Application.Customers.Commands;
 using Bookline.Application.Customers.DTOs;
@@ -36,6 +37,13 @@ public class CustomersController : ControllerBase
     public async Task<ActionResult<CustomerDto>> GetCustomerById(Guid id)
     {
         var result = await _sender.Send(new GetCustomerByIdQuery(id));
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/appointments")]
+    public async Task<ActionResult<IReadOnlyList<CalendarBookingDto>>> GetCustomerAppointments(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(new GetCustomerAppointmentsQuery(id), cancellationToken);
         return Ok(result);
     }
 

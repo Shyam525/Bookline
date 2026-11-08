@@ -102,6 +102,11 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasIndex(b => new { b.CustomerId, b.StartUtc, b.Status });
             builder.HasIndex(b => b.RelatedOrderId);
             builder.Property(b => b.Status).HasConversion<string>();
+            builder.Property(b => b.Source).HasConversion<string>().HasMaxLength(50);
+            builder.Property(b => b.ServiceNameSnapshot).HasMaxLength(200);
+            builder.Property(b => b.PriceSnapshot).HasPrecision(18, 2);
+            builder.Property(b => b.InternalNotes).HasMaxLength(2000);
+            builder.Property(b => b.TimeZoneId).HasMaxLength(100);
             builder.Property(b => b.DepositPolicy).HasConversion<string>();
             builder.Property(b => b.TotalPrice).HasPrecision(18, 2);
             builder.Property(b => b.DepositPaid).HasPrecision(18, 2);

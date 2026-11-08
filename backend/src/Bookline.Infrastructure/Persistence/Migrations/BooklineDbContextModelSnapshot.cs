@@ -152,8 +152,16 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("EndUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("InternalNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<Guid?>("LocationId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("PriceSnapshot")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid?>("RelatedOrderId")
                         .HasColumnType("uuid");
@@ -178,6 +186,16 @@ namespace Bookline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ServiceId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ServiceNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<Guid>("StaffId")
                         .HasColumnType("uuid");
 
@@ -190,6 +208,10 @@ namespace Bookline.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<decimal>("TotalPrice")
                         .HasPrecision(18, 2)

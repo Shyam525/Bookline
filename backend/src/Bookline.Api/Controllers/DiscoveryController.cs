@@ -498,7 +498,7 @@ public class DiscoveryController : ControllerBase
 
     [HttpGet("cities")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetCities(CancellationToken cancellationToken = default)
+    public IActionResult GetCities()
     {
         var cities = new[]
         {

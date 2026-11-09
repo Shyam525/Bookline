@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);NU1902;NU1903;NU1904</NoWarn>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <Target Name="SignOutputDlls" AfterTargets="AfterBuild" Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;if (Test-Path '$(TargetPath)') { $c = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -like '*BooklineDev*' } | Select-Object -First 1; if ($c) { Set-AuthenticodeSignature -FilePath '$(TargetPath)' -Certificate $c | Out-Null } }&quot;" IgnoreExitCode="true" />
+  </Target>
+</Project>
+

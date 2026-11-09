@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
+COPY ["Directory.Build.props", "./"]
 COPY ["Bookline.slnx", "./"]
 COPY ["src/Bookline.Api/Bookline.Api.csproj", "src/Bookline.Api/"]
 COPY ["src/Bookline.Application/Bookline.Application.csproj", "src/Bookline.Application/"]

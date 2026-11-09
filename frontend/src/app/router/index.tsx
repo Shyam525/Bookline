@@ -18,6 +18,7 @@ import { CustomerProfilePage } from '../../pages/customer/CustomerProfilePage';
 import { CustomerNotificationsPage } from '../../pages/customer/CustomerNotificationsPage';
 import { CustomerDashboardPage } from '../../pages/customer/CustomerDashboardPage';
 import { CheckoutPage } from '../../pages/customer/CheckoutPage';
+import { GuestBookingManagePage } from '../../pages/customer/GuestBookingManagePage';
 
 // Auth Pages
 import { LoginPage } from '../../pages/auth/LoginPage';
@@ -93,6 +94,7 @@ export const AppRouter: React.FC = () => {
           <Route path="/category/:slug" element={<DiscoveryPage />} />
           <Route path="/business/:slug" element={<ProviderStorefrontPage />} />
           <Route path="/book/:slug" element={<ProviderStorefrontPage />} />
+          <Route path="/manage-booking" element={<GuestBookingManagePage />} />
 
           {/* Authenticated Customer Routes (Protected) */}
           <Route element={<ProtectedRoute />}>

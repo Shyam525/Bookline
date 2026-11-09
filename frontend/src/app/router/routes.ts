@@ -21,6 +21,7 @@ export const ROUTES = {
     DISCOVER_CATEGORY: (category: string) => `/discover/${category}`,
     BUSINESS_STOREFRONT: (slug: string) => `/business/${slug}`,
     BOOKING: (slug: string) => `/book/${slug}`,
+    MANAGE_BOOKING: '/manage-booking',
   },
 
   // Authentication (Section 107)

@@ -410,6 +410,8 @@ export const ProviderStorefrontPage: React.FC = () => {
         relatedOrderNumber: orderRecord?.orderNumber,
         relatedOrderId: orderRecord?.id,
         addonProducts: selectedAddonProducts,
+        manageToken: booking.manageToken,
+        publicManageUrl: booking.publicManageUrl,
       };
 
       // Persist to local customer state so Appointments and Notifications pages reflect it
@@ -433,6 +435,7 @@ export const ProviderStorefrontPage: React.FC = () => {
           minimumNoticeHours: 4,
           relatedOrderNumber: orderRecord?.orderNumber,
           relatedOrderId: orderRecord?.id,
+          manageToken: booking.manageToken,
         };
         const prevApts = JSON.parse(localStorage.getItem('bookline_customer_appointments') || '[]');
         localStorage.setItem('bookline_customer_appointments', JSON.stringify([appointmentItem, ...prevApts]));
@@ -2405,7 +2408,11 @@ END:VCALENDAR`;
                       type="button"
                       onClick={() => {
                         setIsBookingOpen(false);
-                        navigate('/appointments');
+                        if (confirmedBooking?.manageToken) {
+                          navigate(`/manage-booking?token=${encodeURIComponent(confirmedBooking.manageToken)}`);
+                        } else {
+                          navigate('/appointments');
+                        }
                       }}
                       className="flex-1 py-3 rounded-xl bg-[#E8546A] hover:bg-[#D44359] text-white text-xs font-bold transition-all shadow-lg"
                     >

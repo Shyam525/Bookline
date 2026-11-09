@@ -30,6 +30,7 @@ import {
   formatAppointmentRange,
   formatDuration,
 } from '../../utils/timeFormatters';
+import { DirectBookingLinkBar } from '../../components/common/DirectBookingLinkBar';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -319,6 +320,9 @@ export const DashboardPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Section: Direct Shareable Booking Link */}
+      <DirectBookingLinkBar businessName={businessName} slug={bookingPageSlug} />
 
       {/* ==============================================================
           46. PROVIDER KPI (Using MetricCard, Never hardcoded)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { Link } from 'react-router-dom';
 import { businessApi } from '../../services/api/business';
+import { DirectBookingLinkBar } from '../../components/common/DirectBookingLinkBar';
 import {
   Building2,
   Image,
@@ -254,6 +255,8 @@ export const StorefrontSettingsPage: React.FC = () => {
           <ExternalLink className="w-3.5 h-3.5" />
         </Link>
       </div>
+
+      <DirectBookingLinkBar businessName={businessName} slug={activeBusiness?.slug || slug || 'aura-wellness-ahmedabad'} />
 
       {savedSuccess && (
         <div className="p-3.5 rounded-xl bg-[#34D399]/10 border border-[#34D399]/30 text-[#34D399] text-xs flex items-center gap-2 shadow-sm">

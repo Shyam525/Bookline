@@ -157,4 +157,39 @@ export const bookingsApi = {
     if (!res.ok) throw new Error('Failed to load customer appointment history');
     return res.json();
   },
+
+  async getGuestBooking(token: string): Promise<any> {
+    const res = await fetch(`/api/v1/public/bookings/manage?token=${encodeURIComponent(token)}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'The booking management link is invalid or expired.');
+    }
+    return res.json();
+  },
+
+  async cancelGuestBooking(token: string, reason?: string): Promise<any> {
+    const res = await fetch('/api/v1/public/bookings/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to cancel appointment.');
+    }
+    return res.json();
+  },
+
+  async rescheduleGuestBooking(token: string, newStartUtc: string, holdId?: string, staffId?: string): Promise<any> {
+    const res = await fetch('/api/v1/public/bookings/reschedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newStartUtc, holdId, staffId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to reschedule appointment. The slot may no longer be available.');
+    }
+    return res.json();
+  },
 };

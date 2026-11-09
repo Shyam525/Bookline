@@ -26,7 +26,9 @@ public record BookingDto(
     string? CustomerNotes = null,
     string? InternalNotes = null,
     string? TimeZoneId = null,
-    Guid? LocationId = null
+    Guid? LocationId = null,
+    string? ManageToken = null,
+    string? PublicManageUrl = null
 );
 
 public record HoldSlotResultDto(

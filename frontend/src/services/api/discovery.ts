@@ -296,6 +296,8 @@ export const discoveryApi = {
     status: string;
     createdAtUtc: string;
     bookingReference?: string;
+    manageToken?: string;
+    publicManageUrl?: string;
   }> {
     const res = await fetch('/api/v1/public/book', {
       method: 'POST',

@@ -19,31 +19,27 @@ export const AdminDashboardPage: React.FC = () => {
   const { token } = useAuth();
   const [metrics, setMetrics] = useState<PlatformMetricsDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchMetrics = () => {
     if (!token) {
       setLoading(false);
       return;
     }
-
+    setLoading(true);
+    setError(null);
     adminApi
       .getMetrics(token)
       .then(setMetrics)
-      .catch(() => {
-        // Fallback realistic platform KPIs
-        setMetrics({
-          totalProviders: 6,
-          activeVerifiedProviders: 5,
-          totalCustomers: 184,
-          totalBookings: 612,
-          totalOrders: 94,
-          grossMerchandiseValue: 284500,
-          platformCommissionRevenue: 28450,
-          activeCities: 5,
-          currency: '₹',
-        });
+      .catch((err) => {
+        setError(err.message || 'Failed to load platform metrics');
+        setMetrics(null);
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchMetrics();
   }, [token]);
 
   return (
@@ -56,6 +52,19 @@ export const AdminDashboardPage: React.FC = () => {
         </p>
       </div>
 
+      {/* Error state */}
+      {error && (
+        <div className="bg-red-950/40 border border-red-800/60 rounded-2xl p-4 flex items-center justify-between">
+          <p className="text-sm text-red-200">{error}</p>
+          <button
+            onClick={fetchMetrics}
+            className="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 space-y-2">
@@ -64,11 +73,9 @@ export const AdminDashboardPage: React.FC = () => {
             <DollarSign className="w-4 h-4 text-[#FBBF24]" />
           </div>
           <p className="font-heading text-3xl font-bold text-white">
-            ₹{metrics ? metrics.grossMerchandiseValue.toLocaleString() : '284,500'}
+            {loading ? '...' : `₹${(metrics?.grossMerchandiseValue ?? 0).toLocaleString()}`}
           </p>
-          <p className="text-xs text-[#34D399] flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" /> +24% month-over-month
-          </p>
+          <p className="text-xs text-[#7E88A8]">Real-time settled GMV</p>
         </div>
 
         <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 space-y-2">
@@ -77,7 +84,7 @@ export const AdminDashboardPage: React.FC = () => {
             <TrendingUp className="w-4 h-4 text-[#34D399]" />
           </div>
           <p className="font-heading text-3xl font-bold text-[#34D399]">
-            ₹{metrics ? metrics.platformCommissionRevenue.toLocaleString() : '28,450'}
+            {loading ? '...' : `₹${(metrics?.platformCommissionRevenue ?? 0).toLocaleString()}`}
           </p>
           <p className="text-xs text-[#7E88A8]">Net Bookline commission</p>
         </div>
@@ -88,10 +95,10 @@ export const AdminDashboardPage: React.FC = () => {
             <Building2 className="w-4 h-4 text-[#E8546A]" />
           </div>
           <p className="font-heading text-3xl font-bold text-white">
-            {metrics?.totalProviders ?? 6}
+            {loading ? '...' : (metrics?.totalProviders ?? 0)}
           </p>
           <p className="text-xs text-[#34D399]">
-            {metrics?.activeVerifiedProviders ?? 5} verified by platform
+            {loading ? '...' : (metrics?.activeVerifiedProviders ?? 0)} verified by platform
           </p>
         </div>
 
@@ -101,9 +108,9 @@ export const AdminDashboardPage: React.FC = () => {
             <MapPin className="w-4 h-4 text-[#34D399]" />
           </div>
           <p className="font-heading text-3xl font-bold text-white">
-            {metrics?.activeCities ?? 5}
+            {loading ? '...' : (metrics?.activeCities ?? 0)}
           </p>
-          <p className="text-xs text-[#7E88A8]">Ahmedabad, Mumbai, Bangalore, Surat, Rajkot</p>
+          <p className="text-xs text-[#7E88A8]">Gujarat pilot coverage</p>
         </div>
       </div>
 
@@ -112,7 +119,9 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs uppercase text-[#7E88A8] font-bold tracking-wider">Total Appointments</span>
-            <p className="font-heading text-2xl font-bold text-white">{metrics?.totalBookings ?? 612}</p>
+            <p className="font-heading text-2xl font-bold text-white">
+              {loading ? '...' : (metrics?.totalBookings ?? 0)}
+            </p>
             <p className="text-[11px] text-[#7E88A8]">Processed across multi-tenant scheduling engine</p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#E8546A]/10 text-[#E8546A] flex items-center justify-center">
@@ -123,7 +132,9 @@ export const AdminDashboardPage: React.FC = () => {
         <div className="bg-[#111520] border border-[#212638] rounded-2xl p-6 flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs uppercase text-[#7E88A8] font-bold tracking-wider">Retail Orders</span>
-            <p className="font-heading text-2xl font-bold text-white">{metrics?.totalOrders ?? 94}</p>
+            <p className="font-heading text-2xl font-bold text-white">
+              {loading ? '...' : (metrics?.totalOrders ?? 0)}
+            </p>
             <p className="text-[11px] text-[#7E88A8]">Physical products fulfilled by provider stores</p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#FBBF24]/10 text-[#FBBF24] flex items-center justify-center">

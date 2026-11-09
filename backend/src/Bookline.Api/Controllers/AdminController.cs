@@ -60,7 +60,7 @@ public class AdminController : ControllerBase
             TotalOrders = ordersCount,
             GrossMerchandiseValue = gmv,
             PlatformCommissionRevenue = commissionRevenue,
-            ActiveCities = Math.Max(1, cities),
+            ActiveCities = cities,
             Currency = "USD"
         });
     }
@@ -396,8 +396,8 @@ public class AdminController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var totalTransactions = bookingsCount + ordersCount;
-        var conversionRate = totalTransactions > 0 ? Math.Round((double)totalTransactions / (totalTransactions + 320) * 100, 1) : 14.8;
-        var searchVolume = Math.Max(12450, totalTransactions * 48 + 5120);
+        var conversionRate = totalTransactions > 0 ? Math.Round((double)bookingsCount / totalTransactions * 100, 1) : 0.0;
+        var searchVolume = totalTransactions;
 
         return Ok(new
         {

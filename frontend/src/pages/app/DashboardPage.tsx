@@ -65,9 +65,9 @@ export const DashboardPage: React.FC = () => {
     return 'Good evening';
   };
 
-  const displayName = user?.firstName || 'Ananya';
-  const businessName = activeBusiness?.name || 'Glow Studio';
-  const businessCity = activeBusiness?.city || 'Ahmedabad';
+  const displayName = user?.firstName || 'User';
+  const businessName = activeBusiness?.name || 'Your Studio';
+  const businessCity = activeBusiness?.city || '';
   const currentDateFormatted = formatBusinessDate(new Date(), 'today-prefix');
 
   // Load KPI & Schedule Data dynamically (Section 46: Never hardcode)
@@ -140,65 +140,8 @@ export const DashboardPage: React.FC = () => {
           // Future upcoming bookings count
           const upcomingList = bookingsData.filter((b) => new Date(b.startUtc) > now && b.status !== 'Cancelled');
 
-          // If no bookings returned from empty server, fallback to seeded operational items
-          if (todayList.length === 0 && bookingsData.length === 0) {
-            const seededToday: CalendarBookingItem[] = [
-              {
-                id: 'bk-1',
-                staffId: staff[0]?.id || 'staff-1',
-                staffName: staff[0]?.name || 'Priya Sharma',
-                serviceId: services[0]?.id || 'srv-1',
-                serviceName: services[0]?.name || 'Signature Hydra-Facial & Glow Therapy',
-                customerId: 'cust-1',
-                customerName: 'Aarav Patel',
-                startUtc: new Date(new Date().setHours(10, 0, 0, 0)).toISOString(),
-                endUtc: new Date(new Date().setHours(11, 0, 0, 0)).toISOString(),
-                status: 'Confirmed',
-              },
-              {
-                id: 'bk-2',
-                staffId: staff[1]?.id || 'staff-2',
-                staffName: staff[1]?.name || 'Rohan Mehta',
-                serviceId: services[1]?.id || 'srv-2',
-                serviceName: services[1]?.name || 'Precision Layer Cut & Blowdry',
-                customerId: 'cust-2',
-                customerName: 'Meera Desai',
-                startUtc: new Date(new Date().setHours(11, 30, 0, 0)).toISOString(),
-                endUtc: new Date(new Date().setHours(12, 15, 0, 0)).toISOString(),
-                status: 'Confirmed',
-              },
-              {
-                id: 'bk-3',
-                staffId: staff[0]?.id || 'staff-1',
-                staffName: staff[0]?.name || 'Priya Sharma',
-                serviceId: services[2]?.id || 'srv-3',
-                serviceName: services[2]?.name || 'Balayage Color & Gloss Treatment',
-                customerId: 'cust-3',
-                customerName: 'Divya Joshi',
-                startUtc: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(),
-                endUtc: new Date(new Date().setHours(16, 0, 0, 0)).toISOString(),
-                status: 'Pending',
-              },
-              {
-                id: 'bk-4',
-                staffId: staff[1]?.id || 'staff-2',
-                staffName: staff[1]?.name || 'Rohan Mehta',
-                serviceId: services[0]?.id || 'srv-1',
-                serviceName: services[0]?.name || 'Signature Hydra-Facial & Glow Therapy',
-                customerId: 'cust-4',
-                customerName: 'Kavita Shah',
-                startUtc: new Date(new Date().setHours(16, 30, 0, 0)).toISOString(),
-                endUtc: new Date(new Date().setHours(17, 30, 0, 0)).toISOString(),
-                status: 'Confirmed',
-              },
-            ];
-            setTodayBookings(seededToday);
-            setUpcomingCount(8);
-          } else {
-            setTodayBookings(todayList);
-            setUpcomingCount(upcomingList.length);
-          }
-
+          setTodayBookings(todayList);
+          setUpcomingCount(upcomingList.length);
           setSummary(summaryData);
         }
       } catch (err) {
@@ -214,56 +157,59 @@ export const DashboardPage: React.FC = () => {
     };
   }, [token, activeBusiness]);
 
-  // Derived KPI calculations (Section 46: Never hardcode)
-  const todayBookingsCount = todayBookings.length || 14;
-  const revenueTodayCalculated = summary?.totalRevenue
-    ? summary.totalRevenue
-    : todayBookingsCount * 1250;
-  const noShowRateFormatted = summary?.cancelledBookings
-    ? `${((summary.cancelledBookings / (summary.totalBookings || 1)) * 100).toFixed(1)}%`
+  // Derived KPI calculations based on real platform state
+  const todayBookingsCount = todayBookings.length;
+  const revenueTodayCalculated = summary?.totalRevenue ?? todayBookings.reduce((sum, b) => sum + (b.price ?? 0), 0);
+  const noShowRateFormatted = summary?.cancelledBookings && summary.totalBookings
+    ? `${((summary.cancelledBookings / summary.totalBookings) * 100).toFixed(1)}%`
     : '0.0%';
-  const utilizationFormatted = summary?.occupancyRatePercentage
+  const utilizationFormatted = summary?.occupancyRatePercentage != null
     ? `${summary.occupancyRatePercentage.toFixed(1)}%`
-    : '86.4%';
-  const newCustomersCalculated = Math.max(3, Math.round(todayBookingsCount * 0.45));
+    : (staffList.length > 0 && todayBookingsCount > 0 ? `${Math.min(100, Math.round((todayBookingsCount / (staffList.length * 6)) * 100))}%` : '0.0%');
+  const newCustomersCalculated = summary?.completedBookings ?? todayBookingsCount;
 
-  // Handle Quick Create Appointment
-  const handleCreateAppointment = (e: React.FormEvent) => {
+  // Handle Quick Create Appointment via real API
+  const [createError, setCreateError] = useState('');
+  const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateError('');
+    if (!createForm.staffId || !createForm.serviceId) {
+      setCreateError('Please select both a staff member and a service.');
+      return;
+    }
+
     setIsSubmitting(true);
+    try {
+      const [hours, mins] = createForm.time.split(':').map(Number);
+      const start = new Date();
+      start.setHours(hours, mins, 0, 0);
 
-    const [hours, mins] = createForm.time.split(':').map(Number);
-    const start = new Date();
-    start.setHours(hours, mins, 0, 0);
-    const end = new Date(start.getTime() + 45 * 60000);
-
-    const selectedStaff = staffList.find((s) => s.id === createForm.staffId);
-    const selectedSrv = servicesList.find((s) => s.id === createForm.serviceId);
-
-    const newBooking: CalendarBookingItem = {
-      id: `bk-${Date.now()}`,
-      staffId: createForm.staffId || 'staff-1',
-      staffName: selectedStaff?.name || 'Assigned Specialist',
-      serviceId: createForm.serviceId || 'srv-1',
-      serviceName: selectedSrv?.name || 'General Consultation',
-      customerId: `cust-${Date.now()}`,
-      customerName: createForm.customerName || 'Walk-in Client',
-      startUtc: start.toISOString(),
-      endUtc: end.toISOString(),
-      status: 'Confirmed',
-    };
-
-    setTodayBookings((prev) => [newBooking, ...prev]);
-    setIsSubmitting(false);
-    setIsCreateModalOpen(false);
-    setCreateForm({
-      staffId: '',
-      serviceId: '',
-      customerName: '',
-      customerEmail: '',
-      customerPhone: '',
-      time: '10:00',
-    });
+      if (token) {
+        const created = await bookingsApi.createManualBooking(token, {
+          staffId: createForm.staffId,
+          serviceId: createForm.serviceId,
+          startUtc: start.toISOString(),
+          customerName: createForm.customerName || 'Walk-in Client',
+          customerEmail: createForm.customerEmail || undefined,
+          customerPhone: createForm.customerPhone || undefined,
+          source: 'WalkIn',
+        });
+        setTodayBookings((prev) => [created, ...prev]);
+      }
+      setIsCreateModalOpen(false);
+      setCreateForm({
+        staffId: '',
+        serviceId: '',
+        customerName: '',
+        customerEmail: '',
+        customerPhone: '',
+        time: '10:00',
+      });
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to schedule appointment.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const bookingPageSlug = activeBusiness?.slug || 'glow-studio';
@@ -562,6 +508,11 @@ export const DashboardPage: React.FC = () => {
         title="Create New Appointment"
       >
         <form onSubmit={handleCreateAppointment} className="space-y-4">
+          {createError && (
+            <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-xl text-red-200 text-xs">
+              {createError}
+            </div>
+          )}
           <Input
             label="Client Full Name"
             placeholder="e.g. Priya Shah"
@@ -596,11 +547,7 @@ export const DashboardPage: React.FC = () => {
                     value: s.id,
                     label: `${s.name} (${formatDuration(s.durationMinutes)} · ${currencySymbol}${s.price})`,
                   }))
-                : [
-                    { value: 'srv-1', label: 'Signature Hydra-Facial & Glow Therapy (45 mins · ₹1,500)' },
-                    { value: 'srv-2', label: 'Precision Layer Cut & Blowdry (30 mins · ₹850)' },
-                    { value: 'srv-3', label: 'Balayage Color & Gloss Treatment (120 mins · ₹3,800)' },
-                  ]
+                : [{ value: '', label: 'No services available — add a service in Services page' }]
             }
             required
           />
@@ -612,11 +559,7 @@ export const DashboardPage: React.FC = () => {
             options={
               staffList.length > 0
                 ? staffList.map((s) => ({ value: s.id, label: s.name }))
-                : [
-                    { value: 'staff-1', label: 'Priya Sharma (Master Stylist)' },
-                    { value: 'staff-2', label: 'Rohan Mehta (Color Specialist)' },
-                    { value: 'staff-3', label: 'Ananya Sen (Esthetician)' },
-                  ]
+                : [{ value: '', label: 'No staff available — add a specialist in Staff page' }]
             }
             required
           />

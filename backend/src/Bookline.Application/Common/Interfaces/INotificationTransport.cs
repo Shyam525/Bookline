@@ -44,3 +44,4 @@ public interface INotificationTransportDispatcher
 {
     Task<NotificationDeliveryResult> DispatchAsync(NotificationDeliveryRequest request, CancellationToken cancellationToken = default);
 }
+

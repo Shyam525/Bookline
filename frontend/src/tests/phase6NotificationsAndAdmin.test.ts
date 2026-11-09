@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
  * Notifications Architecture, Outbox Reliability, Provider Administration & Customer Support Operations
  */
 
-test('Phase 6: Provider Abstraction - Transport pluggability without appointment logic changes', () => {
+test('Phase 6: Provider Abstraction - Transport pluggability without appointment logic changes', async () => {
   type Channel = 'Email' | 'SMS' | 'WhatsApp';
   type DeliveryResult = { success: boolean; externalMessageId?: string; isSimulated: boolean; error?: string };
 
@@ -43,7 +43,7 @@ test('Phase 6: Provider Abstraction - Transport pluggability without appointment
     return await transport.sendAsync(recipient, template, data);
   };
 
-  return Promise.all([
+  await Promise.all([
     dispatch('SMS', '+919876543210', 'BookingConfirmed', { bookingNumber: 'BK-001' }).then(res => {
       assert.equal(res.success, true);
       assert.equal(res.isSimulated, true, 'Dev SMS adapter must explicitly mark message as simulated');
@@ -206,3 +206,4 @@ test('Phase 6: Customer Support Lookup & Secrets Redaction - Audit integrity wit
   assert.equal(cleaned.authHeaders, '[REDACTED]', 'Auth headers must be redacted');
   assert.equal(cleaned.apiKey, '[REDACTED]', 'API keys must be redacted');
 });
+

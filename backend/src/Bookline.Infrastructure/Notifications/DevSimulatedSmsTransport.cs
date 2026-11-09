@@ -51,3 +51,4 @@ public class DevSimulatedSmsTransport : INotificationTransport
         return Task.FromResult(NotificationDeliveryResult.Succeeded($"live-sms-{Guid.NewGuid():N}"));
     }
 }
+

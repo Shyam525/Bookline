@@ -298,6 +298,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasKey(o => o.Id);
             builder.HasIndex(o => new { o.Status, o.RetryCount, o.CreatedAtUtc });
             builder.HasIndex(o => new { o.TenantId, o.CreatedAtUtc });
+            builder.HasIndex(o => new { o.ProcessedAtUtc, o.NextRetryAtUtc });
         });
 
         modelBuilder.Entity<AuditLog>(builder =>

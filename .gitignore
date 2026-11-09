@@ -20,3 +20,7 @@ dist/
 staging-zip/
 scratch/
 *.cer
+test-results/
+playwright-report/
+frontend/test-results/
+frontend/playwright-report/

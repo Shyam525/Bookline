@@ -11,4 +11,16 @@ public class BookingConflictException : Exception
     {
         NearestFreeSlots = nearestFreeSlots ?? Array.Empty<Slot>();
     }
+
+    public BookingConflictException(string message)
+        : base(message)
+    {
+        NearestFreeSlots = Array.Empty<Slot>();
+    }
+
+    public BookingConflictException(string message, Exception? innerException)
+        : base(message, innerException)
+    {
+        NearestFreeSlots = Array.Empty<Slot>();
+    }
 }

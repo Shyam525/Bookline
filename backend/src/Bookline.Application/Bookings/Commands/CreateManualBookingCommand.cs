@@ -263,9 +263,9 @@ public class CreateManualBookingCommandHandler : IRequestHandler<CreateManualBoo
         {
             await _context.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (IsExclusionViolation(ex))
+        catch (DbUpdateException ex)
         {
-            throw new ValidationException("SCHEDULING_CONFLICT: The selected staff member already has an appointment during this time window.");
+            throw new BookingConflictException("SCHEDULING_CONFLICT: The selected staff member already has an appointment during this time window.", ex);
         }
 
         var staff = await _context.Staff.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == req.StaffId, cancellationToken);

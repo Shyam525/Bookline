@@ -22,7 +22,7 @@
     <ProjectReference Include="..\..\src\Bookline.Domain\Bookline.Domain.csproj" />
   </ItemGroup>
 
-  <Target Name="UnblockOutputDlls" AfterTargets="Build">
-    <Exec Command="powershell -Command &quot;Get-ChildItem -Path '$(TargetDir)*.dll' | Unblock-File&quot;" />
+  <Target Name="UnblockOutputDlls" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Command="powershell -Command &quot;Get-ChildItem -Path '$(TargetDir)*.dll' | Unblock-File&quot;" IgnoreExitCode="true" />
   </Target>
 </Project>

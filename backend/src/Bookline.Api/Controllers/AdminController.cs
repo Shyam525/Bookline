@@ -10,6 +10,7 @@ namespace Bookline.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin")]
+[Authorize(Policy = Bookline.Domain.Constants.Policies.RequirePlatformAdmin)]
 [Authorize(Roles = "PlatformAdmin,Admin")] // Platform admin authorization
 public class AdminController : ControllerBase
 {
@@ -157,6 +158,132 @@ public class AdminController : ControllerBase
         }
 
         return BadRequest(new { Message = "Invalid verification status." });
+    }
+
+    [HttpPost("providers/{id:guid}/approve")]
+    public async Task<IActionResult> ApproveProvider(Guid id, CancellationToken cancellationToken)
+    {
+        var provider = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
+        if (provider == null) return NotFound(new { Message = "Provider not found." });
+
+        provider.VerificationStatus = VerificationStatus.Verified;
+        provider.ModerationStatus = ModerationStatus.Approved;
+        provider.IsActive = true;
+        provider.IsPublished = true;
+
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            TenantId = provider.Id,
+            Actor = User?.Identity?.Name ?? "PlatformAdmin",
+            Action = "Provider.Approved",
+            Target = provider.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ProviderId = provider.Id,
+                provider.Name,
+                provider.Slug,
+                ApprovedAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            provider.Id,
+            provider.Name,
+            provider.Slug,
+            VerificationStatus = provider.VerificationStatus.ToString(),
+            ModerationStatus = provider.ModerationStatus.ToString(),
+            provider.IsActive,
+            provider.IsPublished,
+            Message = "Provider approved and published successfully."
+        });
+    }
+
+    [HttpPost("providers/{id:guid}/suspend")]
+    public async Task<IActionResult> SuspendProvider(Guid id, [FromBody] SuspendProviderRequest? request, CancellationToken cancellationToken)
+    {
+        var provider = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
+        if (provider == null) return NotFound(new { Message = "Provider not found." });
+
+        var reason = request?.Reason ?? "Administrative suspension for operational review.";
+
+        provider.VerificationStatus = VerificationStatus.Suspended;
+        provider.ModerationStatus = ModerationStatus.Suspended;
+        provider.IsActive = false;
+        provider.IsPublished = false;
+
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            TenantId = provider.Id,
+            Actor = User?.Identity?.Name ?? "PlatformAdmin",
+            Action = "Provider.Suspended",
+            Target = provider.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ProviderId = provider.Id,
+                provider.Name,
+                Reason = reason,
+                SuspendedAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            provider.Id,
+            provider.Name,
+            provider.Slug,
+            VerificationStatus = provider.VerificationStatus.ToString(),
+            ModerationStatus = provider.ModerationStatus.ToString(),
+            provider.IsActive,
+            provider.IsPublished,
+            Reason = reason,
+            Message = "Provider suspended and hidden from public booking."
+        });
+    }
+
+    [HttpPut("providers/{id:guid}/visibility")]
+    [HttpPost("providers/{id:guid}/visibility")]
+    public async Task<IActionResult> UpdateProviderVisibility(Guid id, [FromBody] UpdateVisibilityRequest request, CancellationToken cancellationToken)
+    {
+        var provider = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
+        if (provider == null) return NotFound(new { Message = "Provider not found." });
+
+        provider.IsPublished = request.IsPublished;
+
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            TenantId = provider.Id,
+            Actor = User?.Identity?.Name ?? "PlatformAdmin",
+            Action = "Provider.VisibilityChanged",
+            Target = provider.Id.ToString(),
+            MetadataJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ProviderId = provider.Id,
+                provider.Name,
+                provider.IsPublished,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            })
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            provider.Id,
+            provider.Name,
+            provider.IsPublished,
+            Message = $"Provider visibility updated to {(provider.IsPublished ? "Published" : "Hidden")}."
+        });
     }
 
     [HttpGet("customers")]
@@ -344,6 +471,222 @@ public class AdminController : ControllerBase
             .ToListAsync(cancellationToken);
 
         return Ok(bookings);
+    }
+
+    [HttpGet("support/lookup")]
+    public async Task<IActionResult> SupportLookup([FromQuery] string query, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return BadRequest(new { Message = "Search query is required (email, phone, name, or booking reference)." });
+        }
+
+        var normalizedQuery = query.Trim().ToLowerInvariant();
+
+        var matchedBookings = await _dbContext.Bookings.IgnoreQueryFilters()
+            .Where(b => b.BookingReference.ToLower() == normalizedQuery)
+            .Include(b => b.Customer)
+            .Include(b => b.Service)
+            .Include(b => b.Staff)
+            .ToListAsync(cancellationToken);
+
+        var customerQuery = _dbContext.Customers.IgnoreQueryFilters()
+            .Where(c => c.Email.ToLower().Contains(normalizedQuery) ||
+                        c.Phone.ToLower().Contains(normalizedQuery) ||
+                        c.FirstName.ToLower().Contains(normalizedQuery) ||
+                        c.LastName.ToLower().Contains(normalizedQuery));
+
+        var matchingCustomers = await customerQuery.Take(10).ToListAsync(cancellationToken);
+
+        var customerIds = matchingCustomers.Select(c => c.Id)
+            .Concat(matchedBookings.Select(b => b.CustomerId))
+            .Distinct()
+            .ToList();
+
+        var recentBookings = await _dbContext.Bookings.IgnoreQueryFilters()
+            .Where(b => customerIds.Contains(b.CustomerId))
+            .OrderByDescending(b => b.CreatedAtUtc)
+            .Take(25)
+            .Select(b => new
+            {
+                b.Id,
+                b.BookingReference,
+                b.TenantId,
+                b.CustomerId,
+                b.StaffId,
+                b.ServiceId,
+                ServiceName = b.Service != null ? b.Service.Name : b.ServiceNameSnapshot,
+                b.StartUtc,
+                b.EndUtc,
+                Status = b.Status.ToString(),
+                b.TotalPrice,
+                b.DepositPaid,
+                b.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var recentNotifications = await _dbContext.NotificationLogs.IgnoreQueryFilters()
+            .Where(n => (n.CustomerId.HasValue && customerIds.Contains(n.CustomerId.Value)) ||
+                        n.RecipientEmail.ToLower() == normalizedQuery)
+            .OrderByDescending(n => n.CreatedAtUtc)
+            .Take(25)
+            .Select(n => new
+            {
+                n.Id,
+                n.BookingId,
+                n.RecipientEmail,
+                NotificationType = n.NotificationType.ToString(),
+                Channel = n.Channel.ToString(),
+                Status = n.Status.ToString(),
+                n.Subject,
+                n.SentAtUtc,
+                n.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new
+        {
+            Query = query,
+            CustomersFound = matchingCustomers.Select(c => new
+            {
+                c.Id,
+                c.TenantId,
+                c.FullName,
+                c.Email,
+                c.Phone,
+                c.TotalBookingsCount,
+                c.TotalSpentAmount,
+                c.CreatedAtUtc
+            }),
+            Bookings = matchedBookings.Any()
+                ? matchedBookings.Select(b => new
+                {
+                    b.Id,
+                    b.BookingReference,
+                    b.TenantId,
+                    b.CustomerId,
+                    b.StaffId,
+                    b.ServiceId,
+                    ServiceName = b.Service != null ? b.Service.Name : b.ServiceNameSnapshot,
+                    b.StartUtc,
+                    b.EndUtc,
+                    Status = b.Status.ToString(),
+                    b.TotalPrice,
+                    b.DepositPaid,
+                    b.CreatedAtUtc
+                }).ToList()
+                : (object)recentBookings,
+            Notifications = recentNotifications
+        });
+    }
+
+    [HttpGet("bookings/investigate/{id:guid}")]
+    [HttpGet("bookings/{id:guid}")]
+    public async Task<IActionResult> InvestigateBooking(Guid id, CancellationToken cancellationToken)
+    {
+        var booking = await _dbContext.Bookings.IgnoreQueryFilters()
+            .Include(b => b.Service)
+            .Include(b => b.Staff)
+            .Include(b => b.Customer)
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+
+        if (booking == null) return NotFound(new { Message = "Booking not found." });
+
+        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == booking.TenantId, cancellationToken);
+
+        var auditLogs = await _dbContext.AuditLogs.IgnoreQueryFilters()
+            .Where(a => a.Target == id.ToString())
+            .OrderBy(a => a.CreatedAtUtc)
+            .Select(a => new
+            {
+                a.Id,
+                a.Actor,
+                a.Action,
+                a.Target,
+                a.MetadataJson,
+                a.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var notificationLogs = await _dbContext.NotificationLogs.IgnoreQueryFilters()
+            .Where(n => n.BookingId == id)
+            .OrderBy(n => n.CreatedAtUtc)
+            .Select(n => new
+            {
+                n.Id,
+                n.RecipientEmail,
+                NotificationType = n.NotificationType.ToString(),
+                Channel = n.Channel.ToString(),
+                Status = n.Status.ToString(),
+                n.Subject,
+                n.ErrorMessage,
+                n.SentAtUtc,
+                n.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var outboxMessages = await _dbContext.OutboxMessages.IgnoreQueryFilters()
+            .Where(o => o.Content.Contains(id.ToString()))
+            .OrderBy(o => o.CreatedAtUtc)
+            .Select(o => new
+            {
+                o.Id,
+                o.EventType,
+                o.Status,
+                o.RetryCount,
+                o.NextRetryAtUtc,
+                o.Error,
+                o.CreatedAtUtc,
+                o.ProcessedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var holds = await _dbContext.BookingHolds.IgnoreQueryFilters()
+            .Where(h => h.StaffId == booking.StaffId && h.StartUtc == booking.StartUtc)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new
+        {
+            Booking = new
+            {
+                booking.Id,
+                booking.BookingReference,
+                booking.TenantId,
+                ProviderName = tenant?.Name ?? "Provider",
+                ProviderSlug = tenant?.Slug ?? "",
+                booking.StaffId,
+                StaffName = booking.Staff?.Name ?? "Specialist",
+                booking.ServiceId,
+                ServiceName = booking.Service?.Name ?? booking.ServiceNameSnapshot,
+                booking.CustomerId,
+                CustomerName = booking.Customer?.FullName ?? "Guest Customer",
+                CustomerEmail = booking.Customer?.Email,
+                CustomerPhone = booking.Customer?.Phone,
+                booking.StartUtc,
+                booking.EndUtc,
+                Status = booking.Status.ToString(),
+                booking.TotalPrice,
+                booking.DepositPaid,
+                booking.Currency,
+                booking.Source,
+                booking.CustomerNotes,
+                booking.CancellationReason,
+                booking.CancelledBy,
+                booking.CreatedAtUtc,
+                booking.UpdatedAtUtc
+            },
+            AuditTrail = auditLogs,
+            Notifications = notificationLogs,
+            OutboxHistory = outboxMessages,
+            ActiveHolds = holds.Select(h => new
+            {
+                h.Id,
+                Status = h.IsActive ? "Active" : (h.IsReleased ? "Released" : "Expired"),
+                h.ExpiresAtUtc,
+                h.CreatedAtUtc
+            })
+        });
     }
 
     [HttpGet("orders")]
@@ -673,6 +1016,8 @@ public class AdminController : ControllerBase
 
 public record UpdateVerificationRequest(string Status);
 public record UpdateModerationRequest(string Status);
+public record SuspendProviderRequest(string? Reason);
+public record UpdateVisibilityRequest(bool IsPublished);
 public record TriggerPayoutRequest(Guid TenantId, decimal Amount, string? Currency);
 public record ModerationItemDto(
     Guid Id,

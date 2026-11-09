@@ -10,6 +10,7 @@ public class OutboxMessage : TenantEntity
     public string Status { get; set; } = "Pending"; // Pending, Processed, Failed
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ProcessedAtUtc { get; set; }
+    public DateTimeOffset? NextRetryAtUtc { get; set; }
     public string? Error { get; set; }
     public int RetryCount { get; set; }
     public string? CorrelationId { get; set; }

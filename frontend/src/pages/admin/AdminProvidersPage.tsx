@@ -135,15 +135,47 @@ export const AdminProvidersPage: React.FC = () => {
     fetchProviders();
   }, [token]);
 
-  const handleUpdateStatus = async (id: string, status: string) => {
+  const handleApprove = async (id: string) => {
     if (token) {
       try {
-        await adminApi.updateProviderVerification(id, status, token);
-      } catch {}
+        await adminApi.approveProvider(id, token);
+      } catch {
+        await adminApi.updateProviderVerification(id, 'Verified', token);
+      }
     }
     setProviders((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, verificationStatus: status } : p))
+      prev.map((p) => (p.id === id ? { ...p, verificationStatus: 'Verified', isActive: true } : p))
     );
+  };
+
+  const handleSuspend = async (id: string) => {
+    if (token) {
+      try {
+        await adminApi.suspendProvider(id, 'Administrative suspension', token);
+      } catch {
+        await adminApi.updateProviderVerification(id, 'Suspended', token);
+      }
+    }
+    setProviders((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, verificationStatus: 'Suspended', isActive: false } : p))
+    );
+  };
+
+  const handleUpdateStatus = async (id: string, status: string) => {
+    if (status === 'Verified') {
+      await handleApprove(id);
+    } else if (status === 'Suspended') {
+      await handleSuspend(id);
+    } else {
+      if (token) {
+        try {
+          await adminApi.updateProviderVerification(id, status, token);
+        } catch {}
+      }
+      setProviders((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, verificationStatus: status } : p))
+      );
+    }
   };
 
   const filtered = providers.filter(

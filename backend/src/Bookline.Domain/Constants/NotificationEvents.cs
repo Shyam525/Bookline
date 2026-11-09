@@ -12,4 +12,11 @@ public static class NotificationEvents
     public const string PaymentFailed = "PaymentFailed";
     public const string RefundCreated = "RefundCreated";
     public const string ReviewCreated = "ReviewCreated";
+
+    // Phase 6 Canonical Events
+    public const string BookingConfirmed = "BookingConfirmed";
+    public const string BookingCancelled = "BookingCancelled";
+    public const string BookingRescheduled = "BookingRescheduled";
+    public const string AppointmentReminder = "AppointmentReminder";
+    public const string ProviderBookingUpdate = "ProviderBookingUpdate";
 }

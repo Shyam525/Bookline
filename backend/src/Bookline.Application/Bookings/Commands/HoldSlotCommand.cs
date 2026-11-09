@@ -78,6 +78,11 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
             }
 
             var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+            if (tenant != null && (!tenant.IsActive || tenant.VerificationStatus == Bookline.Domain.Enums.VerificationStatus.Suspended || tenant.ModerationStatus == Bookline.Domain.Enums.ModerationStatus.Suspended))
+            {
+                throw new ValidationException("PROVIDER_SUSPENDED: This provider is suspended or inactive and cannot accept booking holds.");
+            }
+
             if (tenant != null && tenant.HoldDurationMinutes > 0)
             {
                 holdDurationMinutes = tenant.HoldDurationMinutes;

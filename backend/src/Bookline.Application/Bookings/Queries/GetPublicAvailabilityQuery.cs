@@ -57,6 +57,16 @@ public class GetPublicAvailabilityQueryHandler : IRequestHandler<GetPublicAvaila
             throw new ValidationException("SERVICE_NOT_BOOKABLE: The requested service is not bookable online.");
         }
 
+        var serviceTenant = await _context.Tenants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == service.TenantId, cancellationToken);
+
+        if (serviceTenant != null && (!serviceTenant.IsActive || serviceTenant.VerificationStatus == Bookline.Domain.Enums.VerificationStatus.Suspended || serviceTenant.ModerationStatus == Bookline.Domain.Enums.ModerationStatus.Suspended))
+        {
+            throw new ValidationException("PROVIDER_SUSPENDED: The provider is suspended or not accepting public bookings.");
+        }
+
         var staff = await _context.Staff
             .IgnoreQueryFilters()
             .AsNoTracking()

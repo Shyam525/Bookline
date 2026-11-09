@@ -11,5 +11,6 @@ public enum NotificationType
     Reminder2h = 7,
     OrderUpdate = 8,
     PaymentReceipt = 9,
-    SystemAlert = 10
+    SystemAlert = 10,
+    ProviderBookingUpdate = 11
 }

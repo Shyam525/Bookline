@@ -162,6 +162,11 @@ builder.Services.AddScoped<Bookline.Application.Notifications.Handlers.Notificat
 builder.Services.AddScoped<Bookline.Application.Payments.Handlers.PaymentHandlers>();
 builder.Services.AddScoped<Bookline.Application.Analytics.Handlers.AnalyticsHandlers>();
 
+// Phase 6 Notification Provider Abstraction & Transports
+builder.Services.AddTransient<Bookline.Application.Common.Interfaces.INotificationTransport, Bookline.Infrastructure.Notifications.MailKitEmailTransport>();
+builder.Services.AddTransient<Bookline.Application.Common.Interfaces.INotificationTransport, Bookline.Infrastructure.Notifications.DevSimulatedSmsTransport>();
+builder.Services.AddTransient<Bookline.Application.Common.Interfaces.INotificationTransportDispatcher, Bookline.Infrastructure.Notifications.NotificationTransportDispatcher>();
+
 // Marketplace Discovery, Geo, Maps & Financial Providers
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.ISearchIntentService, Bookline.Infrastructure.Search.SearchIntentService>();
 builder.Services.AddSingleton<Bookline.Application.Common.Interfaces.IGeocodingProvider, Bookline.Infrastructure.Geo.GeocodingProvider>();
@@ -590,6 +595,7 @@ try
                     UPDATE ""Tenants"" SET ""TimeZoneId"" = 'Asia/Kolkata' WHERE ""Slug"" = 'acme-salon' AND (""TimeZoneId"" IS NULL OR ""TimeZoneId"" = 'UTC');
                     ALTER TABLE ""OutboxMessages"" ADD COLUMN IF NOT EXISTS ""CorrelationId"" text;
                     ALTER TABLE ""OutboxMessages"" ADD COLUMN IF NOT EXISTS ""TraceId"" text;
+                    ALTER TABLE ""OutboxMessages"" ADD COLUMN IF NOT EXISTS ""NextRetryAtUtc"" timestamp with time zone;
                     ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_overlap;
                     ALTER TABLE ""Bookings"" ADD CONSTRAINT no_overlap
                       EXCLUDE USING gist (

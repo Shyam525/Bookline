@@ -61,6 +61,59 @@ export const adminApi = {
     if (!res.ok) throw new Error('Failed to update verification status');
   },
 
+  async approveProvider(id: string, token: string) {
+    const res = await fetch(`${API_BASE}/providers/${id}/approve`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw new Error('Failed to approve provider');
+    return res.json();
+  },
+
+  async suspendProvider(id: string, reason: string | undefined, token: string) {
+    const res = await fetch(`${API_BASE}/providers/${id}/suspend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) throw new Error('Failed to suspend provider');
+    return res.json();
+  },
+
+  async updateProviderVisibility(id: string, isPublished: boolean, token: string) {
+    const res = await fetch(`${API_BASE}/providers/${id}/visibility`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ isPublished }),
+    });
+    if (!res.ok) throw new Error('Failed to update provider visibility');
+    return res.json();
+  },
+
+  async supportLookup(query: string, token: string) {
+    const res = await fetch(`${API_BASE}/support/lookup?query=${encodeURIComponent(query)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to perform support lookup');
+    return res.json();
+  },
+
+  async investigateBooking(id: string, token: string) {
+    const res = await fetch(`${API_BASE}/bookings/investigate/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to investigate booking');
+    return res.json();
+  },
+
   async getCustomers(token: string) {
     const res = await fetch(`${API_BASE}/customers`, {
       headers: { Authorization: `Bearer ${token}` },

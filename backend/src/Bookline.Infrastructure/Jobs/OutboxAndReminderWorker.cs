@@ -45,9 +45,10 @@ public class OutboxAndReminderWorker : BackgroundService
                 tenantContext?.EnableSystemMode();
                 var dbContext = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
                 var emailSender = scope.ServiceProvider.GetService<IEmailSender>();
+                var transportDispatcher = scope.ServiceProvider.GetService<INotificationTransportDispatcher>();
 
                 // 1. Outbox events (Section 91 & 122)
-                await ProcessOutboxBatchAsync(dbContext, emailSender, stoppingToken);
+                await ProcessOutboxBatchAsync(dbContext, emailSender, transportDispatcher, null, stoppingToken);
 
                 // 2. Expired holds cleanup (Section 58 & 122)
                 var holdsLogger = scope.ServiceProvider.GetService<ILogger<ExpiredHoldsCleanupJob>>()
@@ -118,12 +119,34 @@ public class OutboxAndReminderWorker : BackgroundService
         }
     }
 
-    public async Task<int> ProcessOutboxBatchAsync(BooklineDbContext dbContext, IEmailSender? emailSender, CancellationToken cancellationToken = default)
+    public static int GetExponentialBackoffSeconds(int retryCount) => retryCount switch
     {
-        var pendingMessages = await dbContext.OutboxMessages.IgnoreQueryFilters()
-            .Where(m => m.Status == "Pending" && m.RetryCount < 5)
+        1 => 15,
+        2 => 60,
+        3 => 300,
+        4 => 900,
+        _ => 3600
+    };
+
+    public async Task<int> ProcessOutboxBatchAsync(
+        BooklineDbContext dbContext,
+        IEmailSender? emailSender,
+        INotificationTransportDispatcher? dispatcher = null,
+        Guid? filterTenantId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var nowUtc = DateTimeOffset.UtcNow;
+        var query = dbContext.OutboxMessages.IgnoreQueryFilters()
+            .Where(m => m.Status == "Pending" && m.RetryCount < 5 && (m.NextRetryAtUtc == null || m.NextRetryAtUtc <= nowUtc));
+
+        if (filterTenantId.HasValue && filterTenantId.Value != Guid.Empty)
+        {
+            query = query.Where(m => m.TenantId == filterTenantId.Value);
+        }
+
+        var pendingMessages = await query
             .OrderBy(m => m.CreatedAtUtc)
-            .Take(25)
+            .Take(50)
             .ToListAsync(cancellationToken);
 
         if (!pendingMessages.Any()) return 0;
@@ -169,7 +192,7 @@ public class OutboxAndReminderWorker : BackgroundService
             {
                 try
                 {
-                    await DispatchOutboxNotificationAsync(dbContext, msg, emailSender, cancellationToken);
+                    await DispatchOutboxNotificationAsync(dbContext, msg, emailSender, dispatcher, cancellationToken);
 
                     itemStopwatch.Stop();
                     msg.Status = "Processed";
@@ -191,6 +214,8 @@ public class OutboxAndReminderWorker : BackgroundService
                     msg.RetryCount++;
                     var errorCategory = ex.GetType().Name;
                     msg.Error = ex.Message;
+                    var backoffSeconds = GetExponentialBackoffSeconds(msg.RetryCount);
+                    msg.NextRetryAtUtc = DateTimeOffset.UtcNow.AddSeconds(backoffSeconds);
 
                     Bookline.Infrastructure.Observability.BooklineMetrics.OutboxEventsFailed.Add(1,
                         new KeyValuePair<string, object?>("event_type", msg.EventType),
@@ -204,8 +229,8 @@ public class OutboxAndReminderWorker : BackgroundService
                     }
                     else
                     {
-                        _logger.LogWarning(ex, "Outbox event [{Id}] ({EventType}) failed on attempt {AttemptCount}. Retry scheduled. Duration: {DurationMs}ms. ErrorCategory: {ErrorCategory}",
-                            msg.Id, msg.EventType, msg.RetryCount, itemStopwatch.ElapsedMilliseconds, errorCategory);
+                        _logger.LogWarning(ex, "Outbox event [{Id}] ({EventType}) failed on attempt {AttemptCount}. Retry scheduled for {NextRetryAtUtc}. Duration: {DurationMs}ms. ErrorCategory: {ErrorCategory}",
+                            msg.Id, msg.EventType, msg.RetryCount, msg.NextRetryAtUtc, itemStopwatch.ElapsedMilliseconds, errorCategory);
                     }
                 }
             }
@@ -222,11 +247,12 @@ public class OutboxAndReminderWorker : BackgroundService
         return processedCount;
     }
 
-    private async Task DispatchOutboxNotificationAsync(
+    public async Task DispatchOutboxNotificationAsync(
         BooklineDbContext dbContext,
         OutboxMessage msg,
         IEmailSender? emailSender,
-        CancellationToken cancellationToken)
+        INotificationTransportDispatcher? dispatcher = null,
+        CancellationToken cancellationToken = default)
     {
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(msg.Content) ? "{}" : msg.Content);
         var root = doc.RootElement;
@@ -256,6 +282,7 @@ public class OutboxAndReminderWorker : BackgroundService
                 break;
 
             case NotificationEvents.AppointmentConfirmed:
+            case NotificationEvents.BookingConfirmed:
                 notifType = NotificationType.BookingConfirmation;
                 subject = "Appointment Confirmed";
                 body = "Your booking has been officially confirmed by your service provider.";
@@ -263,6 +290,7 @@ public class OutboxAndReminderWorker : BackgroundService
                 break;
 
             case NotificationEvents.AppointmentCancelled:
+            case NotificationEvents.BookingCancelled:
                 notifType = NotificationType.BookingCancellation;
                 var cancelReason = root.TryGetProperty("Reason", out var r) ? r.GetString() : "Schedule change";
                 subject = "Appointment Cancelled";
@@ -271,6 +299,7 @@ public class OutboxAndReminderWorker : BackgroundService
                 break;
 
             case NotificationEvents.AppointmentRescheduled:
+            case NotificationEvents.BookingRescheduled:
                 notifType = NotificationType.BookingRescheduled;
                 subject = "Appointment Rescheduled";
                 body = "Your appointment has been rescheduled to a new confirmed time.";
@@ -278,11 +307,20 @@ public class OutboxAndReminderWorker : BackgroundService
                 break;
 
             case NotificationEvents.ReminderDue:
+            case NotificationEvents.AppointmentReminder:
                 var window = root.TryGetProperty("ReminderWindow", out var rw) ? rw.GetString() : "24h";
                 notifType = window == "2h" ? NotificationType.Reminder2h : NotificationType.Reminder24h;
                 subject = window == "2h" ? "Appointment in 2 Hours" : "Upcoming Appointment Tomorrow (24h)";
                 var timeStr = root.TryGetProperty("LocalTimeString", out var lt) ? lt.GetString() : "scheduled time";
                 body = $"Reminder: Your upcoming session is scheduled at {timeStr}.";
+                deepLink = "/appointments";
+                break;
+
+            case NotificationEvents.ProviderBookingUpdate:
+                notifType = NotificationType.ProviderBookingUpdate;
+                var updateDesc = (root.TryGetProperty("UpdateDescription", out var ud) ? ud.GetString() : null) ?? "Appointment details updated.";
+                subject = "Provider Alert: Booking Update";
+                body = updateDesc;
                 deepLink = "/appointments";
                 break;
 
@@ -336,6 +374,29 @@ public class OutboxAndReminderWorker : BackgroundService
                 break;
         }
 
+        // Section 91 & Phase 6 Idempotency check:
+        // If a notification log for this booking and notification type was already successfully Sent,
+        // do not dispatch duplicate messages!
+        if (bookingId.HasValue)
+        {
+            var alreadyDispatched = await dbContext.NotificationLogs.IgnoreQueryFilters()
+                .AnyAsync(n => n.TenantId == msg.TenantId
+                            && n.BookingId == bookingId.Value
+                            && n.NotificationType == notifType
+                            && n.RecipientEmail == recipientEmail
+                            && n.Status == NotificationStatus.Sent, cancellationToken);
+
+            if (alreadyDispatched)
+            {
+                _logger.LogInformation("Idempotent check: Notification for Booking {BookingId} and type {NotifType} already delivered. Skipping duplicate dispatch.",
+                    bookingId.Value, notifType);
+                return;
+            }
+        }
+
+        subject ??= "System Notification";
+        body ??= "Notification details";
+
         var notificationLog = new NotificationLog
         {
             TenantId = msg.TenantId,
@@ -345,27 +406,84 @@ public class OutboxAndReminderWorker : BackgroundService
             RecipientPhone = recipientPhone,
             NotificationType = notifType,
             Channel = NotificationChannel.Email,
-            Status = NotificationStatus.Sent,
+            Status = NotificationStatus.Pending,
             Subject = subject,
             Body = body,
             DeepLinkUrl = deepLink,
             IsRead = false,
-            SentAtUtc = DateTime.UtcNow,
             CreatedAtUtc = DateTime.UtcNow
         };
 
         dbContext.NotificationLogs.Add(notificationLog);
 
-        if (emailSender != null && !string.IsNullOrWhiteSpace(recipientEmail))
+        NotificationDeliveryResult deliveryResult;
+        if (dispatcher != null)
+        {
+            deliveryResult = await dispatcher.DispatchAsync(new NotificationDeliveryRequest(
+                TenantId: msg.TenantId,
+                Channel: NotificationChannel.Email,
+                Recipient: recipientEmail,
+                RecipientName: null,
+                Subject: subject,
+                Body: body,
+                BookingId: bookingId,
+                CustomerId: customerId,
+                DeepLinkUrl: deepLink
+            ), cancellationToken);
+        }
+        else if (emailSender != null && !string.IsNullOrWhiteSpace(recipientEmail))
         {
             try
             {
                 await emailSender.SendEmailAsync(recipientEmail, subject, body, cancellationToken);
+                deliveryResult = NotificationDeliveryResult.Succeeded();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Email delivery failed for notification log {Id}", notificationLog.Id);
+                deliveryResult = NotificationDeliveryResult.Failed(ex.Message);
             }
+        }
+        else
+        {
+            deliveryResult = NotificationDeliveryResult.Succeeded();
+        }
+
+        if (deliveryResult.Success)
+        {
+            notificationLog.Status = NotificationStatus.Sent;
+            notificationLog.SentAtUtc = DateTime.UtcNow;
+        }
+        else
+        {
+            notificationLog.Status = NotificationStatus.Failed;
+            notificationLog.ErrorMessage = deliveryResult.ErrorMessage;
+            throw new InvalidOperationException($"Notification delivery failed: {deliveryResult.ErrorMessage}");
+        }
+
+        // Provider-facing operations (Phase 6):
+        // Automatically create a provider-facing visibility record for appointment confirmed, cancelled, or rescheduled
+        if (msg.EventType == NotificationEvents.AppointmentConfirmed || msg.EventType == NotificationEvents.BookingConfirmed ||
+            msg.EventType == NotificationEvents.AppointmentCancelled || msg.EventType == NotificationEvents.BookingCancelled ||
+            msg.EventType == NotificationEvents.AppointmentRescheduled || msg.EventType == NotificationEvents.BookingRescheduled)
+        {
+            var providerNotif = new NotificationLog
+            {
+                TenantId = msg.TenantId,
+                BookingId = bookingId,
+                CustomerId = customerId,
+                RecipientEmail = "provider@bookline.local",
+                RecipientPhone = null,
+                NotificationType = NotificationType.ProviderBookingUpdate,
+                Channel = NotificationChannel.Email,
+                Status = NotificationStatus.Sent,
+                Subject = $"Provider Notice: {subject}",
+                Body = $"Customer activity for booking {bookingId}: {subject}. {body}",
+                DeepLinkUrl = "/appointments",
+                IsRead = false,
+                SentAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            dbContext.NotificationLogs.Add(providerNotif);
         }
     }
 

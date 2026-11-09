@@ -97,6 +97,11 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         }
 
         var tenantId = _tenantContext.IsResolved ? _tenantContext.TenantId : service.TenantId;
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+        if (tenant != null && (!tenant.IsActive || tenant.VerificationStatus == Bookline.Domain.Enums.VerificationStatus.Suspended || tenant.ModerationStatus == Bookline.Domain.Enums.ModerationStatus.Suspended))
+        {
+            throw new ValidationException("PROVIDER_SUSPENDED: This provider is suspended or inactive and cannot accept bookings.");
+        }
 
         // 2. Validate Staff Eligibility
         var staff = await _context.Staff
@@ -242,7 +247,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         booking.ServiceNameSnapshot = service.Name;
         booking.PriceSnapshot = service.Price;
 
-        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+        tenant ??= await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
         booking.TimeZoneId = tenant?.TimeZoneId ?? "Asia/Kolkata";
         if (tenant != null)
         {

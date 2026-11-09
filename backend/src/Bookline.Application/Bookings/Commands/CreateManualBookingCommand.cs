@@ -99,6 +99,12 @@ public class CreateManualBookingCommandHandler : IRequestHandler<CreateManualBoo
             }
         }
 
+        var tenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+        if (tenant != null && (!tenant.IsActive || tenant.VerificationStatus == Bookline.Domain.Enums.VerificationStatus.Suspended || tenant.ModerationStatus == Bookline.Domain.Enums.ModerationStatus.Suspended))
+        {
+            throw new ValidationException("PROVIDER_SUSPENDED: This business organization is suspended and cannot schedule appointments.");
+        }
+
         // 2. Fetch Service for duration and snapshot
         var service = await _context.Services
             .IgnoreQueryFilters()
@@ -191,7 +197,7 @@ public class CreateManualBookingCommandHandler : IRequestHandler<CreateManualBoo
         }
 
         // 5. Retrieve Tenant for timezone & currency
-        var tenant = await _context.Tenants
+        tenant ??= await _context.Tenants
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 

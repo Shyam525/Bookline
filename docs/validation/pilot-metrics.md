@@ -1,69 +1,99 @@
-# Bookline Pilot Performance Metrics & Validation Framework
+# Bookline — Pilot Performance Metrics & Validation Framework
+
+> [!IMPORTANT]
+> **Strict Operational Audit Standard (Phase 7.6)**:
+> All automated pilot reporting must adhere to the **Half-Open Interval Standard** $[weekStartUtc, weekEndUtc)$ to prevent double-counting boundaries.
+> Synthetic demonstration tenants (`IsDemo = true`) and automated test data are strictly excluded from all pilot calculations.
+
+---
 
 ## 1. Pilot Evaluation Overview
 
 The Bookline pilot program tests whether a provider-management SaaS platform tailored for salons, barbershops, beauty studios, and spas in Gujarat creates indispensable operational value.
 
 The pilot evaluates two core hypotheses:
-1. **Operational Utility Hypothesis**: Salon owners and staff will actively use Bookline's unified calendar to log daily walk-ins, phone bookings, and manage schedules.
-2. **Online Adoption Hypothesis**: Customers will successfully use direct provider booking links (`/book/{slug}`) shared via WhatsApp and Instagram bio to book appointments, eliminating phone tag and scheduling conflicts.
+1. **Operational Utility Hypothesis**: Salon owners and staff actively use Bookline's unified calendar to log daily walk-ins, phone bookings, and manage schedules.
+2. **Online Adoption Hypothesis**: Customers successfully use direct provider booking links (`/business/{slug}`) shared via WhatsApp and Instagram bio to book appointments, eliminating phone tag and scheduling conflicts.
 
 ---
 
 ## 2. Core Quantitative Pilot Metrics
 
-| Metric Name | Formula / Measurement | Minimum Viable Target (Pilot) | Stretch Goal | Why It Matters |
-|---|---|---|---|---|
-| **Provider Onboarding Completion Rate** | $\frac{\text{Providers completing step 3 (Services \& Staff)}}{\text{Total registered provider accounts}} \times 100$ | $\ge 70\%$ | $\ge 85\%$ | Measures whether onboarding friction is low enough for non-technical salon operators. |
-| **Daily Active Calendar Usage (DACU)** | $\frac{\text{Days with } \ge 3 \text{ appointments logged or modified}}{\text{Total operational days per week}}$ | $\ge 5 \text{ days / week}$ | $6 \text{ days / week}$ | Validates whether Bookline is an active operational tool or abandoned after setup. |
-| **Manual / Walk-in Booking Logging Ratio** | $\frac{\text{Manual walk-in \& phone bookings logged on calendar}}{\text{Total estimated daily client volume}}$ | $\ge 50\%$ | $\ge 80\%$ | Proves the calendar reflects physical floor reality, preventing phantom availability. |
-| **Direct Link Booking Volume** | Count of completed customer bookings originated via `/book/{slug}` | $\ge 15 \text{ bookings / provider / week}$ | $\ge 40 \text{ bookings}$ | Proves direct links generate real customer booking demand without a massive marketplace. |
-| **Zero Double-Booking Incidents** | Count of simultaneous overlapping bookings for the same stylist in PostgreSQL | **$0$ incidents ($100\%$ integrity)** | **$0$ incidents** | Core technical integrity metric. A single double-booking ruins salon trust. |
-| **No-Show Rate Reduction** | $\frac{\text{No-Show status bookings}}{\text{Total confirmed bookings}} \times 100$ | $\le 12\%$ | $\le 7\%$ | Validates whether automated reminder notifications improve customer attendance. |
-| **Average Slot Utilization** | $\frac{\text{Total booked service hours}}{\text{Total scheduled staff working hours}} \times 100$ | $45\% - 65\%$ | $> 70\%$ | Measures salon productivity and schedule optimization. |
-| **Bilingual Gujarati Engagement** | Percentage of provider staff toggling UI language to Gujarati | Tracking metric ($\ge 25\%$) | $\ge 40\%$ | Evaluates actual demand for regional language localization among salon assistants. |
+| Metric Name | Formula / Query Definition | Target (Pilot) | Stretch Goal | Implementation Source |
+| :--- | :--- | :---: | :---: | :--- |
+| **Weekly Active Providers (WAP)** | Distinct `TenantId` with $\ge 1$ non-test `ProviderActivityEvent` in $[weekStartUtc, weekEndUtc)$ | $\ge 4$ of 5 providers | 5 of 5 providers | `GET /api/v1/telemetry/pilot-metrics` |
+| **Completed Appointments per Active Provider / Wk** | $\frac{\text{Count of Bookings with Status=Completed and } CompletedAtUtc \in [startUtc, endUtc)}{\text{Weekly Active Providers}}$ | $\ge 15$ / provider / wk | $\ge 40$ / provider | `Bookings.CompletedAtUtc` half-open interval |
+| **Appointment Capture Rate (Source Ratio)** | $\frac{\text{Direct Online Bookings}}{\text{Total Completed Bookings}} \times 100$ | $30\% - 50\%$ | $> 60\%$ | Grouped by `Booking.Source` |
+| **Storefront Conversion Funnel (4 Steps)** | $\text{Visitor} \to \text{AvailabilityViewed} \to \text{HoldCreated} \to \text{BookingConfirmed}$ | $\ge 10\%$ visitor-to-booking | $\ge 20\%$ | `StorefrontFunnelEvent` table |
+| **Zero Double-Booking Incidents** | Count of overlapping bookings for same staff in PostgreSQL | **0 incidents (100% integrity)** | **0 incidents** | Postgres GiST `no_overlap` constraint |
+| **Provider Weekly Retention** | $\frac{\text{Providers active in Week } W \text{ and Week } W-1}{\text{Providers active in Week } W-1} \times 100$ | $\ge 80\%$ | $100\%$ | Weekly cohort activity matrix |
 
 ---
 
-## 3. Qualitative Evaluation Checkpoints (Weekly Founder Review)
+## 3. Timestamp Precision: `CompletedAtUtc` & Half-Open Intervals
 
-During the 4-week pilot cohort across 10–15 partner salons in Gujarat:
+### 3.1 Genuine Completion Timestamp (`CompletedAtUtc`)
+Historically, appointment completion was tracked only by the status enum (`BookingStatus.Completed`) without a dedicated completion timestamp, causing ambiguity between scheduled appointment time and actual physical completion time.
+- **Entity Property**: `Booking.CompletedAtUtc` (`DateTimeOffset?`)
+- **Lifecycle**: Stamped atomically in UTC when the provider clicks "Mark Complete" or status transitions to `Completed`.
+- **Integrity Rule**: Never backfilled with synthetic timestamps. Existing historical demo appointments retain `CompletedAtUtc = null`.
 
-### Week 1: Setup & Initial Floor Training
-- Can the salon owner add their entire service menu and 3–5 stylists in under 15 minutes?
-- Does the receptionist understand how to create a walk-in appointment with fewer than 4 clicks?
-- Did any staff member report confusion around buffer times or split shifts?
-
-### Week 2: First Direct Link Customers
-- Did the salon place the Bookline booking link in their Instagram bio and WhatsApp Business greeting?
-- Did customers booking through the link show up at the correct time?
-- Did any walk-in conflict with an online customer?
-
-### Week 3: Payment Logging & Daily Reckoning
-- Are receptionists logging whether customers paid via Cash, UPI QR, or Card upon completion?
-- Does the daily revenue summary on Bookline match the cash drawer and UPI business account totals?
-- Does the owner review the daily dashboard summary at closing time?
-
-### Week 4: Willingness to Pay & Conversion Gate
-- Ask the owner: *"If Bookline stopped working tomorrow, how disappointed would you be (Very Disappointed, Somewhat Disappointed, Not Disappointed)?"*
-  - **Target**: $\ge 40\%$ "Very Disappointed" (Sean Ellis PMF benchmark).
-- Willingness to convert to paid subscription:
-  - Offer month 2 at ₹999/month.
-  - **Conversion Target**: $\ge 30\%$ of pilot salons agree to pay for continued service.
+### 3.2 Half-Open Reporting Windows
+To eliminate fencepost errors and duplicate counts across reporting cycles:
+$$\text{Window} = [weekStartUtc, weekEndUtc) \iff t \ge weekStartUtc \land t < weekEndUtc$$
 
 ---
 
-## 4. Telemetry & Reporting Requirements
+## 4. Provider Activity Telemetry (Section 122 & Phase 7.6)
 
-The system must log the following discrete audit and observability events without exposing customer PII:
-1. `ProviderRegisteredEvent`
-2. `OperatingHoursConfiguredEvent`
-3. `StaffCreatedEvent`, `ServiceCreatedEvent`
-4. `AppointmentCreatedEvent` (origin: `ManualWalkIn`, `PhoneCall`, `DirectLink`)
-5. `AppointmentStatusChangedEvent` (`CheckedIn`, `Completed`, `Cancelled`, `NoShow`)
-6. `PaymentRecordedEvent` (method: `Cash`, `UPI`, `Card`)
-7. `SlotHoldAcquiredEvent`, `SlotHoldExpiredEvent`
-8. `LanguageChangedEvent` (`en` $\leftrightarrow$ `gu`)
+Privacy-conscious provider workspace telemetry tracks authentic operational engagement without capturing sensitive business notes or customer PII.
 
-These events provide real, data-grounded metrics for the founder to evaluate pilot progress and plan expansion.
+### Permitted Provider Activity Events:
+1. `ProviderWorkspaceOpened`: Provider logged in and viewed the business dashboard.
+2. `ProviderCalendarViewed`: Provider opened or navigated the appointment calendar.
+3. `ManualAppointmentCreated`: Provider staff scheduled a walk-in or phone client directly on the calendar.
+4. `AppointmentUpdated`: Provider rescheduled, updated notes, or modified an appointment.
+5. `AppointmentCompleted`: Provider marked an appointment physically completed.
+6. `ServiceConfigurationUpdated`: Provider modified pricing, duration, or buffer times.
+7. `StaffScheduleUpdated`: Provider adjusted staff shifts, breaks, or time-off.
 
+### Deduplication & Integrity Safeguards:
+- `ProviderWorkspaceOpened` and `ProviderCalendarViewed` are deduplicated within a **15-minute sliding window** per user.
+- Actions performed by `PlatformAdmin` users are strictly excluded.
+- Requests with `X-Automated-Test` or Playwright user agents are flagged `IsAutomatedOrTest = true` and filtered out of pilot KPIs.
+- Synthetic demo tenants (`IsDemo = true`) are quarantined.
+
+---
+
+## 5. Storefront Conversion Funnel Instrumentation
+
+The 4-step funnel measures the journey from public link discovery to confirmed booking:
+
+```mermaid
+flowchart LR
+    Step1["1. Visitor<br/>(Storefront View)"]
+    Step2["2. AvailabilityViewed<br/>(Date / Slots Queried)"]
+    Step3["3. HoldCreated<br/>(5-Minute Lock Acquired)"]
+    Step4["4. BookingConfirmed<br/>(Appointment Created)"]
+
+    Step1 --> Step2 --> Step3 --> Step4
+```
+
+### Funnel Step Definitions:
+1. **Visitor**: Anonymous user opens `/business/{slug}`. Recorded once per pseudonymous `VisitorSessionId` per day (`DateKey = yyyy-MM-dd`).
+2. **AvailabilityViewed**: Customer queries live slot availability for a specific service and date. Deduplicated per day per session.
+3. **HoldCreated**: Customer selects a slot and the backend acquires a 5-minute atomic lock. Records `RelatedHoldId`.
+4. **BookingConfirmed**: Customer submits verified contact info; appointment is persisted in PostgreSQL. Records `RelatedBookingId`.
+
+### Bot and Preview Traffic Exclusion:
+- Known crawler user agents (Googlebot, bingbot, curl, python, Postman, Playwright) are flagged `IsAutomatedOrBot = true`.
+- Provider staff previewing their own storefront (via `X-Internal-Preview` header) are flagged `IsInternalPreview = true`.
+- Only authentic, human-initiated consumer traffic is included in conversion calculations.
+
+---
+
+## 6. Pilot Telemetry API Endpoints
+
+- `POST /api/v1/telemetry/provider-activity` — Records provider workspace interaction.
+- `POST /api/v1/telemetry/storefront-funnel` — Records storefront funnel transition.
+- `GET /api/v1/telemetry/pilot-metrics` — Generates aggregated pilot performance report using half-open intervals and demo quarantine.

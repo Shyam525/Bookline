@@ -36,6 +36,7 @@ public class Booking : TenantEntity
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
     public DateTimeOffset? ReminderSentAtUtc { get; private set; }
 
     public Staff Staff { get; set; } = null!;
@@ -123,13 +124,14 @@ public class Booking : TenantEntity
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    public void Complete()
+    public void Complete(DateTimeOffset? completedAtUtc = null)
     {
         if (Status != BookingStatus.Confirmed && Status != BookingStatus.CheckedIn)
         {
             throw new InvalidStatusTransitionException(Status, BookingStatus.Completed);
         }
         Status = BookingStatus.Completed;
+        CompletedAtUtc = completedAtUtc ?? DateTimeOffset.UtcNow;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 

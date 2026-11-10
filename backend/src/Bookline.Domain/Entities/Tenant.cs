@@ -50,4 +50,5 @@ public class Tenant
     public string? BusinessHoursJson { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
+    public bool IsDemo { get; set; } = false;
 }

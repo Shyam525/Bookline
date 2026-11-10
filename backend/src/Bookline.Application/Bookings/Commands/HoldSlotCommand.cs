@@ -140,6 +140,19 @@ public class HoldSlotCommandHandler : IRequestHandler<HoldSlotCommand, HoldSlotR
                 CreatedAtUtc = DateTimeOffset.UtcNow
             });
 
+            // Authoritative server-side funnel tracking for HoldCreated
+            _context.StorefrontFunnelEvents.Add(new Bookline.Domain.Entities.StorefrontFunnelEvent
+            {
+                TenantId = tenantId,
+                Step = "HoldCreated",
+                VisitorSessionId = holdId.Value.ToString("N"),
+                RelatedHoldId = holdId.Value,
+                IsAutomatedOrBot = false,
+                IsInternalPreview = false,
+                DateKey = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd"),
+                TimestampUtc = _clock.GetCurrentInstant().ToDateTimeOffset()
+            });
+
             await _context.SaveChangesAsync(cancellationToken);
         }
 

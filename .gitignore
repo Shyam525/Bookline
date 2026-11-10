@@ -1,6 +1,7 @@
 ## Ignore Visual Studio / .NET build outputs
 [Bb]in/
 [Oo]bj/
+[Oo]ut/
 [Lls]og/
 [Ll]ogs/
 .vs/

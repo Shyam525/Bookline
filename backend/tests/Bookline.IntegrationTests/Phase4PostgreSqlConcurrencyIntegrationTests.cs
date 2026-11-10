@@ -40,15 +40,8 @@ public class Phase4PostgreSqlConcurrencyIntegrationTests
             tenantCtx.SetTenantId(tenantId.Value);
         }
 
-        var connBuilder = new Npgsql.NpgsqlConnectionStringBuilder(ConnectionString)
-        {
-            Timeout = 60,
-            CommandTimeout = 60,
-            MaxPoolSize = 200
-        };
-
         var options = new DbContextOptionsBuilder<BooklineDbContext>()
-            .UseNpgsql(connBuilder.ConnectionString, npgsql => npgsql.CommandTimeout(60))
+            .UseNpgsql(ConnectionString)
             .Options;
 
         return new BooklineDbContext(options, tenantCtx);
@@ -72,7 +65,8 @@ public class Phase4PostgreSqlConcurrencyIntegrationTests
             Currency = "INR",
             IsActive = true,
             BookingHorizonDays = 60,
-            MinimumNoticeHours = 1
+            MinimumNoticeHours = 1,
+            IsDemo = true
         };
         db.Tenants.Add(tenant);
 
@@ -219,10 +213,10 @@ public class Phase4PostgreSqlConcurrencyIntegrationTests
 
         // Assert: Exactly 1 succeeded, exactly 1 got conflict
         var successCount = outcomes.Count(o => o.Success);
-        var failureCount = outcomes.Count(o => !o.Success);
+        var conflictCount = outcomes.Count(o => !o.Success && (o.Error == nameof(BookingConflictException) || o.Error == nameof(ValidationException)));
 
         Assert.Equal(1, successCount);
-        Assert.Equal(1, failureCount);
+        Assert.Equal(1, conflictCount);
 
         // Assert: Real PostgreSQL DB has exactly 1 booking
         using var verifyDb = CreateDbContext(tenant.Id);
@@ -342,7 +336,7 @@ public class Phase4PostgreSqlConcurrencyIntegrationTests
         var successCount = outcomes.Count(o => o.Success);
         var conflictCount = outcomes.Count(o => !o.Success);
 
-        Assert.True(successCount == 1, $"Expected 1 success, but got {successCount}. Failures: {conflictCount}. Grouped errors: {string.Join(", ", outcomes.GroupBy(o => o.Error).Select(g => $"{g.Key}:{g.Count()}"))}");
+        Assert.Equal(1, successCount);
         Assert.Equal(49, conflictCount);
 
         // Assert: Database level overlap protection preserved integrity

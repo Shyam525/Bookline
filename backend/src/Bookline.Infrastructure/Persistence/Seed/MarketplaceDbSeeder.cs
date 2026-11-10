@@ -122,6 +122,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 1450.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
                 };
                 db.Tenants.Add(auraTenant);
@@ -157,6 +158,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 980.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-5)
                 };
                 db.Tenants.Add(glowTenant);
@@ -191,6 +193,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 2340.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
                 };
                 db.Tenants.Add(apexTenant);
@@ -224,6 +227,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 820.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
                 };
                 db.Tenants.Add(zenithTenant);
@@ -258,6 +262,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 650.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
                 };
                 db.Tenants.Add(luminaTenant);
@@ -291,6 +296,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 1200.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
                 };
                 db.Tenants.Add(vanguardTenant);
@@ -324,6 +330,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 950.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
                 };
                 db.Tenants.Add(cambridgeTenant);
@@ -357,6 +364,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 1100.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
                 };
                 db.Tenants.Add(urbanFixTenant);
@@ -394,6 +402,7 @@ public static class MarketplaceDbSeeder
                     AvailablePayoutBalance = 3200.00m,
                     IsPublished = true,
                     IsActive = true,
+                    IsDemo = true,
                     CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
                 };
                 db.Tenants.Add(mumbaiTenant);

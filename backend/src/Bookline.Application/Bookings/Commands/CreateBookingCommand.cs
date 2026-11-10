@@ -321,6 +321,20 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             })
         });
 
+        // Authoritative server-side funnel tracking for BookingConfirmed
+        _context.StorefrontFunnelEvents.Add(new StorefrontFunnelEvent
+        {
+            TenantId = tenantId,
+            Step = "BookingConfirmed",
+            VisitorSessionId = request.HoldId.ToString("N"),
+            RelatedHoldId = request.HoldId,
+            RelatedBookingId = booking.Id,
+            IsAutomatedOrBot = false,
+            IsInternalPreview = false,
+            DateKey = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd"),
+            TimestampUtc = _clock.GetCurrentInstant().ToDateTimeOffset()
+        });
+
         try
         {
             await _context.SaveChangesAsync(cancellationToken);

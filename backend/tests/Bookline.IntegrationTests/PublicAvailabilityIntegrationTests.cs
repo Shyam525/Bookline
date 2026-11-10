@@ -18,57 +18,145 @@ using Xunit;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private static readonly object _initLock = new();
+    private static bool _initialized = false;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseSetting("ConnectionStrings:DefaultConnection", PostgreSqlTestDatabaseFixture.ConnectionString);
+
         builder.ConfigureServices(services =>
         {
-
-
-            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<BooklineDbContext>));
-            if (descriptor != null)
+            lock (_initLock)
             {
-                services.Remove(descriptor);
+                if (_initialized) return;
+
+                var sp = services.BuildServiceProvider();
+                using var scope = sp.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
+                db.Database.Migrate();
+
+                var tenant1Id = Guid.Parse("00000000-0000-0000-0000-000000000001");
+                var tenant2Id = Guid.Parse("00000000-0000-0000-0000-000000000002");
+
+                var existingTenant1 = db.Tenants.IgnoreQueryFilters().FirstOrDefault(t => t.Id == tenant1Id);
+                if (existingTenant1 == null)
+                {
+                    db.Tenants.Add(new Tenant
+                    {
+                        Id = tenant1Id,
+                        Name = "Demo Salon",
+                        Slug = "acme-salon",
+                        IsActive = true,
+                        IsPublished = true,
+                        VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified,
+                        City = "New York",
+                        IsDemo = true
+                    });
+                }
+                else
+                {
+                    existingTenant1.Name = "Demo Salon";
+                    existingTenant1.Slug = "acme-salon";
+                    existingTenant1.IsActive = true;
+                    existingTenant1.IsPublished = true;
+                    existingTenant1.VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified;
+                    existingTenant1.City = "New York";
+                    existingTenant1.IsDemo = true;
+                }
+
+                var existingTenant2 = db.Tenants.IgnoreQueryFilters().FirstOrDefault(t => t.Id == tenant2Id);
+                if (existingTenant2 == null)
+                {
+                    db.Tenants.Add(new Tenant
+                    {
+                        Id = tenant2Id,
+                        Name = "Other Salon",
+                        Slug = "other-salon",
+                        IsActive = true,
+                        IsPublished = true,
+                        VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified,
+                        IsDemo = true
+                    });
+                }
+                else
+                {
+                    existingTenant2.Name = "Other Salon";
+                    existingTenant2.Slug = "other-salon";
+                    existingTenant2.IsActive = true;
+                    existingTenant2.IsPublished = true;
+                    existingTenant2.VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified;
+                    existingTenant2.IsDemo = true;
+                }
+
+                var cat1Id = Guid.Parse("55555555-5555-5555-5555-555555555551");
+                var cat2Id = Guid.Parse("55555555-5555-5555-5555-555555555552");
+
+                var existingCat1 = db.ServiceCategories.IgnoreQueryFilters().FirstOrDefault(c => c.Id == cat1Id);
+                if (existingCat1 == null)
+                {
+                    db.ServiceCategories.Add(new ServiceCategory { Id = cat1Id, TenantId = tenant1Id, Name = "Hair Services" });
+                }
+
+                var existingCat2 = db.ServiceCategories.IgnoreQueryFilters().FirstOrDefault(c => c.Id == cat2Id);
+                if (existingCat2 == null)
+                {
+                    db.ServiceCategories.Add(new ServiceCategory { Id = cat2Id, TenantId = tenant2Id, Name = "Hair Services" });
+                }
+
+                var service1Id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+                if (!db.Services.IgnoreQueryFilters().Any(s => s.Id == service1Id))
+                {
+                    db.Services.Add(new Service { Id = service1Id, TenantId = tenant1Id, CategoryId = cat1Id, Name = "Haircut", DurationMinutes = 45, Price = 50, IsActive = true, IsPublished = true, IsOnlineBookingEnabled = true });
+                }
+
+                var service2Id = Guid.Parse("22222222-2222-2222-2222-222222222222");
+                if (!db.Services.IgnoreQueryFilters().Any(s => s.Id == service2Id))
+                {
+                    db.Services.Add(new Service { Id = service2Id, TenantId = tenant2Id, CategoryId = cat2Id, Name = "Coloring", DurationMinutes = 60, Price = 100, IsActive = true, IsPublished = true, IsOnlineBookingEnabled = true });
+                }
+
+                var staff1Id = Guid.Parse("33333333-3333-3333-3333-333333333333");
+                if (!db.Staff.IgnoreQueryFilters().Any(s => s.Id == staff1Id))
+                {
+                    db.Staff.Add(new Staff { Id = staff1Id, TenantId = tenant1Id, Name = "Alex", TimeZoneId = "UTC", IsActive = true });
+                }
+
+                var staff2Id = Guid.Parse("44444444-4444-4444-4444-444444444444");
+                if (!db.Staff.IgnoreQueryFilters().Any(s => s.Id == staff2Id))
+                {
+                    db.Staff.Add(new Staff { Id = staff2Id, TenantId = tenant2Id, Name = "Bob", TimeZoneId = "UTC", IsActive = true });
+                }
+
+                if (!db.StaffServices.IgnoreQueryFilters().Any(ss => ss.StaffId == staff1Id && ss.ServiceId == service1Id))
+                {
+                    db.StaffServices.Add(new StaffService { TenantId = tenant1Id, StaffId = staff1Id, ServiceId = service1Id });
+                }
+
+                if (!db.StaffServices.IgnoreQueryFilters().Any(ss => ss.StaffId == staff2Id && ss.ServiceId == service2Id))
+                {
+                    db.StaffServices.Add(new StaffService { TenantId = tenant2Id, StaffId = staff2Id, ServiceId = service2Id });
+                }
+
+                if (!db.WorkingHours.IgnoreQueryFilters().Any(w => w.TenantId == tenant1Id && w.StaffId == staff1Id))
+                {
+                    for (int d = 0; d < 7; d++)
+                    {
+                        db.WorkingHours.Add(new WorkingHours { TenantId = tenant1Id, StaffId = staff1Id, DayOfWeek = (DayOfWeek)d, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
+                    }
+                }
+
+                if (!db.WorkingHours.IgnoreQueryFilters().Any(w => w.TenantId == tenant2Id && w.StaffId == staff2Id))
+                {
+                    for (int d = 0; d < 7; d++)
+                    {
+                        db.WorkingHours.Add(new WorkingHours { TenantId = tenant2Id, StaffId = staff2Id, DayOfWeek = (DayOfWeek)d, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
+                    }
+                }
+
+                db.SaveChanges();
+                _initialized = true;
             }
-
-            var dbName = "IntegrationTestDb_" + Guid.NewGuid();
-            services.AddDbContext<BooklineDbContext>(options =>
-            {
-                options.UseInMemoryDatabase(dbName);
-            });
-
-            var sp = services.BuildServiceProvider();
-            using var scope = sp.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
-            db.Database.EnsureCreated();
-
-            var tenant1 = new Tenant
-            {
-                Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
-                Name = "Demo Salon",
-                Slug = "acme-salon",
-                IsActive = true,
-                IsPublished = true,
-                VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified,
-                City = "New York"
-            };
-            var tenant2 = new Tenant { Id = Guid.Parse("00000000-0000-0000-0000-000000000002"), Name = "Other Salon", Slug = "other-salon", IsActive = true, IsPublished = true, VerificationStatus = Bookline.Domain.Enums.VerificationStatus.Verified };
-            db.Tenants.AddRange(tenant1, tenant2);
-
-            var service1 = new Service { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), TenantId = tenant1.Id, Name = "Haircut", DurationMinutes = 45, Price = 50 };
-            var service2 = new Service { Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), TenantId = tenant2.Id, Name = "Coloring", DurationMinutes = 60, Price = 100 };
-            db.Services.AddRange(service1, service2);
-
-            var staff1 = new Staff { Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), TenantId = tenant1.Id, Name = "Alex", TimeZoneId = "UTC" };
-            var staff2 = new Staff { Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), TenantId = tenant2.Id, Name = "Bob", TimeZoneId = "UTC" };
-            db.Staff.AddRange(staff1, staff2);
-
-            for (int d = 0; d < 7; d++)
-            {
-                db.WorkingHours.Add(new WorkingHours { TenantId = tenant1.Id, StaffId = staff1.Id, DayOfWeek = (DayOfWeek)d, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
-                db.WorkingHours.Add(new WorkingHours { TenantId = tenant2.Id, StaffId = staff2.Id, DayOfWeek = (DayOfWeek)d, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0) });
-            }
-
-            db.SaveChanges();
         });
     }
 }

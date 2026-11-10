@@ -78,6 +78,37 @@ public class BookingStateTests
         Assert.Throws<InvalidStatusTransitionException>(() => noShowBooking.Cancel());
     }
 
+    [Fact]
+    public void Complete_WithExplicitInstant_SetsCompletedAtUtcAndIsImmutable()
+    {
+        var booking = new Booking(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1));
+        booking.Confirm();
+
+        var completedTime = new DateTimeOffset(2026, 11, 10, 10, 0, 0, TimeSpan.Zero);
+        booking.Complete(completedTime);
+
+        Assert.Equal(BookingStatus.Completed, booking.Status);
+        Assert.Equal(completedTime, booking.CompletedAtUtc);
+
+        // Attempt repeat completion with different timestamp
+        var secondAttemptTime = completedTime.AddMinutes(30);
+        Assert.Throws<InvalidStatusTransitionException>(() => booking.Complete(secondAttemptTime));
+
+        // Verify CompletedAtUtc remains immutable
+        Assert.Equal(completedTime, booking.CompletedAtUtc);
+    }
+
+    [Fact]
+    public void Complete_FromCancelledStatus_ThrowsInvalidStatusTransitionException()
+    {
+        var booking = new Booking(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1));
+        booking.Cancel("Customer requested", "Customer");
+
+        Assert.Equal(BookingStatus.Cancelled, booking.Status);
+        Assert.Throws<InvalidStatusTransitionException>(() => booking.Complete(DateTimeOffset.UtcNow));
+        Assert.Null(booking.CompletedAtUtc);
+    }
+
     private static Booking CreateBookingWithStatus(BookingStatus status)
     {
         var booking = new Booking(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1));

@@ -1,15 +1,21 @@
 <Project>
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);NU1900;NU1901;NU1902;NU1903;NU1904</NoWarn>
+    <!--
+      Warning Suppressions Explained:
+      - NU1900-NU1904: Prevents build failures under TreatWarningsAsErrors from informational/moderate NuGet transitive package audit advisories.
+      - ASPDEPR005: ForwardedHeadersOptions.KnownNetworks deprecation in ASP.NET Core 10 while preserving proxy clearing compatibility.
+    -->
+    <NoWarn>$(NoWarn);NU1900;NU1901;NU1902;NU1903;NU1904;ASPDEPR005</NoWarn>
     <RollForward>LatestMajor</RollForward>
   </PropertyGroup>
 
   <Target Name="SignOutputDlls" AfterTargets="AfterBuild" Condition="'$(OS)' == 'Windows_NT'">
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;if (Test-Path '$(TargetPath)') { $c = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -like '*BooklineDev*' } | Select-Object -First 1; if ($c) { Set-AuthenticodeSignature -FilePath '$(TargetPath)' -Certificate $c | Out-Null } }&quot;" IgnoreExitCode="true" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;if (Test-Path '$(TargetDir)') { Get-ChildItem -Path '$(TargetDir)*.dll' | Unblock-File }&quot;" IgnoreExitCode="true" />
   </Target>
 </Project>
 

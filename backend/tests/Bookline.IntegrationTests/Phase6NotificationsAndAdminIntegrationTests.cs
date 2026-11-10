@@ -110,7 +110,8 @@ public class Phase6NotificationsAndAdminIntegrationTests
             ModerationStatus = ModerationStatus.Approved,
             HoldDurationMinutes = 5,
             MinimumNoticeHours = 2,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            IsDemo = true
         };
         db.Tenants.Add(tenant);
 

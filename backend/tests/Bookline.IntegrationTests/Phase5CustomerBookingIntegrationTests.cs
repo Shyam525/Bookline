@@ -82,7 +82,8 @@ public class Phase5CustomerBookingIntegrationTests
             IsPublished = true,
             BookingHorizonDays = 30,
             MinimumNoticeHours = minimumNoticeHours,
-            CancellationPolicy = $"Cancellations must be requested at least {minimumNoticeHours} hours before appointment."
+            CancellationPolicy = $"Cancellations must be requested at least {minimumNoticeHours} hours before appointment.",
+            IsDemo = true
         };
         db.Tenants.Add(tenant);
 

@@ -11,8 +11,8 @@ flowchart TD
     Client["Clients (Web / Mobile / Tablet)"]
     Cloudflare["Cloudflare / CDN (TLS 1.3, DDoS & Edge Caching)"]
     ReverseProxy["Reverse Proxy (Nginx / Caddy / Traefik)"]
-    AppInstance1["Bookline API Pod 1 (Kestrel .NET 8)"]
-    AppInstance2["Bookline API Pod 2 (Kestrel .NET 8)"]
+    AppInstance1["Bookline API Pod 1 (Kestrel .NET 10 LTS)"]
+    AppInstance2["Bookline API Pod 2 (Kestrel .NET 10 LTS)"]
     PostgreSQL[("PostgreSQL 17 Primary + PostGIS + GiST")]
     Redis[("Redis 7 Cluster / Standalone")]
     Mailpit["SMTP / Notification Carriers (Gupshup / SendGrid)"]
@@ -46,21 +46,22 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Build .NET 8 Backend
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-builder
+# Stage 2: Build .NET 10 Backend
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-builder
 WORKDIR /app
-COPY backend/*.sln ./
+COPY backend/Directory.Build.props ./
+COPY backend/*.sln* ./
 COPY backend/src/*/*.csproj ./src/
 RUN for file in src/*.csproj; do mkdir -p "src/${file%.csproj}" && mv "$file" "src/${file%.csproj}/"; done
-RUN dotnet restore backend/Bookline.sln
+RUN dotnet restore backend/Bookline.slnx
 
 COPY backend/ ./backend
 COPY --from=frontend-builder /app/frontend/dist ./backend/src/Bookline.Api/wwwroot
 WORKDIR /app/backend/src/Bookline.Api
 RUN dotnet publish -c Release -o /out
 
-# Stage 3: Production Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# Stage 3: Production Runtime (.NET 10 LTS)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=backend-builder /out ./
 EXPOSE 5168
@@ -117,7 +118,35 @@ server {
 
 ---
 
-## 4. Production Release Checklist
+## 4. Public Staging Deployment (Phase 7.6)
+
+Bookline includes a dedicated staging deployment topology (`docker-compose.staging.yml`) configured for public verification prior to production rollout:
+
+### Staging Deployment Artifacts:
+- **Compose Configuration**: [`docker-compose.staging.yml`](file:///c:/z-projects/Bookline/docker-compose.staging.yml)
+- **Environment Template**: [`.env.staging.example`](file:///c:/z-projects/Bookline/.env.staging.example)
+- **Nginx Staging Configuration**: [`nginx/staging.conf`](file:///c:/z-projects/Bookline/nginx/staging.conf)
+
+### Staging Deployment Procedure:
+```bash
+# 1. Create staging environment configuration from template
+cp .env.staging.example .env.staging
+# Edit .env.staging and set strong staging secrets (POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET_KEY)
+
+# 2. Launch staging stack
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+
+# 3. Verify health & readiness
+curl -f http://localhost/health
+curl -f http://localhost/ready
+
+# 4. View real-time logs
+docker compose -f docker-compose.staging.yml logs -f bookline-api
+```
+
+---
+
+## 5. Production Release Checklist
 
 Before directing customer traffic to the newly deployed container:
 
@@ -163,3 +192,4 @@ If a critical failure occurs during deployment:
    kubectl rollout undo deployment/bookline-api
    ```
 3. Confirm readiness probe passes on rolled-back pod: `curl -f http://localhost:5168/ready`.
+

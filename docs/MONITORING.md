@@ -101,3 +101,4 @@ GROUP BY relation, mode, granted;
    - Retries count (`RetryCount > 0`).
 4. **Database Diagnostics**: Active connections, cache hit ratio, transaction commit/rollback ratio.
 5. **Notification Carrier Throughput**: Email deliveries succeeded vs SMS/WhatsApp deliveries succeeded.
+

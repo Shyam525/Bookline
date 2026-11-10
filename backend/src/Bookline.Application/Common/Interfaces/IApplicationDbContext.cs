@@ -41,6 +41,8 @@ public interface IApplicationDbContext
     DbSet<Payment> Payments { get; }
     DbSet<Refund> Refunds { get; }
     DbSet<IdempotencyRecord> IdempotencyRecords { get; }
+    DbSet<ProviderActivityEvent> ProviderActivityEvents { get; }
+    DbSet<StorefrontFunnelEvent> StorefrontFunnelEvents { get; }
 
     Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database { get; }
 

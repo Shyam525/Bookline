@@ -110,3 +110,4 @@ Configured in `appsettings.json` under `RateLimiting`:
 1. **Never Commit Secrets**: Do not check secrets into git repository.
 2. **Environment Variable Injection**: Inject secrets via Docker Secrets, AWS Secrets Manager, Azure Key Vault, or Kubernetes Secrets.
 3. **Double Underscore Mapping**: In ASP.NET Core, nested JSON configurations correspond to double underscores in environment variable keys (e.g., `JwtSettings__Secret` maps to `JwtSettings:Secret`).
+

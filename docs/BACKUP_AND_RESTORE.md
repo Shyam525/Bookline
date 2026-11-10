@@ -137,3 +137,4 @@ GROUP BY "Status";
 4. Run `pg_restore` into the new primary database.
 5. Update `ConnectionStrings__DefaultConnection` environment variable on application pods.
 6. Verify `/ready` returns HTTP 200.
+

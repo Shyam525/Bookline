@@ -75,7 +75,8 @@ public class Phase7SecurityAndPilotReadinessTests
                 VerificationStatus = VerificationStatus.Verified,
                 ModerationStatus = ModerationStatus.Approved,
                 Currency = "INR",
-                HoldDurationMinutes = 5
+                HoldDurationMinutes = 5,
+                IsDemo = true
             },
             new Tenant
             {
@@ -91,7 +92,8 @@ public class Phase7SecurityAndPilotReadinessTests
                 VerificationStatus = VerificationStatus.Verified,
                 ModerationStatus = ModerationStatus.Approved,
                 Currency = "INR",
-                HoldDurationMinutes = 5
+                HoldDurationMinutes = 5,
+                IsDemo = true
             }
         );
 

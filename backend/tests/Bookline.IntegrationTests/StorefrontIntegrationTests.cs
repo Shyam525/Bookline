@@ -78,17 +78,29 @@ public class StorefrontIntegrationTests : IClassFixture<CustomWebApplicationFact
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<BooklineDbContext>();
-            db.Tenants.Add(new Tenant
+            var existing = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Slug == "hidden-studio");
+            if (existing != null)
             {
-                Id = unpublishedId,
-                Name = "Hidden Studio",
-                Slug = "hidden-studio",
-                IsActive = true,
-                IsPublished = false, // UNPUBLISHED
-                VerificationStatus = VerificationStatus.Pending,
-                City = "Mumbai"
-            });
-            await db.SaveChangesAsync();
+                existing.IsPublished = false;
+                existing.IsActive = true;
+                existing.VerificationStatus = VerificationStatus.Pending;
+                await db.SaveChangesAsync();
+            }
+            else
+            {
+                db.Tenants.Add(new Tenant
+                {
+                    Id = unpublishedId,
+                    Name = "Hidden Studio",
+                    Slug = "hidden-studio",
+                    IsActive = true,
+                    IsPublished = false, // UNPUBLISHED
+                    VerificationStatus = VerificationStatus.Pending,
+                    City = "Mumbai",
+                    IsDemo = true
+                });
+                await db.SaveChangesAsync();
+            }
         }
 
         var response = await _client.GetAsync("/api/v1/public/businesses/hidden-studio");

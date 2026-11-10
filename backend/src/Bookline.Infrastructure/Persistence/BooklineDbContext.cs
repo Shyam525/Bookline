@@ -51,6 +51,8 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<ProviderActivityEvent> ProviderActivityEvents => Set<ProviderActivityEvent>();
+    public DbSet<StorefrontFunnelEvent> StorefrontFunnelEvents => Set<StorefrontFunnelEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +74,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasIndex(t => new { t.City, t.Category, t.IsPublished });
             builder.HasIndex(t => new { t.Latitude, t.Longitude });
             builder.HasIndex(t => new { t.IsActive, t.IsPublished, t.ModerationStatus, t.City, t.AverageRating });
+            builder.HasIndex(t => t.IsDemo);
             builder.Property(t => t.VerificationStatus).HasConversion<string>();
             builder.Property(t => t.ModerationStatus).HasConversion<string>();
             builder.Property(t => t.DepositType).HasConversion<string>();
@@ -101,6 +104,7 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasIndex(b => new { b.StaffId, b.StartUtc, b.EndUtc, b.Status });
             builder.HasIndex(b => new { b.TenantId, b.ServiceId });
             builder.HasIndex(b => new { b.TenantId, b.Status, b.StartUtc });
+            builder.HasIndex(b => new { b.TenantId, b.Status, b.CompletedAtUtc });
             builder.HasIndex(b => new { b.CustomerId, b.StartUtc, b.Status });
             builder.HasIndex(b => b.RelatedOrderId);
             builder.Property(b => b.Status).HasConversion<string>();
@@ -334,6 +338,28 @@ public class BooklineDbContext : DbContext, IApplicationDbContext
             builder.HasKey(i => i.Id);
             builder.HasIndex(i => new { i.Key, i.Operation }).IsUnique();
             builder.HasIndex(i => i.ExpiresAtUtc);
+        });
+
+        modelBuilder.Entity<ProviderActivityEvent>(builder =>
+        {
+            builder.HasKey(e => e.Id);
+            builder.HasIndex(e => new { e.TenantId, e.TimestampUtc });
+            builder.HasIndex(e => new { e.TenantId, e.EventType, e.TimestampUtc });
+            builder.HasIndex(e => new { e.UserId, e.TimestampUtc });
+            builder.Property(e => e.UserRole).HasMaxLength(50);
+            builder.Property(e => e.EventType).HasMaxLength(100);
+            builder.Property(e => e.CorrelationId).HasMaxLength(100);
+            builder.Property(e => e.ClientIp).HasMaxLength(45);
+        });
+
+        modelBuilder.Entity<StorefrontFunnelEvent>(builder =>
+        {
+            builder.HasKey(f => f.Id);
+            builder.HasIndex(f => new { f.TenantId, f.Step, f.TimestampUtc });
+            builder.HasIndex(f => new { f.TenantId, f.VisitorSessionId, f.DateKey, f.Step });
+            builder.Property(f => f.Step).HasMaxLength(50);
+            builder.Property(f => f.VisitorSessionId).HasMaxLength(100);
+            builder.Property(f => f.DateKey).HasMaxLength(10);
         });
 
         // Apply global tenant filter on all TenantEntity types

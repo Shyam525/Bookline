@@ -14,10 +14,12 @@ public record UpdateBookingStatusCommand(Guid BookingId, string Status, string? 
 public class UpdateBookingStatusCommandHandler : IRequestHandler<UpdateBookingStatusCommand>
 {
     private readonly IApplicationDbContext _context;
+    private readonly NodaTime.IClock _clock;
 
-    public UpdateBookingStatusCommandHandler(IApplicationDbContext context)
+    public UpdateBookingStatusCommandHandler(IApplicationDbContext context, NodaTime.IClock? clock = null)
     {
         _context = context;
+        _clock = clock ?? NodaTime.SystemClock.Instance;
     }
 
     public async Task Handle(UpdateBookingStatusCommand request, CancellationToken cancellationToken)
@@ -44,7 +46,8 @@ public class UpdateBookingStatusCommandHandler : IRequestHandler<UpdateBookingSt
                 break;
 
             case "completed":
-                booking.Complete();
+                var completionInstant = _clock.GetCurrentInstant().ToDateTimeOffset();
+                booking.Complete(completionInstant);
                 eventType = "AppointmentCompleted";
                 action = "Booking.Completed";
                 break;
@@ -85,7 +88,7 @@ public class UpdateBookingStatusCommandHandler : IRequestHandler<UpdateBookingSt
                 BookingReference = booking.BookingReference,
                 Status = booking.Status.ToString(),
                 Reason = request.Reason,
-                TimestampUtc = DateTimeOffset.UtcNow
+                TimestampUtc = _clock.GetCurrentInstant().ToDateTimeOffset()
             })
         });
 

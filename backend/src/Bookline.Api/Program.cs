@@ -598,24 +598,20 @@ try
                     ALTER TABLE ""OutboxMessages"" ADD COLUMN IF NOT EXISTS ""NextRetryAtUtc"" timestamp with time zone;
                     ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_overlap;
                     ALTER TABLE ""Bookings"" ADD CONSTRAINT no_overlap
-                      EXCLUDE USING gist (
+                        EXCLUDE USING gist (
                         ""StaffId"" WITH =,
                         tstzrange(""StartUtc"", ""EndUtc"") WITH &&
-                      )
-                      WHERE (""Status"" IN ('Pending','Confirmed'));
+                        )
+                        WHERE (""Status"" IN ('Pending','Confirmed'));
 
                     ALTER TABLE ""Bookings"" DROP CONSTRAINT IF EXISTS no_resource_overlap;
                     ALTER TABLE ""Bookings"" ADD CONSTRAINT no_resource_overlap
-                      EXCLUDE USING gist (
+                        EXCLUDE USING gist (
                         ""ResourceId"" WITH =,
                         tstzrange(""StartUtc"", ""EndUtc"") WITH &&
-                      )
-                      WHERE (""ResourceId"" IS NOT NULL AND ""Status"" IN ('Pending','Confirmed'));
+                        )
+                        WHERE (""ResourceId"" IS NOT NULL AND ""Status"" IN ('Pending','Confirmed'));
                 ");
-            }
-            else
-            {
-                db.Database.EnsureCreated();
             }
 
             // Seed demo tenant if empty
@@ -626,7 +622,8 @@ try
                     Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), 
                     Name = "Bookline Demo Salon", 
                     Slug = "acme-salon",
-                    TimeZoneId = "Asia/Kolkata"
+                    TimeZoneId = "Asia/Kolkata",
+                    IsDemo = true
                 };
 
                 db.Tenants.Add(tenant);

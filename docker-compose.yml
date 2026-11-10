@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgis/postgis:16-3.4-alpine
     container_name: bookline-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: bookline_db
       POSTGRES_USER: postgres
@@ -19,6 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: bookline-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -32,6 +34,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.15
     container_name: bookline-mailpit
+    restart: unless-stopped
     ports:
       - "1026:1025"
       - "8026:8025"

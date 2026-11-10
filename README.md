@@ -60,9 +60,9 @@ The platform architecture, roadmap, and validation frameworks are comprehensivel
 ## 2. Technology Stack & Architecture
 
 - **Backend**:
-  - ASP.NET Core 8 & C# (.NET 8.0)
+  - ASP.NET Core 10 & C# (.NET 10 LTS)
   - Clean Architecture & Modular Domain-Driven Design
-  - Entity Framework Core 8 with PostgreSQL & PostGIS Spatial Extension
+  - Entity Framework Core 10 with PostgreSQL & PostGIS Spatial Extension
   - Redis In-Memory Coordinator (Distributed slot holds & concurrency locks)
   - NodaTime (Temporal precision with IANA timezone boundaries)
   - MediatR CQRS, FluentValidation, Transactional Outbox Pattern
@@ -72,8 +72,8 @@ The platform architecture, roadmap, and validation frameworks are comprehensivel
   - Playfair Display & DM Sans typography
   - TanStack Query, React Router, Lucide Icons, Leaflet / Vector Map
 - **Testing**:
-  - xUnit, FluentAssertions, Architecture tests, Integration harness, Node.js TAP runner
-  - 562 Automated Tests passing with 0 failures (513 backend + 49 frontend)
+  - xUnit, FluentAssertions, Architecture tests, Integration harness, Node.js TAP runner, Playwright
+  - 628 Automated Tests passing with 0 failures (556 backend + 62 frontend + 10 Playwright E2E)
   - Unit tests for Phase 3: Shared conflict scheduling (`IAppointmentSchedulingService`), manual appointment creation, historical snapshots, customer deduplication, and lifecycle transitions.
 
 ---
@@ -108,6 +108,13 @@ This launches:
 - **postgres**: PostgreSQL 16 + PostGIS extension on `localhost:5432`
 - **redis**: Redis coordinator for holds and cache on `localhost:6379`
 - **mailpit**: Local SMTP relay & Webmail UI on [http://localhost:8026](http://localhost:8026)
+
+#### Docker & WSL2 Networking Architecture
+In a Windows/WSL2 hybrid development environment:
+- Docker containers run within the Linux kernel in WSL2 and publish ports to `0.0.0.0` inside WSL.
+- Windows host connects seamlessly to `localhost:5432` and `localhost:6379` via WSL2 automated localhost forwarding (or via the direct WSL vEthernet adapter IP, e.g. `$(wsl hostname -I).Split(' ')[0]`).
+- No undocumented background `socat` proxies or custom Windows `netsh` portproxy rules are required.
+- Keep-alive: Ensure WSL2 remains active during long-running background tasks. If WSL idle suspension occurs, keep the VM active or access services directly via the WSL IP.
 
 ### Option B: Local Step-by-Step Development
 

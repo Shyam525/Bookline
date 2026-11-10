@@ -1,6 +1,6 @@
 # Bookline — Phase 7.6.1 Verification and Correction Report
 
-**Date**: November 10, 2026  
+**Date**: November 11, 2026  
 **Auditor**: Antigravity Autonomous Engineering Agent  
 **Repository Branch**: `main`  
 **Target Platform**: .NET 10 LTS (Stable `10.0.401` SDK / `10.0.12` Runtime)  
@@ -25,23 +25,26 @@ All 6 test suites across the backend, frontend, and browser E2E workflows were e
 
 ---
 
-## 2. Verified Scorecard Table
+## 2. Final Corrected Readiness Scorecard
 
-| Metric | Reported in 7.6 | Verified in 7.6.1 | Verification Method | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **Stable .NET 10 LTS Runtime** | Listed `10.0-preview` images | `mcr.microsoft.com/dotnet/sdk:10.0` & `aspnet:10.0` | Inspected Dockerfile, CI workflow, `Directory.Build.props` | **CORRECTED & VERIFIED** |
-| **Clean Solution Build** | 0 warnings, 0 errors | 0 warnings, 0 errors (Debug & Release) | `dotnet build backend/Bookline.slnx -c Release` | **VERIFIED** |
-| **Domain Unit Tests** | 23 passed | 23 passed, 0 failed, 34 ms | `dotnet test backend/tests/Bookline.Domain.UnitTests` | **VERIFIED** |
-| **Application Unit Tests** | 424 passed | 424 passed, 0 failed, 5 s | `dotnet test backend/tests/Bookline.Application.UnitTests` | **VERIFIED** |
-| **Infrastructure Unit Tests** | 63 passed | 63 passed, 0 failed, 1 s | `dotnet test backend/tests/Bookline.Infrastructure.UnitTests` | **VERIFIED** |
-| **Integration Tests** | 46 passed | 46 passed, 0 failed, 8 s | `dotnet test backend/tests/Bookline.IntegrationTests` (PostgreSQL) | **VERIFIED** |
-| **Frontend Unit Tests** | 62 passed | 62 passed, 0 failed, 340.9 ms | `npm test` in `frontend/` (Node test runner) | **VERIFIED** |
-| **Playwright E2E Tests** | 10 passed | 10 passed, 0 failed, 18.7 s | `npx playwright test` in `frontend/` | **VERIFIED** |
-| **Postgres Exclusion Constraints** | Reported active | Active (`no_overlap`, `no_resource_overlap` via `btree_gist`) | Verified in PostgreSQL schema & concurrency tests | **VERIFIED** |
-| **Real Pilot Businesses Onboarded** | 0 | **0** | Verified zero non-demo tenants in database | **VERIFIED** |
-| **Synthetic Demo Tenants Quarantined** | `IsDemo` column added | Quarantined via `Phase7_6_TelemetryAndFunnel` migration | Explicit data migration SQL & KPI filter queries | **VERIFIED** |
-| **Outbox Processor Reliable** | Yes | Verified transactional outbox worker & retry backoff | `OutboxAndReminderWorker` background tests | **VERIFIED** |
-| **Staging Configuration Verified** | Live public deployment | **Configuration prepared** | Inspected compose, nginx conf, and .env template | **CORRECTED & CLASSIFIED** |
+| Area | Status | Notes & Verification Evidence |
+| :--- | :--- | :--- |
+| **Stable .NET 10 runtime** | **PASS** | .NET SDK `10.0.401`, ASP.NET runtime `10.0.12`, 0 warnings, 0 errors |
+| **Docker stable images** | **PASS** | `mcr.microsoft.com/dotnet/sdk:10.0` & `aspnet:10.0`, verified build & run |
+| **All DB migrations** | **PASS** | `Phase7_6_TelemetryAndFunnel` covers all tables, columns, indexes, data migrations |
+| **Fresh database test** | **PASS** | Successfully applied all migrations from scratch against fresh database |
+| **Existing database upgrade test** | **PASS** | Successfully upgraded pre-Phase-7.6 schema and verified rollback `Down()` |
+| **Demo-data quarantine** | **PASS** | Synthetic demo businesses quarantined (`IsDemo = true`), excluded from metrics |
+| **Booking completion time** | **PASS** | Injected `NodaTime.IClock`, validated transitions, immutable `CompletedAtUtc` |
+| **Telemetry authorization** | **PASS** | Server-derived tenant context, rate limiting, session ID validation, anti-spoofing |
+| **Server-generated booking funnel events** | **PASS** | `HoldCreated` and `BookingConfirmed` generated authoritatively server-side |
+| **Docker reproducibility** | **PASS** | Docker Compose with healthy PostgreSQL, Redis, Mailpit; .dockerignore configured |
+| **Full backend test suite** | **PASS** | 556 / 556 passing across Domain (23), Application (424), Infra (63), Integration (46) |
+| **Frontend tests** | **PASS** | 62 / 62 passing in Node test runner (`npm test`) |
+| **Playwright E2E suite** | **PASS** | 10 / 10 passing operational workflows against running application |
+| **Staging configuration** | **PASS** | Syntactically verified compose, nginx TLS reverse proxy, env template |
+| **Public HTTPS deployment** | **NOT DEPLOYED** | Classified as "Configuration prepared"; pending cloud host provisioning & DNS |
+| **Real pilot businesses** | **0 (VERIFIED COUNT)** | Verified zero real businesses onboarded; prospective pipeline tracked |
 
 ---
 
@@ -185,3 +188,4 @@ Bookline is technically and architecturally ready for its first controlled provi
 - Strict isolation of synthetic demo data from pilot metrics.
 
 **Requirement**: Do NOT proceed to Phase 8 until actual Gujarat business onboarding notes and real operational evidence are provided.
+
